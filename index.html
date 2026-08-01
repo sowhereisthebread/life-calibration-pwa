@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1220">
+    <meta name="description" content="手機優先、資料留在本機的人生記錄工具。">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="人生主控表">
+    <title>人生主控表・校準版</title>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" sizes="192x192">
+    <link rel="stylesheet" href="./style.css">
+    <script src="./data-store.js" defer></script>
+    <script src="./app.js?v=0.2.1" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要內容</a>
+
+    <div id="app" class="app-shell">
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">人</div>
+        <div>
+          <p class="eyebrow">校準版 v0.2</p>
+          <h1>人生主控表</h1>
+        </div>
+        <div id="today-date" class="header-date" aria-label="今天日期"></div>
+      </header>
+
+      <aside id="backup-reminder" class="notice notice-warning" hidden>
+        <div>
+          <strong>記得備份本機資料</strong>
+          <p>瀏覽器可能清理網站資料，建議現在匯出一份 JSON。</p>
+        </div>
+        <div class="notice-actions">
+          <button id="skip-backup-reminder" type="button" class="button button-quiet">本次略過</button>
+          <button type="button" class="button button-quiet" data-go-page="data">前往資料頁</button>
+        </div>
+      </aside>
+
+      <main id="main-content" tabindex="-1">
+        <section id="page-today" class="page is-active" data-page="today" aria-labelledby="today-heading">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">把今天記下來</p>
+              <h2 id="today-heading">今天</h2>
+            </div>
+            <span id="autosave-status" class="save-state" aria-live="polite">輸入即存</span>
+          </div>
+
+          <div class="quick-summary" aria-label="今日摘要">
+            <div><span>工時</span><strong id="today-work-total">0 小時</strong></div>
+            <div><span>收支</span><strong id="today-net-total">NT$ 0</strong></div>
+          </div>
+
+          <article class="card" aria-labelledby="sleep-heading">
+            <div class="card-heading">
+              <div>
+                <p class="step-label">01・睡眠</p>
+                <h3 id="sleep-heading">昨晚睡得如何？</h3>
+              </div>
+              <strong id="sleep-total" class="card-number">—</strong>
+            </div>
+            <div class="time-grid">
+              <label class="field">
+                <span>就寢時間</span>
+                <span class="input-action-row">
+                  <input id="sleep-bedtime" type="time" autocomplete="off">
+                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-bedtime">現在</button>
+                </span>
+              </label>
+              <label class="field">
+                <span>起床時間</span>
+                <span class="input-action-row">
+                  <input id="sleep-wake" type="time" autocomplete="off">
+                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-wake">現在</button>
+                </span>
+              </label>
+            </div>
+          </article>
+
+          <article class="card card-accent" aria-labelledby="work-heading">
+            <div class="card-heading">
+              <div>
+                <p class="step-label">02・工作</p>
+                <h3 id="work-heading">今天的工作段</h3>
+              </div>
+              <span id="work-status" class="status-pill">尚未上班</span>
+            </div>
+            <button id="punch-button" type="button" class="button button-primary button-full">上班打卡</button>
+            <div id="work-sessions" class="record-list" aria-live="polite"></div>
+          </article>
+
+          <article class="card" aria-labelledby="money-heading">
+            <div class="card-heading">
+              <div>
+                <p class="step-label">03・收支</p>
+                <h3 id="money-heading">新增一筆</h3>
+              </div>
+              <span class="helper">可留空，之後再補</span>
+            </div>
+            <form id="transaction-form" class="stack-form" novalidate>
+              <div class="two-column">
+                <label class="field">
+                  <span>收入或支出</span>
+                  <select id="transaction-type">
+                    <option value="expense">支出</option>
+                    <option value="income">收入</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>金額</span>
+                  <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
+                </label>
+              </div>
+              <label class="field">
+                <span>分類</span>
+                <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：餐飲">
+                <datalist id="category-options"></datalist>
+              </label>
+              <label class="field">
+                <span>備註</span>
+                <input id="transaction-note" type="text" autocomplete="off" placeholder="選填，一行就好">
+              </label>
+              <button type="submit" class="button button-secondary button-full">新增這筆收支</button>
+            </form>
+            <div id="transaction-list" class="record-list" aria-live="polite"></div>
+          </article>
+
+          <article class="card" aria-labelledby="recovery-heading">
+            <div class="card-heading">
+              <div>
+                <p class="step-label">04・恢復</p>
+                <h3 id="recovery-heading">什麼讓你恢復一點？</h3>
+              </div>
+            </div>
+            <label class="field">
+              <span>做了什麼</span>
+              <input id="recovery-activity" type="text" autocomplete="off" placeholder="散步、午睡、和朋友聊聊…">
+            </label>
+            <label class="field">
+              <span>效果</span>
+              <select id="recovery-effect">
+                <option value="">尚未評分</option>
+                <option value="1">1・幾乎沒幫助</option>
+                <option value="2">2・有一點</option>
+                <option value="3">3・普通</option>
+                <option value="4">4・有幫助</option>
+                <option value="5">5・很有幫助</option>
+              </select>
+            </label>
+          </article>
+
+          <article class="card" aria-labelledby="note-heading">
+            <div class="card-heading compact-heading">
+              <h3 id="note-heading">今天備註</h3>
+            </div>
+            <label class="field visually-labeled">
+              <span>一句話備註</span>
+              <input id="daily-note" type="text" autocomplete="off" placeholder="今天還想記住什麼？">
+            </label>
+          </article>
+        </section>
+
+        <section id="page-projects" class="page" data-page="projects" aria-labelledby="projects-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">開電腦後先看這裡</p>
+              <h2 id="projects-heading">專案</h2>
+            </div>
+            <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">新增專案</button>
+          </div>
+
+          <form id="project-form" class="card stack-form" hidden novalidate>
+            <h3>新增一個專案</h3>
+            <label class="field">
+              <span>專案名稱</span>
+              <input id="project-name" type="text" autocomplete="off" placeholder="未命名專案">
+            </label>
+            <label class="field">
+              <span>下一步</span>
+              <input id="project-next-step" type="text" autocomplete="off" placeholder="下一個可以直接動手的動作">
+            </label>
+            <div class="form-actions">
+              <button type="button" id="cancel-project" class="button button-quiet">取消</button>
+              <button type="submit" class="button button-primary">加入專案</button>
+            </div>
+          </form>
+
+          <div id="project-list" class="project-list" aria-live="polite"></div>
+        </section>
+
+        <section id="page-review" class="page" data-page="review" aria-labelledby="review-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">最近七天</p>
+              <h2 id="review-heading">回顧</h2>
+            </div>
+          </div>
+
+          <div class="metric-grid" aria-label="最近七天摘要">
+            <article class="metric"><span>平均睡眠</span><strong id="metric-sleep">—</strong></article>
+            <article class="metric"><span>總工時</span><strong id="metric-work">0 小時</strong></article>
+            <article class="metric"><span>支出合計</span><strong id="metric-expense">NT$ 0</strong></article>
+            <article class="metric"><span>有記錄</span><strong id="metric-days">0 天</strong></article>
+          </div>
+          <div id="review-list" class="review-list"></div>
+        </section>
+
+        <section id="page-data" class="page" data-page="data" aria-labelledby="data-heading" hidden>
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">只存在這台裝置</p>
+              <h2 id="data-heading">資料</h2>
+            </div>
+          </div>
+
+          <aside class="notice notice-info">
+            <div>
+              <strong>固定使用同一台裝置、同一個網址與同一個瀏覽器</strong>
+              <ul class="data-scope-list">
+                <li>雙擊、localhost 與區網 IP 各自保存不同資料。</li>
+                <li>從雙擊模式改成伺服器模式時，資料不會自動搬過去。</li>
+                <li>電腦與手機之間不會同步。</li>
+                <li>iPhone 請務必用「加入主畫面」的版本記錄，不要用 Safari 分頁，否則資料較容易被系統清除。</li>
+                <li>更換網址、IP、通訊埠、瀏覽器或裝置前，先匯出 JSON。</li>
+              </ul>
+            </div>
+          </aside>
+
+          <article class="card data-card">
+            <h3>備份與帶走</h3>
+            <p>JSON 能完整還原；CSV 適合用 Excel 查看每日摘要。</p>
+            <button id="export-json" type="button" class="button button-primary button-full">匯出完整 JSON</button>
+            <button id="export-csv" type="button" class="button button-secondary button-full">匯出每日 CSV</button>
+            <label class="button button-quiet button-full file-button" for="import-json">匯入 JSON</label>
+            <input id="import-json" class="visually-hidden" type="file" accept="application/json,.json">
+            <p id="last-export" class="helper">尚未匯出備份</p>
+          </article>
+
+          <article class="card data-card">
+            <h3>目前資料位置</h3>
+            <dl class="data-facts">
+              <div><dt>網址</dt><dd id="current-origin"></dd></div>
+              <div><dt>儲存方式</dt><dd>這個瀏覽器的本機空間</dd></div>
+              <div><dt>同步</dt><dd>不會跨裝置同步</dd></div>
+            </dl>
+          </article>
+
+          <article class="card danger-zone">
+            <h3>清除全部資料</h3>
+            <p>只會清除目前這個網址與瀏覽器內的人生主控表資料。</p>
+            <button id="clear-data" type="button" class="button button-danger button-full">清除全部資料</button>
+          </article>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="主要分頁">
+        <button type="button" class="nav-item is-active" data-page-target="today" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v3M16 2v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+          <span>今天</span>
+        </button>
+        <button type="button" class="nav-item" data-page-target="projects">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6l2 2h8v12H4Z"/></svg>
+          <span>專案</span>
+        </button>
+        <button type="button" class="nav-item" data-page-target="review">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7"/></svg>
+          <span>回顧</span>
+        </button>
+        <button type="button" class="nav-item" data-page-target="data">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 19h14"/></svg>
+          <span>資料</span>
+        </button>
+      </nav>
+    </div>
+
+    <div id="confirm-modal" class="modal" hidden>
+      <div class="modal-scrim" data-modal-cancel></div>
+      <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
+        <p class="eyebrow">需要確認</p>
+        <h2 id="modal-title">確認操作</h2>
+        <p id="modal-message"></p>
+        <div class="modal-actions">
+          <button type="button" class="button button-quiet" data-modal-cancel>取消</button>
+          <button id="modal-confirm" type="button" class="button button-danger">繼續</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

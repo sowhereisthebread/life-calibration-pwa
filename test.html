@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>人生主控表・資料層測試</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { max-width: 760px; margin: 0 auto; padding: 24px; background: #07101e; color: #f2f7fb; line-height: 1.6; }
+      h1 { font-size: 1.6rem; }
+      .summary { padding: 16px; border: 1px solid #2b405a; border-radius: 14px; background: #111f34; }
+      li { margin: 8px 0; }
+      .pass { color: #5ee6c6; }
+      .fail { color: #ff8b94; }
+    </style>
+  </head>
+  <body>
+    <h1>資料層自動測試</h1>
+    <p id="summary" class="summary">測試執行中…</p>
+    <ol id="results"></ol>
+    <script src="data-store.js"></script>
+    <script src="app.js"></script>
+    <script>
+      (() => {
+        "use strict";
+        const Core = window.LifeCalibrationCore;
+        const results = [];
+
+        function test(name, action) {
+          try {
+            action();
+            results.push({ name, pass: true });
+          } catch (error) {
+            results.push({ name, pass: false, error: error.message });
+          }
+        }
+
+        function equal(actual, expected) {
+          if (actual !== expected) throw new Error(`預期 ${expected}，實際 ${actual}`);
+        }
+
+        function createMemoryStore() {
+          const values = new Map();
+          const storage = {
+            getItem: key => values.has(key) ? values.get(key) : null,
+            setItem: (key, value) => values.set(key, String(value)),
+            removeItem: key => values.delete(key)
+          };
+          return window.LifeCalibrationData.create({
+            core: Core,
+            storage,
+            now: () => new Date("2026-08-01T12:00:00+08:00")
+          });
+        }
+
+        test("空白資料具有版本欄位", () => equal(Core.createEmptyState().version, 1));
+        test("預設分類依指定順序且生活排第一", () => equal(Core.DEFAULT_CATEGORIES.join("、"), "生活、餐飲、交通、居家、醫療、其他"));
+        test("沒有自訂紀錄時新增分類預設為生活", () => equal(Core.preferredTransactionCategory(Core.createEmptyState()), "生活"));
+        test("曾使用自訂分類時優先帶入最近一項", () => {
+          const state = Core.createEmptyState();
+          state.customCategories.push("寵物");
+          state.lastCustomCategory = "寵物";
+          equal(Core.preferredTransactionCategory(state), "寵物");
+        });
+        test("備份提醒略過後當天不再顯示、隔天恢復", () => {
+          const state = Core.createEmptyState(new Date("2026-07-01T00:00:00+08:00"));
+          state.days["2026-08-01"] = Core.createEmptyDay();
+          state.days["2026-08-01"].note = "有資料";
+          state.meta.backupSnoozedDate = "2026-08-01";
+          equal(Core.shouldShowBackupReminder(state, "2026-08-01", new Date("2026-08-01T12:00:00+08:00").getTime()), false);
+          equal(Core.shouldShowBackupReminder(state, "2026-08-02", new Date("2026-08-02T12:00:00+08:00").getTime()), true);
+        });
+        test("跨午夜睡眠 23:30–07:00 為 450 分鐘", () => equal(Core.durationBetweenTimes("23:30", "07:00"), 450));
+        test("缺少時間時不產生錯誤數字", () => equal(Core.durationBetweenTimes("09:00", ""), null));
+        test("未完成工作段不計工時", () => equal(Core.workMinutes([{ start: "09:00", end: "17:00" }, { start: "18:00", end: "" }]), 480));
+        test("收入減支出得到正確淨額", () => equal(Core.dayNet({ transactions: [{ type: "income", amount: 1000 }, { type: "expense", amount: 350 }] }), 650));
+        test("最近七天固定產生七列", () => equal(Core.summarizeReview(Core.createEmptyState(), "2026-08-01").rows.length, 7));
+        test("CSV 會包住逗號並跳脫雙引號", () => equal(Core.csvEscape('餐飲,"晚餐"'), '"餐飲,""晚餐"""'));
+        test("CSV 每日輸出包含中文標題", () => {
+          const state = Core.createEmptyState();
+          state.days["2026-08-01"] = Core.createEmptyDay();
+          if (!Core.buildCsv(state).startsWith("日期,就寢時間,起床時間")) throw new Error("缺少預期標題");
+        });
+        test("合法匯入資料通過版本檢查", () => equal(Core.validateImportedState(Core.createEmptyState()).valid, true));
+        test("錯誤版本不會通過匯入檢查", () => equal(Core.validateImportedState({ version: 99, days: {}, projects: [] }).valid, false));
+        test("資料模組可讀寫每日欄位且回傳副本", () => {
+          const store = createMemoryStore();
+          store.writeDayField("2026-08-01", "note", "測試");
+          const day = store.readDay("2026-08-01");
+          equal(day.note, "測試");
+          day.note = "外部修改";
+          equal(store.readDay("2026-08-01").note, "測試");
+        });
+        test("資料模組支援新增修改刪除收支", () => {
+          const store = createMemoryStore();
+          store.addTransaction("2026-08-01", { id: "money-1", type: "expense", amount: 50, category: "寵物", note: "" });
+          store.updateTransaction("2026-08-01", "money-1", { amount: 80 });
+          equal(store.readDay("2026-08-01").transactions[0].amount, 80);
+          equal(store.readState().lastCustomCategory, "寵物");
+          store.deleteTransaction("2026-08-01", "money-1");
+          equal(store.readDay("2026-08-01").transactions.length, 0);
+        });
+        test("資料模組支援工作段增修刪", () => {
+          const store = createMemoryStore();
+          store.addWorkSession("2026-08-01", { id: "work-1", start: "09:00", end: "" });
+          store.updateWorkSession("2026-08-01", "work-1", { end: "17:00" });
+          equal(store.readDay("2026-08-01").workSessions[0].end, "17:00");
+          store.deleteWorkSession("2026-08-01", "work-1");
+          equal(store.readDay("2026-08-01").workSessions.length, 0);
+        });
+        test("資料模組支援專案增修刪", () => {
+          const store = createMemoryStore();
+          store.addProject({ id: "project-1", name: "測試", status: "active", nextStep: "第一步", updatedAt: "" });
+          store.updateProject("project-1", { status: "paused" });
+          equal(store.readState().projects[0].status, "paused");
+          store.deleteProject("project-1");
+          equal(store.readState().projects.length, 0);
+        });
+        test("資料模組匯入失敗時保留原資料", () => {
+          const store = createMemoryStore();
+          store.writeDayField("2026-08-01", "note", "保留我");
+          try { store.importState({ version: 99, days: {}, projects: [] }); } catch (_) {}
+          equal(store.readDay("2026-08-01").note, "保留我");
+        });
+        test("資料模組可完整匯出並清除", () => {
+          const store = createMemoryStore();
+          store.writeDayField("2026-08-01", "note", "匯出測試");
+          store.addTransaction("2026-08-01", { id: "money-clear", type: "expense", amount: 50, category: "寵物", note: "" });
+          if (!store.exportJson().includes("匯出測試")) throw new Error("JSON 未包含資料");
+          if (!store.exportCsv().startsWith("日期,就寢時間")) throw new Error("CSV 標題錯誤");
+          store.clear();
+          equal(store.readDay("2026-08-01").note, "");
+          equal(Core.preferredTransactionCategory(store.readState()), "生活");
+        });
+
+        const passed = results.filter(result => result.pass).length;
+        document.getElementById("summary").textContent = `${passed} / ${results.length} 項通過`;
+        document.getElementById("summary").classList.add(passed === results.length ? "pass" : "fail");
+        document.getElementById("results").innerHTML = results.map(result =>
+          `<li class="${result.pass ? "pass" : "fail"}">${result.pass ? "通過" : "未通過"}｜${result.name}${result.error ? `｜${result.error}` : ""}</li>`
+        ).join("");
+        document.title = passed === results.length ? "全部通過｜人生主控表測試" : "測試未通過｜人生主控表測試";
+      })();
+    </script>
+  </body>
+</html>

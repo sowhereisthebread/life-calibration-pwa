@@ -1,0 +1,10 @@
+# 作業系統暫存檔
+.DS_Store
+Thumbs.db
+
+# 人生主控表匯出檔含個人記錄，永遠不要提交
+/人生主控表_*.json
+/人生主控表_*.csv
+/*備份*.json
+/backup/
+/backups/
