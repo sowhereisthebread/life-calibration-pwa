@@ -20,6 +20,7 @@
 3. 在 Local path 只選擇：
    `C:\Users\user\OneDrive\文件\Claude\Projects\life-calibration`
 4. 按 **Add repository**。確認 GitHub Desktop 顯示的 repo 是 `life-calibration`，且檔案清單沒有交易系統、產業鏈或其他知識庫目錄。
+   - 若 GitHub Desktop 顯示 `unsafe repository` 或 `dubious ownership`，先停止並回到 Codex 處理精確的 App repo 信任設定；不要信任上一層工作區，也不要使用涵蓋所有 repo 的萬用設定。
 5. 點上方 **Publish repository**。
 6. Name 可填 `life-calibration-pwa`。
 7. **取消勾選 Keep this code private**，讓 repo 成為 public，再按 **Publish repository**。這個 repo 不含日常記錄，不需要為 Pages 升級付費方案。
