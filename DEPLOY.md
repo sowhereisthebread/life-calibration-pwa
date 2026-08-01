@@ -1,6 +1,6 @@
 # 人生主控表：GitHub Pages 部署步驟
 
-本文件集中列出所有需要 Tako 親自操作的步驟。Codex 不會代你登入、建立 GitHub repo 或按下發布。
+本 App 已於 2026-08-01 完成發布並在 iPhone 加入主畫面；正式網址為 https://sowhereisthebread.github.io/life-calibration-pwa/，public repo 為 `sowhereisthebread/life-calibration-pwa`。本文件保留首次部署、重新安裝與後續更新指引。
 
 ## 發布範圍與資料安全
 
@@ -35,7 +35,7 @@
 12. 本 App 的正確網址會是：
     `https://<你的 GitHub 帳號>.github.io/<repo 名稱>/`
     例如 repo 名稱是 `life-calibration-pwa`，網址就是 `https://<帳號>.github.io/life-calibration-pwa/`。App 已位於 repo 根目錄，不要再加 `/life-calibration/`。
-13. 用電腦瀏覽器開啟正式網址，確認能看到「人生主控表」，再把網址填入 `README.md` 的 `#待補` 位置。
+13. 用電腦瀏覽器開啟正式網址，確認能看到「人生主控表」，並確認 `README.md` 記載的是同一個網址。
 
 若超過 10 分鐘仍未出現，先看 repo 上方的 **Actions** 是否有 Pages 建置失敗；若超過一小時仍未完成，再依失敗訊息排查。
 

@@ -1,6 +1,7 @@
 # 人生主控表・校準版
 
-- 正式網址：`#待補 https://<帳號>.github.io/<repo>/`
+- 正式網址：https://sowhereisthebread.github.io/life-calibration-pwa/
+- GitHub repo：`sowhereisthebread/life-calibration-pwa`（public）
 - 正式使用：部署完成後固定從上列 HTTPS 網址進入；第一次部署、後續更新與 iPhone 安裝步驟請依 [DEPLOY.md](DEPLOY.md)。
 - 電腦：可直接雙擊 `index.html`；建議在已安裝 Python 的電腦雙擊 `start.bat`（Windows）或執行 `./start.sh`（macOS／Linux），再開啟畫面顯示的 `http://localhost:8000`。
 - 手機：電腦與手機連同一個 Wi-Fi，保持啟動腳本視窗開著，再於手機輸入腳本顯示的區網網址；區網 HTTP 目前不能安裝或離線。
