@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.1" defer></script>
+    <script src="./app.js?v=0.3.3" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +25,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.3</p>
+          <p class="eyebrow">v0.3.3</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="32" height="32" alt="">
@@ -54,7 +54,74 @@
             <div class="section-heading"><h3 id="money-radar-heading">RADAR</h3></div>
             <div id="money-radar-list" class="radar-list"></div>
           </section>
-          <div id="money-content"></div>
+          <div id="money-content">
+            <article id="money-card" class="card" aria-labelledby="money-heading">
+              <div class="card-heading">
+                <div>
+                  <p class="step-label">QUICK ADD</p>
+                  <h3 id="money-heading">Add transaction</h3>
+                </div>
+                <span class="helper">可留空，之後再補</span>
+              </div>
+              <form id="transaction-form" class="stack-form" novalidate>
+                <div class="two-column">
+                  <label class="field">
+                    <span>Type</span>
+                    <select id="transaction-type">
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                      <option value="transfer">Transfer</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Amount</span>
+                    <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
+                  </label>
+                </div>
+                <div id="expense-fields" class="stack-form">
+                  <fieldset class="category-fieldset">
+                    <legend>Category</legend>
+                    <div id="category-buttons" class="category-buttons"></div>
+                  </fieldset>
+                  <label class="field">
+                    <span>Category name</span>
+                    <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：吃飯">
+                  </label>
+                  <datalist id="category-options"></datalist>
+                  <label class="field">
+                    <span>Paid with</span>
+                    <select id="transaction-payment-method">
+                      <option value="card">Card</option>
+                      <option value="cash">Cash</option>
+                      <option value="bank">Bank</option>
+                    </select>
+                  </label>
+                </div>
+                <div id="income-fields" class="two-column" hidden>
+                  <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off" placeholder="工資／投資／其他"></label>
+                  <label class="field"><span>Account</span><select id="transaction-income-account"></select></label>
+                </div>
+                <div id="transfer-fields" class="two-column" hidden>
+                  <label class="field"><span>From</span><select id="transaction-from-account"></select></label>
+                  <label class="field"><span>To</span><select id="transaction-to-account"></select></label>
+                </div>
+                <label class="field">
+                  <span>Title</span>
+                  <input id="transaction-note" type="text" autocomplete="off" placeholder="選填">
+                </label>
+                <button type="submit" class="button button-primary button-full">Add</button>
+              </form>
+              <details class="recess-group category-manager-wrap">
+                <summary>Manage categories</summary>
+                <form id="category-form" class="input-action-row" novalidate>
+                  <label class="visually-hidden" for="category-name">New category</label>
+                  <input id="category-name" type="text" autocomplete="off" placeholder="New category">
+                  <button type="submit" class="button button-secondary">Add</button>
+                </form>
+                <div id="category-manager" class="category-manager"></div>
+              </details>
+            </article>
+          </div>
           <section class="card accounts-panel" aria-labelledby="accounts-heading">
             <div class="section-heading"><h3 id="accounts-heading">ACCOUNTS</h3></div>
             <div id="account-balances" class="account-balances"></div>
@@ -80,7 +147,9 @@
           </section>
           <section class="card" aria-labelledby="recent-heading">
             <div class="section-heading"><h3 id="recent-heading">RECENT</h3></div>
-            <div id="recent-transactions"></div>
+            <div id="recent-transactions">
+              <div id="transaction-list" class="record-list" aria-live="polite"></div>
+            </div>
           </section>
         </section>
 
@@ -95,6 +164,18 @@
               <button id="toggle-schedule" type="button" class="button button-secondary" aria-expanded="false" aria-controls="schedule-section">Schedule</button>
             </div>
           </div>
+
+          <article id="work-card" class="card card-accent" aria-labelledby="work-heading">
+            <div class="card-heading">
+              <div>
+                <p class="step-label">01・工作</p>
+                <h3 id="work-heading">今天的工作段</h3>
+              </div>
+              <span id="work-status" class="status-pill">尚未上班</span>
+            </div>
+            <button id="punch-button" type="button" class="button button-primary button-full">上班打卡</button>
+            <div id="work-sessions" class="record-list" aria-live="polite"></div>
+          </article>
 
           <div id="work-summary" class="quick-summary" aria-label="工作與收入摘要">
             <div><span>Hours today</span><strong id="today-work-total">0 小時</strong></div>
@@ -128,86 +209,6 @@
                 </span>
               </label>
             </div>
-          </article>
-
-          <article id="work-card" class="card card-accent" aria-labelledby="work-heading">
-            <div class="card-heading">
-              <div>
-                <p class="step-label">01・工作</p>
-                <h3 id="work-heading">今天的工作段</h3>
-              </div>
-              <span id="work-status" class="status-pill">尚未上班</span>
-            </div>
-            <button id="punch-button" type="button" class="button button-primary button-full">上班打卡</button>
-            <div id="work-sessions" class="record-list" aria-live="polite"></div>
-          </article>
-
-          <article id="money-card" class="card" aria-labelledby="money-heading">
-            <div class="card-heading">
-              <div>
-                <p class="step-label">QUICK ADD</p>
-                <h3 id="money-heading">Add transaction</h3>
-              </div>
-              <span class="helper">可留空，之後再補</span>
-            </div>
-            <form id="transaction-form" class="stack-form" novalidate>
-              <div class="two-column">
-                <label class="field">
-                  <span>Type</span>
-                  <select id="transaction-type">
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                    <option value="transfer">Transfer</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>Amount</span>
-                  <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
-                </label>
-              </div>
-              <div id="expense-fields" class="stack-form">
-                <fieldset class="category-fieldset">
-                  <legend>Category</legend>
-                  <div id="category-buttons" class="category-buttons"></div>
-                </fieldset>
-                <label class="field">
-                  <span>Category name</span>
-                  <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：吃飯">
-                </label>
-                <datalist id="category-options"></datalist>
-                <label class="field">
-                  <span>Paid with</span>
-                  <select id="transaction-payment-method">
-                    <option value="card">Card</option>
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank</option>
-                  </select>
-                </label>
-              </div>
-              <div id="income-fields" class="two-column" hidden>
-                <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off" placeholder="工資／投資／其他"></label>
-                <label class="field"><span>Account</span><select id="transaction-income-account"></select></label>
-              </div>
-              <div id="transfer-fields" class="two-column" hidden>
-                <label class="field"><span>From</span><select id="transaction-from-account"></select></label>
-                <label class="field"><span>To</span><select id="transaction-to-account"></select></label>
-              </div>
-              <label class="field">
-                <span>Title</span>
-                <input id="transaction-note" type="text" autocomplete="off" placeholder="選填">
-              </label>
-              <button type="submit" class="button button-primary button-full">Add</button>
-            </form>
-            <details class="recess-group category-manager-wrap">
-              <summary>Manage categories</summary>
-              <form id="category-form" class="input-action-row" novalidate>
-                <label class="visually-hidden" for="category-name">New category</label>
-                <input id="category-name" type="text" autocomplete="off" placeholder="New category">
-                <button type="submit" class="button button-secondary">Add</button>
-              </form>
-              <div id="category-manager" class="category-manager"></div>
-            </details>
-            <div id="transaction-list" class="record-list" aria-live="polite"></div>
           </article>
 
           <article class="card" aria-labelledby="recovery-heading">
@@ -410,7 +411,6 @@
             <h3 id="settings-heading">SETTINGS</h3>
             <div class="two-column">
               <label class="field"><span>Radar days ahead</span><input id="settings-radar-days" type="number" min="0" step="1" inputmode="numeric"></label>
-              <label class="field"><span>Monthly income target</span><input id="settings-income-target" type="number" min="0" step="1" inputmode="decimal"></label>
             </div>
             <p class="helper">Mileage reminders and service thresholds are saved with each mileage obligation.</p>
           </article>

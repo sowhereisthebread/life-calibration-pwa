@@ -1,11 +1,11 @@
-const CACHE_NAME = "life-calibration-v0.3.2";
+const CACHE_NAME = "life-calibration-v0.3.3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./data-core.js",
   "./data-store.js",
-  "./app.js?v=0.3.1",
+  "./app.js?v=0.3.3",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

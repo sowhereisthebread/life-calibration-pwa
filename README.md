@@ -1,13 +1,13 @@
 # 人生主控表・校準版
 
-目前正式版本為 v0.3.1：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。v0.2 的瀏覽器資料與匯出 JSON 會自動升級為資料版本 2，儲存鍵仍為 `lifeCalibrationData`。
+目前正式版本為 v0.3.3：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。v0.2 的瀏覽器資料與匯出 JSON 會自動升級為資料版本 2，儲存鍵仍為 `lifeCalibrationData`。
 
 - MONEY：快速記帳、收入與帳戶移轉、帳戶餘額、自訂帳戶新增／改名／封存／解封、本月分類圖與最近交易；預設三帳戶可改名但永遠啟用。
 - WORK：打卡、本月收入目標、睡眠、恢復、備註與固定課表。
 - PROJECTS：專案、可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、書單與冷凍項目。
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
-- DATA：雷達提前天數與月收入目標設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
-- 發布狀態：v0.3.1 已於 2026-08-02 推送並部署至既有 GitHub Pages，電腦端線上驗證與 iPhone 實機驗收均已通過。
+- DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
+- 發布狀態：v0.3.3 已於 2026-08-03 推送並部署至既有 GitHub Pages。
 
 - 正式網址：https://sowhereisthebread.github.io/life-calibration-pwa/
 - GitHub repo：`sowhereisthebread/life-calibration-pwa`（public）

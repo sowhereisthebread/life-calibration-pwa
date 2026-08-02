@@ -57,7 +57,7 @@
       "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
       "metric-days", "review-list", "review-month-income", "review-month-expense", "review-month-net", "statement-amount", "statement-recorded", "statement-gap",
       "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
-      "settings-radar-days", "settings-income-target", "current-origin", "clear-data", "confirm-modal", "modal-title", "modal-message", "modal-confirm",
+      "settings-radar-days", "current-origin", "clear-data", "confirm-modal", "modal-title", "modal-message", "modal-confirm",
       "mileage-modal", "mileage-form", "mileage-modal-title", "mileage-current", "mileage-date", "toast"
     ].forEach(id => { elements[id] = document.getElementById(id); });
   }
@@ -185,7 +185,7 @@
     elements["sleep-total"].textContent = RuntimeCore.formatMinutes(sleepMinutes);
     elements["today-work-total"].textContent = RuntimeCore.formatMinutes(totalWork);
     elements["work-month-income"].textContent = formatCurrency(RuntimeCore.monthIncome(state, monthKey));
-    elements["income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 0);
+    elements["income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
   }
 
   function renderSchedule(forceOpen = false) {
@@ -473,7 +473,6 @@
     elements["current-origin"].textContent = protocolLabel;
     elements["last-export"].textContent = state.meta.lastExportAt ? `Last export: ${formatUpdated(state.meta.lastExportAt)}` : "No export yet";
     elements["settings-radar-days"].value = String(state.settings?.radarDays ?? 7);
-    elements["settings-income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
   }
 
   function renderAll() {
@@ -679,11 +678,6 @@
       runDataChange(() => dataStore.updateSettings({ radarDays: Math.max(0, Number(event.target.value) || 0) }));
       renderRadar();
     });
-    elements["settings-income-target"].addEventListener("input", event => {
-      runDataChange(() => dataStore.updateSettings({ monthlyIncomeTarget: Math.max(0, Number(event.target.value) || 0) }));
-      elements["income-target"].value = event.target.value;
-    });
-
     elements["toggle-schedule"].addEventListener("click", () => {
       const open = elements["schedule-section"].hidden;
       elements["toggle-schedule"].setAttribute("aria-expanded", String(open));
@@ -1207,27 +1201,8 @@
     });
   }
 
-  function arrangeFivePageSkeleton() {
-    const moneyCard = document.getElementById("money-card");
-    const moneyContent = document.getElementById("money-content");
-    if (moneyCard && moneyContent) moneyContent.appendChild(moneyCard);
-    const transactionList = document.getElementById("transaction-list");
-    const recentTransactions = document.getElementById("recent-transactions");
-    if (transactionList && recentTransactions) recentTransactions.appendChild(transactionList);
-    const workCard = document.getElementById("work-card");
-    const workSummary = document.getElementById("work-summary");
-    const sleepCard = document.getElementById("sleep-card");
-    if (workCard && sleepCard && workCard.parentElement === sleepCard.parentElement) {
-      sleepCard.parentElement.insertBefore(workCard, sleepCard);
-    }
-    if (workCard && workSummary && workCard.parentElement === workSummary.parentElement) {
-      workCard.after(workSummary);
-    }
-  }
-
   function init() {
     queryElements();
-    arrangeFivePageSkeleton();
     elements["today-date"].textContent = new Intl.DateTimeFormat("zh-TW", {
       month: "numeric", day: "numeric", weekday: "short"
     }).format(new Date());
