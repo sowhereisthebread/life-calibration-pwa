@@ -279,16 +279,18 @@
     localDateKey
   };
 
-  globalThis.LifeCalibrationCore = Core;
+  const RuntimeCore = globalThis.LifeCalibrationCore || Core;
+  globalThis.LifeCalibrationCore = RuntimeCore;
 
   if (!globalThis.document || !document.getElementById("app")) return;
 
   const elements = {};
   const todayKey = localDateKey();
   const dataStore = globalThis.LifeCalibrationData.create({
-    core: Core,
+    core: RuntimeCore,
     onError: (message, error) => console.error(message, error)
   });
+  dataStore.runAutoPayments?.(todayKey);
   let state = dataStore.readState();
   let toastTimer = null;
   let saveTimer = null;
@@ -389,6 +391,7 @@
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
+    if (pageName === "work" || pageName === "money") renderToday();
     if (pageName === "review") renderReview();
     if (pageName === "projects") renderProjects();
     if (pageName === "data") renderDataPage();
@@ -397,8 +400,12 @@
   }
 
   function populateCategoryOptions() {
-    const categories = [...new Set([...DEFAULT_CATEGORIES, ...state.customCategories])];
+    const categories = RuntimeCore.orderedCategories ? RuntimeCore.orderedCategories(state).map(category => category.name) : DEFAULT_CATEGORIES;
     elements["category-options"].innerHTML = categories.map(category => `<option value="${escapeHtml(category)}"></option>`).join("");
+  }
+
+  function preferredCategory() {
+    return RuntimeCore.orderedCategories?.(state)?.[0]?.name || RuntimeCore.DEFAULT_CATEGORIES?.[0] || "生活";
   }
 
   function renderToday() {
@@ -686,12 +693,15 @@
           type: elements["transaction-type"].value === "income" ? "income" : "expense",
           amount: Number.isFinite(amountValue) ? Math.max(0, amountValue) : 0,
           category,
-          note: elements["transaction-note"].value.trim()
+          title: elements["transaction-note"].value.trim(),
+          note: elements["transaction-note"].value.trim(),
+          paymentMethod: "card",
+          occurredOn: todayKey
         }));
       elements["transaction-amount"].value = "";
       elements["transaction-note"].value = "";
       populateCategoryOptions();
-      elements["transaction-category"].value = preferredTransactionCategory(state);
+      elements["transaction-category"].value = preferredCategory();
       renderTodaySummary();
       renderTransactions();
       elements["transaction-amount"].focus();
@@ -817,7 +827,7 @@
           if (!runDataChange(() => dataStore.clear(), "已清除")) return;
           elements["transaction-type"].value = "expense";
           elements["transaction-amount"].value = "";
-          elements["transaction-category"].value = preferredTransactionCategory(state);
+          elements["transaction-category"].value = preferredCategory();
           elements["transaction-note"].value = "";
           populateCategoryOptions();
           renderAll();
@@ -846,12 +856,24 @@
     });
   }
 
+  function arrangeFivePageSkeleton() {
+    const moneyCard = document.getElementById("money-card");
+    const moneyContent = document.getElementById("money-content");
+    if (moneyCard && moneyContent) moneyContent.appendChild(moneyCard);
+    const workCard = document.getElementById("work-card");
+    const sleepCard = document.getElementById("sleep-card");
+    if (workCard && sleepCard && workCard.parentElement === sleepCard.parentElement) {
+      sleepCard.parentElement.insertBefore(workCard, sleepCard);
+    }
+  }
+
   function init() {
     queryElements();
+    arrangeFivePageSkeleton();
     elements["today-date"].textContent = new Intl.DateTimeFormat("zh-TW", {
       month: "numeric", day: "numeric", weekday: "short"
     }).format(new Date());
-    elements["transaction-category"].value = preferredTransactionCategory(state);
+    elements["transaction-category"].value = preferredCategory();
     runDataChange(() => dataStore.touchOpened());
     bindEvents();
     renderAll();
