@@ -222,8 +222,8 @@
         <section id="page-projects" class="page" data-page="projects" aria-labelledby="projects-heading" hidden>
           <div class="page-heading">
             <div>
-              <p class="eyebrow">開電腦後先看這裡</p>
-              <h2 id="projects-heading">專案</h2>
+              <p class="eyebrow">Commitments & next steps</p>
+              <h2 id="projects-heading">PROJECTS</h2>
             </div>
             <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">新增專案</button>
           </div>
@@ -244,7 +244,65 @@
             </div>
           </form>
 
-          <div id="project-list" class="project-list" aria-live="polite"></div>
+          <section id="projects-radar" class="radar" aria-labelledby="projects-radar-heading" hidden>
+            <div class="section-heading"><h3 id="projects-radar-heading">RADAR</h3></div>
+            <div id="projects-radar-list" class="radar-list"></div>
+          </section>
+
+          <section class="content-section" aria-labelledby="active-projects-heading">
+            <div class="section-heading"><h3 id="active-projects-heading">ACTIVE</h3></div>
+            <div id="project-list" class="project-list" aria-live="polite"></div>
+          </section>
+
+          <section class="card" aria-labelledby="tasks-heading">
+            <div class="section-heading"><h3 id="tasks-heading">TASKS</h3><button id="toggle-obligation-form" type="button" class="button button-quiet" aria-expanded="false" aria-controls="obligation-form">Full form</button></div>
+            <form id="quick-task-form" class="input-action-row" novalidate>
+              <label class="visually-hidden" for="quick-task-name">Name</label>
+              <input id="quick-task-name" class="record-input" type="text" autocomplete="off" placeholder="Name">
+              <button type="submit" class="button button-primary">Add</button>
+            </form>
+            <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
+              <label class="field"><span>Name</span><input id="obligation-name" type="text" autocomplete="off"></label>
+              <div class="two-column">
+                <label class="field"><span>Repeats</span><select id="obligation-cycle"><option value="none">None</option><option value="once">Once</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="after_days">After N days</option><option value="mileage">By mileage</option></select></label>
+                <label class="field"><span>Due</span><input id="obligation-due" type="date"></label>
+              </div>
+              <div class="two-column">
+                <label class="field"><span>Days / interval</span><input id="obligation-interval" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
+                <label class="field"><span>Amount</span><input id="obligation-amount" type="number" min="0" step="1" inputmode="decimal"></label>
+              </div>
+              <div class="two-column">
+                <label class="field"><span>Handling</span><select id="obligation-handling"><option value="manual">Manual</option><option value="auto">Automatic</option></select></label>
+                <label class="field"><span>When done</span><select id="obligation-completion-mode"><option value="none">No transaction</option><option value="expense">Expense</option><option value="transfer">Card payment · Transfer</option></select></label>
+              </div>
+              <div class="two-column">
+                <label class="field"><span>Paid with</span><select id="obligation-payment-method"><option value="bank">Bank</option><option value="card">Card</option><option value="cash">Cash</option></select></label>
+                <label class="field"><span>Status</span><select id="obligation-status"><option value="active">Active</option><option value="frozen">Frozen</option></select></label>
+              </div>
+              <label class="field"><span>Note</span><input id="obligation-note" type="text" autocomplete="off"></label>
+              <fieldset id="mileage-fields" class="mileage-fields" hidden>
+                <legend>Mileage</legend>
+                <div class="two-column"><label class="field"><span>Last service</span><input id="obligation-last-mileage" type="number" min="0" step="1" inputmode="numeric"></label><label class="field"><span>Current</span><input id="obligation-current-mileage" type="number" min="0" step="1" inputmode="numeric"></label></div>
+                <div class="two-column"><label class="field"><span>Update reminder days</span><input id="obligation-reminder-days" type="number" min="1" step="1" value="15"></label><label class="field"><span>Service threshold km</span><input id="obligation-threshold" type="number" min="1" step="1" value="10000"></label></div>
+              </fieldset>
+              <button type="submit" class="button button-primary button-full">Add obligation</button>
+            </form>
+            <div id="task-dated" class="task-list"></div>
+            <details id="task-later" class="recess-group"><summary>Later</summary><div id="task-later-list" class="task-list"></div></details>
+            <section class="no-date-group"><h4>No date</h4><div id="task-no-date" class="task-list"></div></section>
+            <details id="task-done-group" class="recess-group"><summary>Done</summary><div id="task-done" class="task-list"></div></details>
+          </section>
+
+          <section class="card" aria-labelledby="books-heading">
+            <div class="section-heading"><h3 id="books-heading">BOOKS</h3></div>
+            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off" placeholder="Name"><button type="submit" class="button button-primary">Add</button></form>
+            <div id="book-list" class="book-list"></div>
+          </section>
+
+          <section class="frozen-section" aria-labelledby="frozen-heading">
+            <div class="section-heading"><h3 id="frozen-heading">FROZEN</h3></div>
+            <div id="frozen-list" class="task-list"></div>
+          </section>
         </section>
 
         <section id="page-review" class="page" data-page="review" aria-labelledby="review-heading" hidden>

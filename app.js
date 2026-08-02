@@ -308,6 +308,11 @@
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
+      "projects-radar", "projects-radar-list", "toggle-obligation-form", "quick-task-form", "quick-task-name", "obligation-form",
+      "obligation-name", "obligation-cycle", "obligation-due", "obligation-interval", "obligation-amount", "obligation-handling",
+      "obligation-completion-mode", "obligation-payment-method", "obligation-status", "obligation-note", "mileage-fields",
+      "obligation-last-mileage", "obligation-current-mileage", "obligation-reminder-days", "obligation-threshold",
+      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list",
       "metric-days", "review-list", "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
       "current-origin", "clear-data", "confirm-modal", "modal-title", "modal-message", "modal-confirm", "toast"
     ].forEach(id => { elements[id] = document.getElementById(id); });
@@ -397,7 +402,10 @@
     if (pageName === "work") renderToday();
     if (pageName === "money") renderMoney();
     if (pageName === "review") renderReview();
-    if (pageName === "projects") renderProjects();
+    if (pageName === "projects") {
+      renderProjects();
+      renderCommitments();
+    }
     if (pageName === "data") renderDataPage();
     window.scrollTo({ top: 0, behavior: "smooth" });
     document.getElementById(`page-${pageName}`)?.focus({ preventScroll: true });
@@ -521,16 +529,20 @@
   function renderRadar() {
     const items = RuntimeCore.radarItems(state, todayKey);
     elements["money-radar"].hidden = !items.length;
+    elements["projects-radar"].hidden = !items.length;
     if (!items.length) {
       elements["money-radar-list"].innerHTML = "";
+      elements["projects-radar-list"].innerHTML = "";
       return;
     }
     const label = { overdue: "Overdue", today: "Due today", soon: "Due soon", "service-due": "Service due", "update-mileage": "Update mileage" };
-    elements["money-radar-list"].innerHTML = items.map(item => `
+    const markup = items.map(item => `
       <article class="radar-item is-${escapeHtml(item.kind)}">
         <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${label[item.kind]}${item.event?.dueDate ? ` · ${escapeHtml(item.event.dueDate)}` : ""}</span></div>
         ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : ""}
       </article>`).join("");
+    elements["money-radar-list"].innerHTML = markup;
+    elements["projects-radar-list"].innerHTML = markup;
   }
 
   function renderAccounts() {
@@ -599,6 +611,57 @@
       </article>`).join("");
   }
 
+  function taskMarkup(event, obligation) {
+    const dueLabel = event.dueDate ? `Due ${event.dueDate}` : "No date";
+    return `
+      <article class="task-item" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
+        <div class="task-main"><strong>${escapeHtml(obligation.name)}</strong><span>${escapeHtml(dueLabel)}${obligation.amount !== null ? ` · ${escapeHtml(formatCurrency(obligation.amount))}` : ""}</span></div>
+        <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
+        <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button></div>
+      </article>`;
+  }
+
+  function renderCommitments() {
+    renderRadar();
+    const pending = state.events.filter(event => event.status === "pending").map(event => ({
+      event,
+      obligation: state.obligations.find(item => item.id === event.obligationId)
+    })).filter(item => item.obligation && item.obligation.status === "active");
+    const cutoff = new Date(dateFromKey(todayKey));
+    cutoff.setDate(cutoff.getDate() + 30);
+    const cutoffKey = localDateKey(cutoff);
+    const dated = pending.filter(item => item.event.dueDate && item.event.dueDate <= cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
+    const later = pending.filter(item => item.event.dueDate && item.event.dueDate > cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
+    const noDate = pending.filter(item => !item.event.dueDate);
+    const empty = '<div class="empty-state compact-empty">Nothing due.</div>';
+    elements["task-dated"].innerHTML = dated.length ? dated.map(item => taskMarkup(item.event, item.obligation)).join("") : empty;
+    elements["task-later"].hidden = !later.length;
+    elements["task-later-list"].innerHTML = later.map(item => taskMarkup(item.event, item.obligation)).join("");
+    elements["task-no-date"].innerHTML = noDate.length ? noDate.map(item => taskMarkup(item.event, item.obligation)).join("") : '<div class="empty-state compact-empty">Nothing here.</div>';
+
+    const done = state.events.filter(event => event.status !== "pending").sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
+    elements["task-done"].innerHTML = done.length ? done.map(event => {
+      const obligation = state.obligations.find(item => item.id === event.obligationId);
+      return `<article class="task-item is-done"><div class="task-main"><strong>${escapeHtml(obligation?.name || "Archived item")}</strong><span>${event.status === "auto-paid" ? "Auto-paid" : "Done"} · ${escapeHtml(event.completedAt?.slice(0, 10) || "")}</span></div><button type="button" class="button button-quiet" data-undo-event="${escapeHtml(event.id)}">Undo</button></article>`;
+    }).join("") : empty;
+
+    const frozen = state.obligations.filter(item => item.status === "frozen");
+    elements["frozen-list"].innerHTML = frozen.length ? frozen.map(obligation => `<article class="task-item"><div class="task-main"><strong>${escapeHtml(obligation.name)}</strong><span>${obligation.amount !== null ? escapeHtml(formatCurrency(obligation.amount)) : "Frozen"}</span></div><button type="button" class="button button-quiet" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button></article>`).join("") : '<div class="empty-state compact-empty">Nothing frozen.</div>';
+    renderBooks();
+  }
+
+  function renderBooks() {
+    const statusLabel = { current: "This month", queued: "Queued", frozen: "Frozen", finished: "Finished" };
+    const rank = { current: 0, queued: 1, frozen: 2, finished: 3 };
+    const books = [...state.books].sort((a, b) => (rank[a.status] ?? 4) - (rank[b.status] ?? 4));
+    elements["book-list"].innerHTML = books.length ? books.map(book => `
+      <article class="book-item ${book.status === "current" ? "is-current" : ""}" data-book-id="${escapeHtml(book.id)}">
+        <input class="record-input" type="text" value="${escapeHtml(book.name)}" data-book-field="name" aria-label="Book name">
+        <select class="record-input" data-book-field="status" aria-label="Book status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option><option value="finished" ${book.status === "finished" ? "selected" : ""}>Finished</option></select>
+        <span>${statusLabel[book.status] || "Queued"}</span>
+      </article>`).join("") : '<div class="empty-state compact-empty">Nothing here.</div>';
+  }
+
   function renderReview() {
     const summary = summarizeReview(state, todayKey);
     elements["metric-sleep"].textContent = formatMinutes(summary.averageSleep);
@@ -628,6 +691,7 @@
     renderMoney();
     renderToday();
     renderProjects();
+    renderCommitments();
     renderReview();
     renderDataPage();
     updateBackupReminder();
@@ -908,6 +972,145 @@
           showToast("專案已刪除");
         }
       });
+    });
+
+    elements["toggle-obligation-form"].addEventListener("click", () => {
+      const show = elements["obligation-form"].hidden;
+      elements["obligation-form"].hidden = !show;
+      elements["toggle-obligation-form"].setAttribute("aria-expanded", String(show));
+      if (show) elements["obligation-name"].focus();
+    });
+
+    elements["obligation-cycle"].addEventListener("change", () => {
+      const cycle = elements["obligation-cycle"].value;
+      elements["mileage-fields"].hidden = cycle !== "mileage";
+      elements["obligation-due"].disabled = cycle === "none" || cycle === "mileage";
+    });
+    elements["obligation-amount"].addEventListener("input", () => {
+      if (elements["obligation-completion-mode"].value === "transfer") return;
+      elements["obligation-completion-mode"].value = elements["obligation-amount"].value === "" ? "none" : "expense";
+    });
+    elements["obligation-handling"].addEventListener("change", () => {
+      elements["obligation-payment-method"].value = elements["obligation-handling"].value === "auto" ? "card" : "bank";
+    });
+
+    elements["quick-task-form"].addEventListener("submit", event => {
+      event.preventDefault();
+      const name = elements["quick-task-name"].value.trim();
+      if (!name) {
+        showToast("Enter a task name");
+        elements["quick-task-name"].focus();
+        return;
+      }
+      runDataChange(() => dataStore.addObligation({ name, cycle: { type: "none" }, amount: null, handling: "manual", completionMode: "none", paymentMethod: "bank", status: "active", note: "" }, null));
+      elements["quick-task-name"].value = "";
+      renderCommitments();
+      showToast("Task added");
+    });
+
+    elements["obligation-form"].addEventListener("submit", event => {
+      event.preventDefault();
+      const cycleType = elements["obligation-cycle"].value;
+      const dueDate = elements["obligation-due"].value || null;
+      const completionMode = elements["obligation-completion-mode"].value;
+      if (completionMode === "transfer" && state.obligations.some(item => item.completionMode === "transfer" && item.status !== "archived")) {
+        showToast("Card payment is the only transfer obligation and already exists.", 5000);
+        return;
+      }
+      const due = dueDate ? dateFromKey(dueDate) : new Date();
+      const cycle = {
+        type: cycleType,
+        day: cycleType === "monthly" ? due.getDate() : 1,
+        month: cycleType === "yearly" ? due.getMonth() + 1 : 1,
+        days: Math.max(1, Number(elements["obligation-interval"].value) || 1)
+      };
+      const amount = elements["obligation-amount"].value === "" ? null : Math.max(0, Number(elements["obligation-amount"].value) || 0);
+      runDataChange(() => dataStore.addObligation({
+        name: elements["obligation-name"].value.trim() || "未命名待辦",
+        cycle,
+        amount,
+        handling: elements["obligation-handling"].value,
+        completionMode,
+        paymentMethod: elements["obligation-payment-method"].value,
+        transferFromAccountId: "main",
+        transferToAccountId: "card",
+        status: elements["obligation-status"].value,
+        note: elements["obligation-note"].value.trim(),
+        service: {
+          lastServiceMileage: elements["obligation-last-mileage"].value || null,
+          currentMileage: elements["obligation-current-mileage"].value || null,
+          mileageUpdatedAt: elements["obligation-current-mileage"].value ? new Date().toISOString() : null,
+          reminderDays: Number(elements["obligation-reminder-days"].value) || 15,
+          thresholdKm: Number(elements["obligation-threshold"].value) || 10000
+        }
+      }, cycleType === "none" || cycleType === "mileage" ? null : dueDate));
+      elements["obligation-form"].reset();
+      elements["obligation-interval"].value = "1";
+      elements["obligation-reminder-days"].value = "15";
+      elements["obligation-threshold"].value = "10000";
+      elements["obligation-payment-method"].value = "bank";
+      elements["mileage-fields"].hidden = true;
+      elements["obligation-form"].hidden = true;
+      elements["toggle-obligation-form"].setAttribute("aria-expanded", "false");
+      renderCommitments();
+      renderMoney();
+      showToast("Obligation added");
+    });
+
+    const projectsPage = document.getElementById("page-projects");
+    projectsPage.addEventListener("input", event => {
+      const row = event.target.closest("[data-event-id]");
+      if (row && event.target.dataset.eventField === "actualAmount") {
+        const value = event.target.value === "" ? null : Math.max(0, Number(event.target.value) || 0);
+        runDataChange(() => dataStore.updateEvent(row.dataset.eventId, { actualAmount: value }));
+      }
+      const book = event.target.closest("[data-book-id]");
+      if (book && event.target.dataset.bookField) {
+        runDataChange(() => dataStore.updateBook(book.dataset.bookId, { [event.target.dataset.bookField]: event.target.value }));
+      }
+    });
+    projectsPage.addEventListener("change", event => {
+      if (event.target.dataset.bookField === "status") renderBooks();
+    });
+    projectsPage.addEventListener("click", event => {
+      const complete = event.target.closest("[data-complete-event]");
+      const freeze = event.target.closest("[data-freeze-obligation]");
+      const archive = event.target.closest("[data-archive-obligation]");
+      const unfreeze = event.target.closest("[data-unfreeze-obligation]");
+      const undo = event.target.closest("[data-undo-event]");
+      if (complete) {
+        const row = complete.closest("[data-event-id]");
+        const amountInput = row?.querySelector("[data-event-field='actualAmount']");
+        const actualAmount = amountInput?.value === "" ? null : Number(amountInput?.value);
+        runDataChange(() => dataStore.completeEvent(complete.dataset.completeEvent, { completedDate: todayKey, actualAmount }));
+        showToast("Marked done");
+      } else if (freeze) {
+        runDataChange(() => dataStore.updateObligation(freeze.dataset.freezeObligation, { status: "frozen" }));
+        showToast("Frozen");
+      } else if (archive) {
+        runDataChange(() => dataStore.updateObligation(archive.dataset.archiveObligation, { status: "archived" }));
+        showToast("Archived");
+      } else if (unfreeze) {
+        runDataChange(() => dataStore.updateObligation(unfreeze.dataset.unfreezeObligation, { status: "active" }));
+        showToast("Unfrozen");
+      } else if (undo) {
+        runDataChange(() => dataStore.undoEvent(undo.dataset.undoEvent));
+        showToast("Undone");
+      } else {
+        return;
+      }
+      renderCommitments();
+      renderMoney();
+    });
+
+    elements["book-form"].addEventListener("submit", event => {
+      event.preventDefault();
+      const name = elements["book-name"].value.trim();
+      if (!name) return;
+      runDataChange(() => dataStore.addBook({ name, status: "queued" }));
+      elements["book-name"].value = "";
+      renderBooks();
+      showToast("Book added");
     });
 
     elements["export-json"].addEventListener("click", () => exportJson());
