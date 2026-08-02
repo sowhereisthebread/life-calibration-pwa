@@ -1322,6 +1322,51 @@ a:focus-visible {
   font-size: 16px;
 }
 
+.manager-panel {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.manager-panel > summary {
+  min-height: 48px;
+  cursor: pointer;
+  color: var(--sub);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 48px;
+}
+
+.compact-form {
+  padding: 4px 0 14px;
+}
+
+.manager-list {
+  display: grid;
+  gap: 8px;
+}
+
+.manager-row {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.08);
+}
+
+.manager-row.is-archived {
+  background: var(--recess);
+  opacity: .78;
+}
+
+.manager-row-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .money-summary {
   margin: 28px 0 16px;
 }
@@ -1454,6 +1499,11 @@ a:focus-visible {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.obligation-form h4 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .mileage-fields {

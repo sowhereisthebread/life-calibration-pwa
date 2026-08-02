@@ -39,13 +39,16 @@
           if (actual !== expected) throw new Error(`預期 ${expected}，實際 ${actual}`);
         }
 
-        function createMemoryStore() {
+        function createMemoryStorage() {
           const values = new Map();
-          const storage = {
+          return {
             getItem: key => values.has(key) ? values.get(key) : null,
             setItem: (key, value) => values.set(key, String(value)),
             removeItem: key => values.delete(key)
           };
+        }
+
+        function createMemoryStore(storage = createMemoryStorage()) {
           return window.LifeCalibrationData.create({
             core: Core,
             storage,
@@ -293,6 +296,135 @@
           ["義務", "事件", "帳戶", "分類", "書單", "課表", "設定"].forEach(label => {
             if (!csv.includes(label)) throw new Error(`CSV 缺少 ${label}`);
           });
+        });
+
+        test("修改義務後完整欄位與里程設定正確保留", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({
+            name: "保養",
+            cycle: { type: "mileage" },
+            amount: 3000,
+            handling: "manual",
+            completionMode: "expense",
+            paymentMethod: "bank",
+            note: "原備註",
+            service: { lastServiceMileage: 40000, currentMileage: 45000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 }
+          });
+          store.updateObligation(created.obligation.id, {
+            name: "定期保養",
+            amount: 3500,
+            note: "新備註",
+            service: { reminderDays: 10, thresholdKm: 8000 }
+          });
+          const obligation = store.readState().obligations[0];
+          equal(obligation.name, "定期保養");
+          equal(obligation.amount, 3500);
+          equal(obligation.note, "新備註");
+          equal(obligation.service.lastServiceMileage, 40000);
+          equal(obligation.service.currentMileage, 45000);
+          equal(obligation.service.reminderDays, 10);
+          equal(obligation.service.thresholdKm, 8000);
+        });
+
+        test("修改本期到期日不改變義務週期規則", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "月繳", cycle: { type: "monthly", day: 15 } }, "2026-08-15");
+          store.updateEvent(created.event.id, { dueDate: "2026-08-20" });
+          const state = store.readState();
+          equal(state.events[0].dueDate, "2026-08-20");
+          equal(state.obligations[0].cycle.type, "monthly");
+          equal(state.obligations[0].cycle.day, 15);
+        });
+
+        test("修改義務不影響歷史已完成事件", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "舊名稱", cycle: { type: "monthly", day: 15 }, amount: 100, completionMode: "expense" }, "2026-08-15");
+          store.completeEvent(created.event.id, { completedDate: "2026-08-15", actualAmount: 120 });
+          const before = store.readState().events.find(item => item.id === created.event.id);
+          store.updateObligation(created.obligation.id, { name: "新名稱", cycle: { type: "monthly", day: 20 }, amount: 200 });
+          const after = store.readState().events.find(item => item.id === created.event.id);
+          equal(after.status, before.status);
+          equal(after.completedAt, before.completedAt);
+          equal(after.actualAmount, 120);
+          equal(after.transactionId, before.transactionId);
+        });
+
+        test("更新里程後十五天更新警示消失且不產生交易", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, completionMode: "none", service: { lastServiceMileage: 40000, currentMileage: 40100, mileageUpdatedAt: "2026-07-01", reminderDays: 15, thresholdKm: 10000 } });
+          equal(Core.radarItems(store.readState(), "2026-08-02")[0].kind, "update-mileage");
+          store.updateMileage(created.obligation.id, 40200, "2026-08-02");
+          equal(Core.radarItems(store.readState(), "2026-08-02").some(item => item.kind === "update-mileage"), false);
+          equal(Core.allTransactions(store.readState()).length, 0);
+        });
+
+        test("更新里程後重新計算保養門檻但不自動完成事件", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, completionMode: "none", service: { lastServiceMileage: 40000, currentMileage: 45000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } });
+          store.updateMileage(created.obligation.id, 50000, "2026-08-02");
+          const state = store.readState();
+          equal(Core.radarItems(state, "2026-08-02")[0].kind, "service-due");
+          equal(state.events[0].status, "pending");
+          equal(Core.allTransactions(state).length, 0);
+        });
+
+        test("預設三帳戶不可封存且匯入缺漏時會還原", () => {
+          const store = createMemoryStore();
+          Core.SYSTEM_ACCOUNT_IDS.forEach(id => store.updateAccount(id, { active: false }));
+          equal(store.readState().accounts.filter(item => item.system && item.active).length, 3);
+          const state = store.readState();
+          state.accounts = state.accounts.filter(item => item.id !== "cash");
+          equal(Core.normalizeState(state).accounts.some(item => item.id === "cash" && item.active), true);
+        });
+
+        test("自訂帳戶可新增改名封存與解封", () => {
+          const store = createMemoryStore();
+          const account = store.addAccount("旅行", 1000);
+          store.updateAccount(account.id, { name: "旅行金", active: false });
+          let saved = store.readState().accounts.find(item => item.id === account.id);
+          equal(saved.name, "旅行金");
+          equal(saved.active, false);
+          store.updateAccount(account.id, { active: true });
+          saved = store.readState().accounts.find(item => item.id === account.id);
+          equal(saved.active, true);
+        });
+
+        test("封存帳戶不出現在新交易可選清單", () => {
+          const state = Core.createEmptyState();
+          state.accounts.push({ id: "account-trip", name: "旅行", kind: "other", startingBalance: 0, active: false });
+          equal(Core.selectableAccounts(state).some(item => item.id === "account-trip"), false);
+          equal(Core.selectableAccounts(state).length, 3);
+        });
+
+        test("封存帳戶的歷史交易與餘額仍正確", () => {
+          const store = createMemoryStore();
+          const account = store.addAccount("旅行", 1000);
+          store.addTransaction("2026-08-01", { id: "trip-income", type: "income", amount: 500, accountId: account.id });
+          store.updateAccount(account.id, { active: false });
+          const state = store.readState();
+          equal(Core.accountBalances(state)[account.id], 1500);
+          equal(Core.allTransactions(state).some(item => item.id === "trip-income"), true);
+          equal(state.accounts.find(item => item.id === account.id).name, "旅行");
+        });
+
+        test("radarDays 修改、重開及 JSON 匯出入均保留", () => {
+          const storage = createMemoryStorage();
+          const store = createMemoryStore(storage);
+          store.updateSettings({ radarDays: 12, monthlyIncomeTarget: 72000 });
+          const reopened = createMemoryStore(storage);
+          equal(reopened.readState().settings.radarDays, 12);
+          const backup = reopened.exportJson();
+          reopened.clear();
+          reopened.importState(JSON.parse(backup));
+          equal(reopened.readState().settings.radarDays, 12);
+          equal(reopened.readState().settings.monthlyIncomeTarget, 72000);
+        });
+
+        test("manifest 主題色為 #A4AAB0", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./manifest.json", false);
+          request.send();
+          equal(JSON.parse(request.responseText).theme_color, "#A4AAB0");
         });
 
         const passed = results.filter(result => result.pass).length;

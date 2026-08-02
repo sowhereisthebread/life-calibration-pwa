@@ -169,19 +169,37 @@
     function updateObligation(obligationId, changes) {
       const index = state.obligations.findIndex(item => item.id === obligationId);
       if (index < 0) return false;
-      state.obligations[index] = core.normalizeObligation({ ...state.obligations[index], ...clone(changes), updatedAt: timestamp() });
+      const current = state.obligations[index];
+      const incoming = clone(changes);
+      state.obligations[index] = core.normalizeObligation({
+        ...current,
+        ...incoming,
+        cycle: incoming.cycle ? { ...current.cycle, ...incoming.cycle } : current.cycle,
+        service: incoming.service ? { ...current.service, ...incoming.service } : current.service,
+        updatedAt: timestamp()
+      });
       persist();
       return true;
     }
 
     function updateEvent(eventId, changes) {
       const event = state.events.find(item => item.id === eventId);
-      if (!event) return false;
+      if (!event || event.status !== "pending") return false;
       ["dueDate", "actualAmount"].forEach(field => {
         if (Object.prototype.hasOwnProperty.call(changes, field)) event[field] = changes[field];
       });
       persist();
       return true;
+    }
+
+    function updateMileage(obligationId, currentMileage, mileageUpdatedAt) {
+      const obligation = state.obligations.find(item => item.id === obligationId);
+      if (!obligation || obligation.cycle.type !== "mileage") return false;
+      const mileage = Number(currentMileage);
+      if (!Number.isFinite(mileage) || mileage < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(mileageUpdatedAt || ""))) return false;
+      return updateObligation(obligationId, {
+        service: { currentMileage: mileage, mileageUpdatedAt: String(mileageUpdatedAt) }
+      });
     }
 
     function completeEvent(eventId, options = {}) {
@@ -210,11 +228,37 @@
     function updateAccount(accountId, changes) {
       const account = state.accounts.find(item => item.id === accountId);
       if (!account) return false;
-      ["name", "startingBalance", "active"].forEach(field => {
-        if (Object.prototype.hasOwnProperty.call(changes, field)) account[field] = changes[field];
-      });
+      if (Object.prototype.hasOwnProperty.call(changes, "name")) {
+        const name = String(changes.name || "").trim();
+        if (name) account.name = name;
+      }
+      if (Object.prototype.hasOwnProperty.call(changes, "startingBalance")) {
+        const balance = Number(changes.startingBalance);
+        if (Number.isFinite(balance)) account.startingBalance = balance;
+      }
+      if (Object.prototype.hasOwnProperty.call(changes, "active") && !core.isSystemAccount(accountId)) {
+        account.active = Boolean(changes.active);
+      }
+      if (core.isSystemAccount(accountId)) account.active = true;
       persist();
       return true;
+    }
+
+    function addAccount(name, startingBalance = 0) {
+      const value = String(name || "").trim();
+      if (!value) return null;
+      const balance = Number(startingBalance);
+      const account = {
+        id: core.uid("account"),
+        name: value,
+        kind: "other",
+        startingBalance: Number.isFinite(balance) ? balance : 0,
+        active: true,
+        system: false
+      };
+      state.accounts.push(account);
+      persist();
+      return clone(account);
     }
 
     function addCategory(name) {
@@ -353,10 +397,12 @@
       addObligation,
       updateObligation,
       updateEvent,
+      updateMileage,
       completeEvent,
       undoEvent,
       runAutoPayments,
       updateAccount,
+      addAccount,
       addCategory,
       updateCategory,
       addBook,

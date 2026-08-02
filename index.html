@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.0" defer></script>
+    <script src="./app.js?v=0.3.1" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -58,6 +58,17 @@
           <section class="card accounts-panel" aria-labelledby="accounts-heading">
             <div class="section-heading"><h3 id="accounts-heading">ACCOUNTS</h3></div>
             <div id="account-balances" class="account-balances"></div>
+            <details class="manager-panel">
+              <summary>Manage accounts</summary>
+              <form id="account-form" class="stack-form compact-form" novalidate>
+                <div class="two-column">
+                  <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off" placeholder="Account name"></label>
+                  <label class="field"><span>Starting balance</span><input id="account-starting" type="number" step="1" inputmode="decimal" value="0"></label>
+                </div>
+                <button type="submit" class="button button-secondary button-full">Add account</button>
+              </form>
+              <div id="account-manager" class="manager-list"></div>
+            </details>
           </section>
           <section class="money-summary" aria-labelledby="spent-heading">
             <p class="step-label">THIS MONTH · SPENT</p>
@@ -296,13 +307,16 @@
               <button type="submit" class="button button-primary">Add</button>
             </form>
             <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
+              <div class="section-heading compact-heading"><h4 id="obligation-form-title">Add obligation</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet" hidden>Cancel edit</button></div>
               <label class="field"><span>Name</span><input id="obligation-name" type="text" autocomplete="off"></label>
               <div class="two-column">
                 <label class="field"><span>Repeats</span><select id="obligation-cycle"><option value="none">None</option><option value="once">Once</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="after_days">After N days</option><option value="mileage">By mileage</option></select></label>
                 <label class="field"><span>Due</span><input id="obligation-due" type="date"></label>
               </div>
               <div class="two-column">
-                <label class="field"><span>Days / interval</span><input id="obligation-interval" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
+                <label id="obligation-cycle-day-field" class="field" hidden><span>Cycle day</span><input id="obligation-cycle-day" type="number" min="1" max="31" step="1" inputmode="numeric" value="1"></label>
+                <label id="obligation-cycle-month-field" class="field" hidden><span>Cycle month</span><input id="obligation-cycle-month" type="number" min="1" max="12" step="1" inputmode="numeric" value="1"></label>
+                <label id="obligation-interval-field" class="field" hidden><span>Days / interval</span><input id="obligation-interval" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
                 <label class="field"><span>Amount</span><input id="obligation-amount" type="number" min="0" step="1" inputmode="decimal"></label>
               </div>
               <div class="two-column">
@@ -317,9 +331,10 @@
               <fieldset id="mileage-fields" class="mileage-fields" hidden>
                 <legend>Mileage</legend>
                 <div class="two-column"><label class="field"><span>Last service</span><input id="obligation-last-mileage" type="number" min="0" step="1" inputmode="numeric"></label><label class="field"><span>Current</span><input id="obligation-current-mileage" type="number" min="0" step="1" inputmode="numeric"></label></div>
+                <label class="field"><span>Mileage updated</span><input id="obligation-mileage-updated" type="date"></label>
                 <div class="two-column"><label class="field"><span>Update reminder days</span><input id="obligation-reminder-days" type="number" min="1" step="1" value="15"></label><label class="field"><span>Service threshold km</span><input id="obligation-threshold" type="number" min="1" step="1" value="10000"></label></div>
               </fieldset>
-              <button type="submit" class="button button-primary button-full">Add obligation</button>
+              <button id="obligation-submit" type="submit" class="button button-primary button-full">Add obligation</button>
             </form>
             <div id="task-dated" class="task-list"></div>
             <details id="task-later" class="recess-group"><summary>Later</summary><div id="task-later-list" class="task-list"></div></details>
@@ -391,6 +406,15 @@
             </div>
           </aside>
 
+          <article class="card data-card" aria-labelledby="settings-heading">
+            <h3 id="settings-heading">SETTINGS</h3>
+            <div class="two-column">
+              <label class="field"><span>Radar days ahead</span><input id="settings-radar-days" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label class="field"><span>Monthly income target</span><input id="settings-income-target" type="number" min="0" step="1" inputmode="decimal"></label>
+            </div>
+            <p class="helper">Mileage reminders and service thresholds are saved with each mileage obligation.</p>
+          </article>
+
           <article class="card data-card">
             <h3>BACKUP & EXPORT</h3>
             <p>JSON 能完整還原；CSV 包含每日、交易、義務、事件、帳戶、書單、排程與設定。</p>
@@ -448,6 +472,20 @@
           <button id="modal-confirm" type="button" class="button button-danger">繼續</button>
         </div>
       </section>
+    </div>
+
+    <div id="mileage-modal" class="modal" hidden>
+      <div class="modal-scrim" data-mileage-cancel></div>
+      <form id="mileage-form" class="modal-panel stack-form" role="dialog" aria-modal="true" aria-labelledby="mileage-modal-title">
+        <p class="eyebrow">Mileage</p>
+        <h2 id="mileage-modal-title">Update mileage</h2>
+        <label class="field"><span>Current mileage</span><input id="mileage-current" type="number" min="0" step="1" inputmode="numeric" required></label>
+        <label class="field"><span>Update date</span><input id="mileage-date" type="date" required></label>
+        <div class="modal-actions">
+          <button type="button" class="button button-quiet" data-mileage-cancel>Cancel</button>
+          <button type="submit" class="button button-primary">Save mileage</button>
+        </div>
+      </form>
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

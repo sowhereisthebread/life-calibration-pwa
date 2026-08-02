@@ -9,6 +9,7 @@
     { id: "cash", name: "現金", kind: "cash" },
     { id: "card", name: "信用卡", kind: "card" }
   ];
+  const SYSTEM_ACCOUNT_IDS = new Set(DEFAULT_ACCOUNTS.map(account => account.id));
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -38,6 +39,16 @@
     return Number.isFinite(number) ? Math.max(0, number) : null;
   }
 
+  function numberOrDefault(value, fallback, minimum = 0) {
+    if (value === "" || value === null || value === undefined) return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(minimum, number) : fallback;
+  }
+
+  function isSystemAccount(accountId) {
+    return SYSTEM_ACCOUNT_IDS.has(String(accountId || ""));
+  }
+
   function createEmptyDay() {
     return {
       sleep: { bedtime: "", wakeTime: "" },
@@ -61,7 +72,7 @@
   }
 
   function createDefaultAccounts() {
-    return DEFAULT_ACCOUNTS.map(account => ({ ...account, startingBalance: 0, active: true }));
+    return DEFAULT_ACCOUNTS.map(account => ({ ...account, startingBalance: 0, active: true, system: true }));
   }
 
   function createEmptyState(now = new Date()) {
@@ -181,12 +192,15 @@
   }
 
   function normalizeAccount(raw, fallback = {}) {
+    const id = String(raw?.id || fallback.id || uid("account"));
+    const system = isSystemAccount(id);
     return {
-      id: String(raw?.id || fallback.id || uid("account")),
+      id,
       name: String(raw?.name || fallback.name || "未命名帳戶"),
       kind: ["main", "cash", "card", "other"].includes(raw?.kind) ? raw.kind : (fallback.kind || "other"),
       startingBalance: Number.isFinite(Number(raw?.startingBalance)) ? Number(raw.startingBalance) : 0,
-      active: raw?.active !== false
+      active: system ? true : raw?.active !== false,
+      system
     };
   }
 
@@ -233,6 +247,11 @@
     state.accounts = Array.isArray(value.accounts) && value.accounts.length
       ? value.accounts.map(normalizeAccount)
       : createDefaultAccounts();
+    DEFAULT_ACCOUNTS.forEach(defaultAccount => {
+      if (!state.accounts.some(account => account.id === defaultAccount.id)) {
+        state.accounts.push(normalizeAccount({ ...defaultAccount, startingBalance: 0, active: true }));
+      }
+    });
 
     if (Array.isArray(value.categories) && value.categories.length) {
       state.categories = value.categories.map(normalizeCategory);
@@ -253,8 +272,8 @@
     state.books = Array.isArray(value.books) ? clone(value.books) : [];
     state.schedule = Array.isArray(value.schedule) ? clone(value.schedule) : [];
     state.settings = {
-      radarDays: Math.max(0, Number(value.settings?.radarDays) || 7),
-      monthlyIncomeTarget: Math.max(0, Number(value.settings?.monthlyIncomeTarget) || 60000)
+      radarDays: numberOrDefault(value.settings?.radarDays, 7),
+      monthlyIncomeTarget: numberOrDefault(value.settings?.monthlyIncomeTarget, 60000)
     };
     state.statements = value.statements && typeof value.statements === "object" && !Array.isArray(value.statements)
       ? clone(value.statements)
@@ -478,6 +497,10 @@
     return balances;
   }
 
+  function selectableAccounts(state) {
+    return (state.accounts || []).filter(account => account.active !== false);
+  }
+
   function previousMonthKey(monthKey) {
     const [year, month] = monthKey.split("-").map(Number);
     const date = new Date(year, month - 2, 1, 12);
@@ -644,6 +667,7 @@
     DEFAULT_CATEGORY_NAMES: [...DEFAULT_CATEGORY_NAMES],
     DEFAULT_CATEGORIES: [...DEFAULT_CATEGORY_NAMES],
     DEFAULT_ACCOUNTS: clone(DEFAULT_ACCOUNTS),
+    SYSTEM_ACCOUNT_IDS: [...SYSTEM_ACCOUNT_IDS],
     clone,
     uid,
     localDateKey,
@@ -654,6 +678,7 @@
     normalizeObligation,
     normalizeEvent,
     normalizeState,
+    isSystemAccount,
     validateImportedState,
     nextOccurrenceDate,
     completeEvent,
@@ -668,6 +693,7 @@
     monthExpense,
     monthTransactions,
     accountBalances,
+    selectableAccounts,
     previousMonthKey,
     cardStatementGap,
     categoryRanking,
