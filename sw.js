@@ -1,4 +1,4 @@
-const CACHE_NAME = "life-calibration-v0.3.1";
+const CACHE_NAME = "life-calibration-v0.3.2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,7 +8,9 @@ const APP_SHELL = [
   "./app.js?v=0.3.1",
   "./manifest.json",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./icons/apple-touch-icon-180.png",
+  "./icons/brand-mark.png"
 ];
 
 self.addEventListener("install", event => {
