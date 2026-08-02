@@ -57,6 +57,26 @@
         }
 
         test("空白資料為 schema v2", () => equal(Core.createEmptyState().version, 2));
+        test("核心缺席時不得建立資料模組或寫入 localStorage", () => {
+          let reads = 0;
+          let writes = 0;
+          const storage = {
+            getItem: () => { reads += 1; return null; },
+            setItem: () => { writes += 1; },
+            removeItem: () => { writes += 1; }
+          };
+          let error = "";
+          try { window.LifeCalibrationData.create({ core: null, storage }); } catch (caught) { error = caught.message; }
+          equal(error, "資料模組缺少核心函式。");
+          equal(reads, 0);
+          equal(writes, 0);
+
+          const request = new XMLHttpRequest();
+          request.open("GET", "./app.js", false);
+          request.send();
+          if (request.responseText.includes("globalThis.LifeCalibrationCore ||")) throw new Error("仍存在核心 fallback");
+          if (!request.responseText.includes("if (!RuntimeCore)")) throw new Error("缺少核心停止條件");
+        });
         test("預設分類依 v0.3 指定順序", () => equal(Core.DEFAULT_CATEGORIES.join("、"), "吃飯、咖啡、加油、交通、衣物、生活、醫療、其他"));
         test("空白資料包含全部 v2 型別", () => {
           const state = Core.createEmptyState();

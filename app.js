@@ -1,291 +1,26 @@
 (() => {
   "use strict";
 
-  const DATA_VERSION = 1;
-  const DEFAULT_CATEGORIES = ["生活", "餐飲", "交通", "居家", "醫療", "其他"];
-
-  function localDateKey(date = new Date()) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+  const RuntimeCore = globalThis.LifeCalibrationCore;
+  const appRoot = globalThis.document?.getElementById("app");
+  if (!RuntimeCore) {
+    const message = "核心資料模組載入失敗。為保護本機資料，TAKO 已停止啟動且不會寫入資料，請重新整理後再試。";
+    console.error(message);
+    if (appRoot) {
+      appRoot.textContent = message;
+      appRoot.setAttribute("role", "alert");
+      appRoot.setAttribute("aria-live", "assertive");
+    }
+    return;
   }
+  if (!appRoot) return;
 
   function localTimeValue(date = new Date()) {
     return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   }
 
-  function dateFromKey(key) {
-    return new Date(`${key}T12:00:00`);
-  }
-
-  function createEmptyDay() {
-    return {
-      sleep: { bedtime: "", wakeTime: "" },
-      workSessions: [],
-      transactions: [],
-      recovery: { activity: "", effect: "" },
-      note: "",
-      updatedAt: null
-    };
-  }
-
-  function createEmptyState(now = new Date()) {
-    const timestamp = now.toISOString();
-    return {
-      version: DATA_VERSION,
-      days: {},
-      projects: [],
-      customCategories: [],
-      lastCustomCategory: "",
-      meta: {
-        createdAt: timestamp,
-        lastOpenedAt: timestamp,
-        lastExportAt: null
-      }
-    };
-  }
-
-  function normalizeState(value) {
-    const empty = createEmptyState();
-    if (!value || typeof value !== "object") return empty;
-
-    const days = {};
-    if (value.days && typeof value.days === "object" && !Array.isArray(value.days)) {
-      Object.entries(value.days).forEach(([key, rawDay]) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !rawDay || typeof rawDay !== "object") return;
-        const base = createEmptyDay();
-        days[key] = {
-          ...base,
-          ...rawDay,
-          sleep: { ...base.sleep, ...(rawDay.sleep || {}) },
-          workSessions: Array.isArray(rawDay.workSessions) ? rawDay.workSessions : [],
-          transactions: Array.isArray(rawDay.transactions) ? rawDay.transactions : [],
-          recovery: { ...base.recovery, ...(rawDay.recovery || {}) }
-        };
-      });
-    }
-
-    const customCategories = Array.isArray(value.customCategories) ? value.customCategories.filter(item => typeof item === "string") : [];
-    const lastCustomCategory = typeof value.lastCustomCategory === "string" && customCategories.includes(value.lastCustomCategory)
-      ? value.lastCustomCategory
-      : "";
-
-    return {
-      version: DATA_VERSION,
-      days,
-      projects: Array.isArray(value.projects) ? value.projects : [],
-      customCategories,
-      lastCustomCategory,
-      meta: {
-        ...empty.meta,
-        ...(value.meta && typeof value.meta === "object" ? value.meta : {})
-      }
-    };
-  }
-
-  function validateImportedState(value) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return { valid: false, reason: "檔案內容不是人生主控表資料。" };
-    }
-    if (value.version !== DATA_VERSION) {
-      return { valid: false, reason: `資料版本不相容。目前只支援第 ${DATA_VERSION} 版。` };
-    }
-    if (!value.days || typeof value.days !== "object" || Array.isArray(value.days)) {
-      return { valid: false, reason: "檔案缺少每日資料。" };
-    }
-    if (!Array.isArray(value.projects)) {
-      return { valid: false, reason: "檔案缺少專案清單。" };
-    }
-    return { valid: true, reason: "" };
-  }
-
-  function preferredTransactionCategory(state) {
-    const category = state && typeof state.lastCustomCategory === "string" ? state.lastCustomCategory.trim() : "";
-    return category && state.customCategories?.includes(category) ? category : DEFAULT_CATEGORIES[0];
-  }
-
-  function timeToMinutes(value) {
-    if (!/^\d{2}:\d{2}$/.test(value || "")) return null;
-    const [hours, minutes] = value.split(":").map(Number);
-    if (hours > 23 || minutes > 59) return null;
-    return hours * 60 + minutes;
-  }
-
-  function durationBetweenTimes(start, end) {
-    const startMinutes = timeToMinutes(start);
-    const endMinutes = timeToMinutes(end);
-    if (startMinutes === null || endMinutes === null) return null;
-    return endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 1440 - startMinutes;
-  }
-
-  function workMinutes(sessions = []) {
-    return sessions.reduce((total, session) => {
-      if (!session || !session.start || !session.end) return total;
-      const duration = durationBetweenTimes(session.start, session.end);
-      return total + (duration === null ? 0 : duration);
-    }, 0);
-  }
-
-  function transactionAmount(transaction) {
-    const amount = Number(transaction && transaction.amount);
-    return Number.isFinite(amount) ? Math.max(0, amount) : 0;
-  }
-
-  function dayIncome(day) {
-    return (day?.transactions || []).reduce((total, item) => item.type === "income" ? total + transactionAmount(item) : total, 0);
-  }
-
-  function dayExpense(day) {
-    return (day?.transactions || []).reduce((total, item) => item.type !== "income" ? total + transactionAmount(item) : total, 0);
-  }
-
-  function dayNet(day) {
-    return dayIncome(day) - dayExpense(day);
-  }
-
-  function hasDayRecord(day) {
-    if (!day) return false;
-    return Boolean(
-      day.sleep?.bedtime ||
-      day.sleep?.wakeTime ||
-      day.workSessions?.length ||
-      day.transactions?.length ||
-      day.recovery?.activity ||
-      day.recovery?.effect ||
-      day.note
-    );
-  }
-
-  function hasAnyDataInState(state) {
-    return Boolean(state && ((state.projects?.length || 0) > 0 || Object.values(state.days || {}).some(hasDayRecord)));
-  }
-
-  function shouldShowBackupReminder(state, dateKey = localDateKey(), now = Date.now()) {
-    if (!hasAnyDataInState(state) || state.meta?.backupSnoozedDate === dateKey) return false;
-    const reference = state.meta?.lastExportAt || state.meta?.createdAt;
-    const elapsed = reference ? now - new Date(reference).getTime() : Infinity;
-    return !Number.isFinite(elapsed) || elapsed >= 7 * 24 * 60 * 60 * 1000;
-  }
-
-  function reviewDateKeys(anchorKey = localDateKey()) {
-    const anchor = dateFromKey(anchorKey);
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(anchor);
-      date.setDate(anchor.getDate() - index);
-      return localDateKey(date);
-    });
-  }
-
-  function summarizeReview(state, anchorKey = localDateKey()) {
-    const dates = reviewDateKeys(anchorKey);
-    let sleepTotal = 0;
-    let sleepCount = 0;
-    let totalWork = 0;
-    let totalExpense = 0;
-    let recordedDays = 0;
-
-    const rows = dates.map(date => {
-      const day = state.days[date] || createEmptyDay();
-      const sleep = durationBetweenTimes(day.sleep?.bedtime, day.sleep?.wakeTime);
-      const work = workMinutes(day.workSessions);
-      const income = dayIncome(day);
-      const expense = dayExpense(day);
-      if (sleep !== null) {
-        sleepTotal += sleep;
-        sleepCount += 1;
-      }
-      totalWork += work;
-      totalExpense += expense;
-      if (hasDayRecord(day)) recordedDays += 1;
-      return { date, sleep, work, income, expense, net: income - expense, recovery: day.recovery?.effect || "" };
-    });
-
-    return {
-      rows,
-      averageSleep: sleepCount ? Math.round(sleepTotal / sleepCount) : null,
-      totalWork,
-      totalExpense,
-      recordedDays
-    };
-  }
-
-  function csvEscape(value) {
-    const text = String(value ?? "");
-    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  }
-
-  function buildCsv(state) {
-    const headers = ["日期", "就寢時間", "起床時間", "睡眠時數", "工時", "收入", "支出", "淨額", "恢復效果", "恢復內容", "備註"];
-    const rows = Object.keys(state.days)
-      .sort()
-      .map(date => {
-        const day = state.days[date];
-        const sleep = durationBetweenTimes(day.sleep?.bedtime, day.sleep?.wakeTime);
-        const work = workMinutes(day.workSessions);
-        return [
-          date,
-          day.sleep?.bedtime || "",
-          day.sleep?.wakeTime || "",
-          sleep === null ? "" : (sleep / 60).toFixed(2),
-          (work / 60).toFixed(2),
-          dayIncome(day),
-          dayExpense(day),
-          dayNet(day),
-          day.recovery?.effect || "",
-          day.recovery?.activity || "",
-          day.note || ""
-        ].map(csvEscape).join(",");
-      });
-    return [headers.join(","), ...rows].join("\r\n");
-  }
-
-  function formatMinutes(minutes) {
-    if (minutes === null || minutes === undefined) return "—";
-    const hours = Math.floor(minutes / 60);
-    const remainder = Math.round(minutes % 60);
-    if (!hours) return `${remainder} 分`;
-    if (!remainder) return `${hours} 小時`;
-    return `${hours} 小時 ${remainder} 分`;
-  }
-
-  function uid(prefix = "item") {
-    if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  const Core = {
-    DATA_VERSION,
-    DEFAULT_CATEGORIES: [...DEFAULT_CATEGORIES],
-    createEmptyDay,
-    createEmptyState,
-    normalizeState,
-    validateImportedState,
-    preferredTransactionCategory,
-    timeToMinutes,
-    durationBetweenTimes,
-    workMinutes,
-    dayIncome,
-    dayExpense,
-    dayNet,
-    hasDayRecord,
-    hasAnyDataInState,
-    shouldShowBackupReminder,
-    reviewDateKeys,
-    summarizeReview,
-    csvEscape,
-    buildCsv,
-    formatMinutes,
-    localDateKey
-  };
-
-  const RuntimeCore = globalThis.LifeCalibrationCore || Core;
-  globalThis.LifeCalibrationCore = RuntimeCore;
-
-  if (!globalThis.document || !document.getElementById("app")) return;
-
   const elements = {};
-  const todayKey = localDateKey();
+  const todayKey = RuntimeCore.localDateKey();
   const dataStore = globalThis.LifeCalibrationData.create({
     core: RuntimeCore,
     onError: (message, error) => console.error(message, error)
@@ -328,7 +63,7 @@
   }
 
   function readToday() {
-    return state.days[todayKey] || createEmptyDay();
+    return state.days[todayKey] || RuntimeCore.createEmptyDay();
   }
 
   function refreshState(message = "已自動儲存") {
@@ -384,7 +119,7 @@
       month: "numeric",
       day: "numeric",
       ...(includeWeekday ? { weekday: "short" } : {})
-    }).format(dateFromKey(key));
+    }).format(RuntimeCore.dateFromKey(key));
   }
 
   function formatUpdated(value) {
@@ -421,12 +156,12 @@
   }
 
   function populateCategoryOptions() {
-    const categories = RuntimeCore.orderedCategories ? RuntimeCore.orderedCategories(state).map(category => category.name) : DEFAULT_CATEGORIES;
+    const categories = RuntimeCore.orderedCategories(state).map(category => category.name);
     elements["category-options"].innerHTML = categories.map(category => `<option value="${escapeHtml(category)}"></option>`).join("");
   }
 
   function preferredCategory() {
-    return RuntimeCore.orderedCategories?.(state)?.[0]?.name || RuntimeCore.DEFAULT_CATEGORIES?.[0] || "生活";
+    return RuntimeCore.orderedCategories(state)[0]?.name || RuntimeCore.DEFAULT_CATEGORIES[0];
   }
 
   function renderToday() {
@@ -444,11 +179,11 @@
 
   function renderTodaySummary() {
     const day = readToday();
-    const sleepMinutes = durationBetweenTimes(day.sleep.bedtime, day.sleep.wakeTime);
-    const totalWork = workMinutes(day.workSessions);
+    const sleepMinutes = RuntimeCore.durationBetweenTimes(day.sleep.bedtime, day.sleep.wakeTime);
+    const totalWork = RuntimeCore.workMinutes(day.workSessions);
     const monthKey = todayKey.slice(0, 7);
-    elements["sleep-total"].textContent = formatMinutes(sleepMinutes);
-    elements["today-work-total"].textContent = formatMinutes(totalWork);
+    elements["sleep-total"].textContent = RuntimeCore.formatMinutes(sleepMinutes);
+    elements["today-work-total"].textContent = RuntimeCore.formatMinutes(totalWork);
     elements["work-month-income"].textContent = formatCurrency(RuntimeCore.monthIncome(state, monthKey));
     elements["income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 0);
   }
@@ -478,7 +213,7 @@
     }
 
     elements["work-sessions"].innerHTML = day.workSessions.map((session, index) => {
-      const duration = session.end ? formatMinutes(durationBetweenTimes(session.start, session.end)) : "未完成，不計工時";
+      const duration = session.end ? RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(session.start, session.end)) : "未完成，不計工時";
       return `
         <div class="record-row" data-session-id="${escapeHtml(session.id)}">
           <div class="record-row-header">
@@ -667,9 +402,9 @@
       event,
       obligation: state.obligations.find(item => item.id === event.obligationId)
     })).filter(item => item.obligation && item.obligation.status === "active");
-    const cutoff = new Date(dateFromKey(todayKey));
+    const cutoff = new Date(RuntimeCore.dateFromKey(todayKey));
     cutoff.setDate(cutoff.getDate() + 30);
-    const cutoffKey = localDateKey(cutoff);
+    const cutoffKey = RuntimeCore.localDateKey(cutoff);
     const dated = pending.filter(item => item.event.dueDate && item.event.dueDate <= cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
     const later = pending.filter(item => item.event.dueDate && item.event.dueDate > cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
     const noDate = pending.filter(item => !item.event.dueDate);
@@ -704,17 +439,17 @@
 
   function renderReview() {
     const summary = RuntimeCore.summarizeReview(state, todayKey);
-    elements["metric-sleep"].textContent = formatMinutes(summary.averageSleep);
-    elements["metric-work"].textContent = formatMinutes(summary.totalWork);
+    elements["metric-sleep"].textContent = RuntimeCore.formatMinutes(summary.averageSleep);
+    elements["metric-work"].textContent = RuntimeCore.formatMinutes(summary.totalWork);
     elements["metric-expense"].textContent = formatCurrency(summary.totalExpense);
     elements["metric-days"].textContent = `${summary.recordedDays} 天`;
 
     elements["review-list"].innerHTML = summary.rows.map(row => `
       <article class="review-day">
-        <div class="review-day-header"><strong>${escapeHtml(formatDisplayDate(row.date))}</strong><span>${hasDayRecord(state.days[row.date]) ? "有記錄" : "尚無記錄"}</span></div>
+        <div class="review-day-header"><strong>${escapeHtml(formatDisplayDate(row.date))}</strong><span>${RuntimeCore.hasDayRecord(state.days[row.date]) ? "有記錄" : "尚無記錄"}</span></div>
         <div class="review-values">
-          <div><span>睡眠</span><strong>${escapeHtml(formatMinutes(row.sleep))}</strong></div>
-          <div><span>工時</span><strong>${escapeHtml(formatMinutes(row.work))}</strong></div>
+          <div><span>睡眠</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.sleep))}</strong></div>
+          <div><span>工時</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.work))}</strong></div>
           <div><span>收支淨額</span><strong>${escapeHtml(formatCurrency(row.net))}</strong></div>
           <div><span>恢復效果</span><strong>${row.recovery ? `${escapeHtml(row.recovery)} / 5` : "—"}</strong></div>
         </div>
@@ -752,12 +487,12 @@
   }
 
   function hasAnyData() {
-    return hasAnyDataInState(state);
+    return RuntimeCore.hasAnyDataInState(state);
   }
 
   function updateBackupReminder() {
     if (!elements["backup-reminder"]) return;
-    elements["backup-reminder"].hidden = !shouldShowBackupReminder(state, todayKey);
+    elements["backup-reminder"].hidden = !RuntimeCore.shouldShowBackupReminder(state, todayKey);
   }
 
   function downloadFile(content, filename, mimeType) {
@@ -772,7 +507,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function exportJson({ track = true } = {}) {
+  function downloadJsonBackup({ track = true } = {}) {
     const filename = RuntimeCore.exportFilename("json");
     downloadFile(dataStore.exportJson({ markExported: track }), filename, "application/json;charset=utf-8");
     if (track) {
@@ -782,7 +517,7 @@
     }
   }
 
-  function exportCsv() {
+  function downloadCsvExport() {
     downloadFile(`\uFEFF${dataStore.exportCsv()}`, RuntimeCore.exportFilename("csv"), "text/csv;charset=utf-8");
     showToast("完整 CSV 已匯出");
   }
@@ -982,7 +717,7 @@
         runDataChange(() => dataStore.updateWorkSession(todayKey, openSession.id, { end: localTimeValue() }));
         showToast("已完成下班打卡");
       } else {
-        runDataChange(() => dataStore.addWorkSession(todayKey, { id: uid("work"), start: localTimeValue(), end: "" }));
+        runDataChange(() => dataStore.addWorkSession(todayKey, { id: RuntimeCore.uid("work"), start: localTimeValue(), end: "" }));
         showToast("已完成上班打卡");
       }
       renderTodaySummary();
@@ -998,7 +733,7 @@
       runDataChange(() => dataStore.updateWorkSession(todayKey, session.id, { [field]: event.target.value }));
       const updatedSession = readToday().workSessions.find(item => item.id === row.dataset.sessionId);
       renderTodaySummary();
-      row.querySelector(".record-row-header strong").textContent = updatedSession?.end ? `工作段・${formatMinutes(durationBetweenTimes(updatedSession.start, updatedSession.end))}` : "工作段・未完成，不計工時";
+      row.querySelector(".record-row-header strong").textContent = updatedSession?.end ? `工作段・${RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(updatedSession.start, updatedSession.end))}` : "工作段・未完成，不計工時";
     });
 
     elements["work-sessions"].addEventListener("click", event => {
@@ -1024,7 +759,7 @@
       const category = elements["transaction-category"].value.trim();
       const amountValue = Number(elements["transaction-amount"].value);
       runDataChange(() => dataStore.addTransaction(todayKey, {
-          id: uid("money"),
+          id: RuntimeCore.uid("money"),
           type,
           amount: Number.isFinite(amountValue) ? Math.max(0, amountValue) : 0,
           category: type === "expense" ? category : "",
@@ -1184,7 +919,7 @@
       event.preventDefault();
       const now = new Date().toISOString();
       runDataChange(() => dataStore.addProject({
-        id: uid("project"),
+        id: RuntimeCore.uid("project"),
         name: elements["project-name"].value.trim() || "未命名專案",
         status: "active",
         nextStep: elements["project-next-step"].value.trim(),
@@ -1399,8 +1134,8 @@
       elements["statement-gap"].textContent = formatCurrency(statement.gap);
     });
 
-    elements["export-json"].addEventListener("click", () => exportJson());
-    elements["export-csv"].addEventListener("click", exportCsv);
+    elements["export-json"].addEventListener("click", () => downloadJsonBackup());
+    elements["export-csv"].addEventListener("click", downloadCsvExport);
     elements["import-json"].addEventListener("change", async event => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -1417,7 +1152,7 @@
           finalLabel: "備份並取代",
           trigger: elements["import-json"],
           action: () => {
-            exportJson({ track: false });
+            downloadJsonBackup({ track: false });
             if (runDataChange(() => dataStore.importState(parsed), "匯入資料已儲存")) {
               renderAll();
               showToast("JSON 已匯入並完整取代");
