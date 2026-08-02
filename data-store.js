@@ -351,7 +351,8 @@
       persist();
     }
 
-    function exportJson() {
+    function exportJson({ markExported: shouldMarkExported = false } = {}) {
+      if (shouldMarkExported) markExported();
       return JSON.stringify(state, null, 2);
     }
 

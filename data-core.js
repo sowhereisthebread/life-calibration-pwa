@@ -25,6 +25,15 @@
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   }
 
+  function exportFilename(extension, date = new Date()) {
+    const normalizedExtension = String(extension || "").toLowerCase();
+    if (!["json", "csv"].includes(normalizedExtension)) throw new Error("不支援的匯出格式。");
+    const value = date instanceof Date ? date : new Date(date);
+    const hours = String(value.getHours()).padStart(2, "0");
+    const minutes = String(value.getMinutes()).padStart(2, "0");
+    return `TAKO_${localDateKey(value)}_${hours}${minutes}.${normalizedExtension}`;
+  }
+
   function dateFromKey(key) {
     return new Date(`${key}T12:00:00`);
   }
@@ -671,6 +680,7 @@
     clone,
     uid,
     localDateKey,
+    exportFilename,
     dateFromKey,
     createEmptyDay,
     createEmptyState,

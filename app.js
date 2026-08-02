@@ -772,18 +772,18 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function exportJson({ track = true, suffix = "完整備份" } = {}) {
-    const filename = `人生主控表_${todayKey}_${suffix}.json`;
-    downloadFile(dataStore.exportJson(), filename, "application/json;charset=utf-8");
+  function exportJson({ track = true } = {}) {
+    const filename = RuntimeCore.exportFilename("json");
+    downloadFile(dataStore.exportJson({ markExported: track }), filename, "application/json;charset=utf-8");
     if (track) {
-      runDataChange(() => dataStore.markExported(), "備份時間已記錄");
+      refreshState("備份時間已記錄");
       renderDataPage();
       showToast("完整 JSON 已匯出");
     }
   }
 
   function exportCsv() {
-    downloadFile(`\uFEFF${dataStore.exportCsv()}`, `人生主控表_${todayKey}_完整資料.csv`, "text/csv;charset=utf-8");
+    downloadFile(`\uFEFF${dataStore.exportCsv()}`, RuntimeCore.exportFilename("csv"), "text/csv;charset=utf-8");
     showToast("完整 CSV 已匯出");
   }
 
@@ -1417,7 +1417,7 @@
           finalLabel: "備份並取代",
           trigger: elements["import-json"],
           action: () => {
-            exportJson({ track: false, suffix: "匯入前自動備份" });
+            exportJson({ track: false });
             if (runDataChange(() => dataStore.importState(parsed), "匯入資料已儲存")) {
               renderAll();
               showToast("JSON 已匯入並完整取代");
