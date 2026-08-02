@@ -302,7 +302,10 @@
     [
       "today-date", "autosave-status", "today-work-total", "today-net-total", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
-      "transaction-amount", "transaction-category", "transaction-note", "category-options", "transaction-list",
+      "transaction-amount", "transaction-category", "transaction-note", "transaction-payment-method", "transaction-income-source",
+      "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
+      "category-options", "category-buttons", "transaction-list", "money-radar", "money-radar-list", "account-balances",
+      "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
       "metric-days", "review-list", "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
@@ -391,7 +394,8 @@
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    if (pageName === "work" || pageName === "money") renderToday();
+    if (pageName === "work") renderToday();
+    if (pageName === "money") renderMoney();
     if (pageName === "review") renderReview();
     if (pageName === "projects") renderProjects();
     if (pageName === "data") renderDataPage();
@@ -459,24 +463,113 @@
   }
 
   function renderTransactions() {
-    const transactions = readToday().transactions;
+    const transactions = RuntimeCore.allTransactions(state).sort((a, b) => String(b.occurredOn).localeCompare(String(a.occurredOn)));
     if (!transactions.length) {
-      elements["transaction-list"].innerHTML = '<div class="empty-state"><strong>今天還沒有收支</strong>先記一筆，不完整也沒關係。</div>';
+      elements["transaction-list"].innerHTML = '<div class="empty-state"><strong>Nothing logged yet.</strong>Choose a category to begin.</div>';
       return;
     }
-    elements["transaction-list"].innerHTML = transactions.map((transaction, index) => `
-      <div class="record-row" data-transaction-id="${escapeHtml(transaction.id)}">
-        <div class="record-row-header">
-          <strong>第 ${index + 1} 筆・${transaction.type === "income" ? "收入" : "支出"} ${escapeHtml(formatCurrency(transactionAmount(transaction)))}</strong>
-          <button type="button" class="record-remove" data-remove-transaction="${escapeHtml(transaction.id)}">刪除</button>
-        </div>
-        <div class="inline-fields">
-          <label class="field"><span>類型</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type !== "income" ? "selected" : ""}>支出</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>收入</option></select></label>
-          <label class="field"><span>金額</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
-        </div>
-        <label class="field"><span>分類</span><input class="record-input" type="text" list="category-options" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
-        <label class="field"><span>備註</span><input class="record-input" type="text" value="${escapeHtml(transaction.note || "")}" data-transaction-field="note"></label>
-      </div>`).join("");
+    const groups = transactions.reduce((result, transaction) => {
+      (result[transaction.occurredOn] ||= []).push(transaction);
+      return result;
+    }, {});
+    const typeLabel = { expense: "Expense", income: "Income", transfer: "Transfer" };
+    elements["transaction-list"].innerHTML = Object.entries(groups).map(([dayKey, items]) => `
+      <section class="transaction-day" aria-label="${escapeHtml(dayKey)}">
+        <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
+        ${items.map(transaction => `
+          <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
+            <summary><span>${escapeHtml(transaction.title || transaction.category || typeLabel[transaction.type])}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
+            <div class="transaction-editor">
+              <div class="inline-fields">
+                <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
+                <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
+              </div>
+              <label class="field"><span>Category</span><input class="record-input" type="text" list="category-options" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
+              <label class="field"><span>Title</span><input class="record-input" type="text" value="${escapeHtml(transaction.title || "")}" data-transaction-field="title"></label>
+              <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>
+              <button type="button" class="record-remove" data-remove-transaction="${escapeHtml(transaction.id)}">Delete</button>
+            </div>
+          </details>`).join("")}
+      </section>`).join("");
+  }
+
+  function renderTransactionForm() {
+    const type = elements["transaction-type"].value;
+    elements["expense-fields"].hidden = type !== "expense";
+    elements["income-fields"].hidden = type !== "income";
+    elements["transfer-fields"].hidden = type !== "transfer";
+    const accountOptions = state.accounts.filter(account => account.active).map(account => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}</option>`).join("");
+    ["transaction-income-account", "transaction-from-account", "transaction-to-account"].forEach(id => {
+      if (elements[id] && !elements[id].options.length) elements[id].innerHTML = accountOptions;
+    });
+    if (elements["transaction-income-account"] && !elements["transaction-income-account"].value) elements["transaction-income-account"].value = "main";
+    if (elements["transaction-from-account"] && !elements["transaction-from-account"].value) elements["transaction-from-account"].value = "main";
+    if (elements["transaction-to-account"] && !elements["transaction-to-account"].value) elements["transaction-to-account"].value = "card";
+    if (type === "transfer" && elements["transaction-from-account"].value === elements["transaction-to-account"].value) {
+      elements["transaction-from-account"].value = "main";
+      elements["transaction-to-account"].value = "card";
+    }
+  }
+
+  function renderCategoryButtons() {
+    const categories = RuntimeCore.orderedCategories(state);
+    elements["category-buttons"].innerHTML = categories.map(category => `
+      <button type="button" class="category-chip ${elements["transaction-category"].value === category.name ? "is-selected" : ""}" data-category-name="${escapeHtml(category.name)}" data-last-amount="${category.lastAmount ?? ""}">${escapeHtml(category.name)}</button>
+    `).join("");
+  }
+
+  function renderRadar() {
+    const items = RuntimeCore.radarItems(state, todayKey);
+    elements["money-radar"].hidden = !items.length;
+    if (!items.length) {
+      elements["money-radar-list"].innerHTML = "";
+      return;
+    }
+    const label = { overdue: "Overdue", today: "Due today", soon: "Due soon", "service-due": "Service due", "update-mileage": "Update mileage" };
+    elements["money-radar-list"].innerHTML = items.map(item => `
+      <article class="radar-item is-${escapeHtml(item.kind)}">
+        <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${label[item.kind]}${item.event?.dueDate ? ` · ${escapeHtml(item.event.dueDate)}` : ""}</span></div>
+        ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : ""}
+      </article>`).join("");
+  }
+
+  function renderAccounts() {
+    const balances = RuntimeCore.accountBalances(state);
+    elements["account-balances"].innerHTML = state.accounts.filter(account => account.active).map(account => `
+      <label class="account-item"><span>${escapeHtml(account.name)}</span><strong>${escapeHtml(formatCurrency(balances[account.id] || 0))}</strong><small>Starting balance</small><input type="number" step="1" inputmode="decimal" value="${escapeHtml(account.startingBalance || 0)}" data-account-starting="${escapeHtml(account.id)}" aria-label="${escapeHtml(account.name)} Starting balance"></label>
+    `).join("");
+  }
+
+  function renderSpending() {
+    const monthKey = todayKey.slice(0, 7);
+    const total = RuntimeCore.monthExpense(state, monthKey);
+    const ranking = RuntimeCore.categoryRanking(state, monthKey);
+    elements["month-spent"].textContent = formatCurrency(total);
+    const shades = ["#262D33", "#414951", "#575F67", "#7C838A", "#949BA1"];
+    if (!ranking.length) {
+      elements["spending-chart"].innerHTML = '<div class="chart-empty">Nothing logged yet.</div>';
+      elements["category-ranking"].innerHTML = "";
+      return;
+    }
+    let offset = 0;
+    const circles = ranking.slice(0, 5).map((item, index) => {
+      const percent = item.percent;
+      const circle = `<circle cx="60" cy="60" r="46" pathLength="100" fill="none" stroke="${shades[index]}" stroke-width="20" stroke-dasharray="${percent} ${100 - percent}" stroke-dashoffset="${-offset}" />`;
+      offset += percent;
+      return circle;
+    }).join("");
+    elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="本月支出分類圓餅圖"><g transform="rotate(-90 60 60)">${circles}</g><circle cx="60" cy="60" r="30" fill="var(--ground)" /></svg>`;
+    elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${shades[index % shades.length]}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
+  }
+
+  function renderMoney() {
+    populateCategoryOptions();
+    renderTransactionForm();
+    renderCategoryButtons();
+    renderRadar();
+    renderAccounts();
+    renderSpending();
+    renderTransactions();
   }
 
   function renderProjects() {
@@ -532,7 +625,7 @@
   }
 
   function renderAll() {
-    populateCategoryOptions();
+    renderMoney();
     renderToday();
     renderProjects();
     renderReview();
@@ -686,38 +779,54 @@
 
     elements["transaction-form"].addEventListener("submit", event => {
       event.preventDefault();
+      const type = elements["transaction-type"].value;
       const category = elements["transaction-category"].value.trim();
       const amountValue = Number(elements["transaction-amount"].value);
       runDataChange(() => dataStore.addTransaction(todayKey, {
           id: uid("money"),
-          type: elements["transaction-type"].value === "income" ? "income" : "expense",
+          type,
           amount: Number.isFinite(amountValue) ? Math.max(0, amountValue) : 0,
-          category,
+          category: type === "expense" ? category : "",
           title: elements["transaction-note"].value.trim(),
           note: elements["transaction-note"].value.trim(),
-          paymentMethod: "card",
+          paymentMethod: type === "expense" ? elements["transaction-payment-method"].value : "",
+          incomeSource: type === "income" ? elements["transaction-income-source"].value.trim() : "",
+          accountId: type === "income" ? elements["transaction-income-account"].value : "",
+          fromAccountId: type === "transfer" ? elements["transaction-from-account"].value : "",
+          toAccountId: type === "transfer" ? elements["transaction-to-account"].value : "",
           occurredOn: todayKey
         }));
       elements["transaction-amount"].value = "";
       elements["transaction-note"].value = "";
-      populateCategoryOptions();
-      elements["transaction-category"].value = preferredCategory();
+      if (type === "income") elements["transaction-income-source"].value = "";
+      renderMoney();
       renderTodaySummary();
-      renderTransactions();
       elements["transaction-amount"].focus();
-      showToast("收支已新增");
+      showToast("Transaction added");
+    });
+
+    elements["transaction-type"].addEventListener("change", renderTransactionForm);
+    elements["category-buttons"].addEventListener("click", event => {
+      const button = event.target.closest("[data-category-name]");
+      if (!button) return;
+      elements["transaction-category"].value = button.dataset.categoryName;
+      if (button.dataset.lastAmount !== "") elements["transaction-amount"].value = button.dataset.lastAmount;
+      renderCategoryButtons();
+      elements["transaction-amount"].focus();
     });
 
     elements["transaction-list"].addEventListener("input", event => {
       const field = event.target.dataset.transactionField;
       const row = event.target.closest("[data-transaction-id]");
       if (!field || !row) return;
-      const transaction = readToday().transactions.find(item => item.id === row.dataset.transactionId);
+      const dayKey = row.dataset.dayKey;
+      const transaction = state.days[dayKey]?.transactions.find(item => item.id === row.dataset.transactionId);
       if (!transaction) return;
       const value = field === "amount" ? Math.max(0, Number(event.target.value) || 0) : event.target.value;
-      runDataChange(() => dataStore.updateTransaction(todayKey, transaction.id, { [field]: value }));
+      runDataChange(() => dataStore.updateTransaction(dayKey, transaction.id, { [field]: value }));
       if (field === "category") populateCategoryOptions();
-      renderTodaySummary();
+      renderSpending();
+      renderAccounts();
     });
 
     elements["transaction-list"].addEventListener("change", () => renderTransactions());
@@ -730,12 +839,29 @@
         finalLabel: "確認刪除",
         trigger: button,
         action: () => {
-          runDataChange(() => dataStore.deleteTransaction(todayKey, button.dataset.removeTransaction));
+          const row = button.closest("[data-day-key]");
+          runDataChange(() => dataStore.deleteTransaction(row.dataset.dayKey, button.dataset.removeTransaction));
           renderTodaySummary();
-          renderTransactions();
-          showToast("收支已刪除");
+          renderMoney();
+          showToast("Transaction deleted");
         }
       });
+    });
+
+    elements["account-balances"].addEventListener("input", event => {
+      const accountId = event.target.dataset.accountStarting;
+      if (!accountId) return;
+      runDataChange(() => dataStore.updateAccount(accountId, { startingBalance: Number(event.target.value) || 0 }));
+      renderAccounts();
+    });
+
+    elements["money-radar-list"].addEventListener("click", event => {
+      const button = event.target.closest("[data-complete-event]");
+      if (!button) return;
+      if (runDataChange(() => dataStore.completeEvent(button.dataset.completeEvent, { completedDate: todayKey }))) {
+        renderMoney();
+        showToast("Marked done");
+      }
     });
 
     elements["toggle-project-form"].addEventListener("click", () => toggleProjectForm(elements["project-form"].hidden));
@@ -860,6 +986,9 @@
     const moneyCard = document.getElementById("money-card");
     const moneyContent = document.getElementById("money-content");
     if (moneyCard && moneyContent) moneyContent.appendChild(moneyCard);
+    const transactionList = document.getElementById("transaction-list");
+    const recentTransactions = document.getElementById("recent-transactions");
+    if (transactionList && recentTransactions) recentTransactions.appendChild(transactionList);
     const workCard = document.getElementById("work-card");
     const sleepCard = document.getElementById("sleep-card");
     if (workCard && sleepCard && workCard.parentElement === sleepCard.parentElement) {

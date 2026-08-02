@@ -505,9 +505,10 @@
   }
 
   function orderedCategories(state) {
-    return [...(state.categories || [])]
-      .filter(category => category.active)
-      .sort((a, b) => (b.useCount || 0) - (a.useCount || 0) || a.name.localeCompare(b.name, "zh-Hant"));
+    return (state.categories || []).map((category, index) => ({ category, index }))
+      .filter(item => item.category.active)
+      .sort((a, b) => (b.category.useCount || 0) - (a.category.useCount || 0) || a.index - b.index)
+      .map(item => item.category);
   }
 
   function hasDayRecord(day) {

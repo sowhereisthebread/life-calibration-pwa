@@ -50,7 +50,27 @@
               <h2 id="money-page-heading">MONEY</h2>
             </div>
           </div>
+          <section id="money-radar" class="radar" aria-labelledby="money-radar-heading" hidden>
+            <div class="section-heading"><h3 id="money-radar-heading">RADAR</h3></div>
+            <div id="money-radar-list" class="radar-list"></div>
+          </section>
           <div id="money-content"></div>
+          <section class="card accounts-panel" aria-labelledby="accounts-heading">
+            <div class="section-heading"><h3 id="accounts-heading">ACCOUNTS</h3></div>
+            <div id="account-balances" class="account-balances"></div>
+          </section>
+          <section class="money-summary" aria-labelledby="spent-heading">
+            <p class="step-label">THIS MONTH · SPENT</p>
+            <strong id="month-spent" class="hero-number">NT$ 0</strong>
+            <div class="spending-breakdown">
+              <div id="spending-chart" class="chart-wrap"></div>
+              <div id="category-ranking" class="category-ranking"></div>
+            </div>
+          </section>
+          <section class="card" aria-labelledby="recent-heading">
+            <div class="section-heading"><h3 id="recent-heading">RECENT</h3></div>
+            <div id="recent-transactions"></div>
+          </section>
         </section>
 
         <section id="page-work" class="page" data-page="work" aria-labelledby="work-page-heading" hidden>
@@ -108,35 +128,58 @@
           <article id="money-card" class="card" aria-labelledby="money-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">03・收支</p>
-                <h3 id="money-heading">新增一筆</h3>
+                <p class="step-label">QUICK ADD</p>
+                <h3 id="money-heading">Add transaction</h3>
               </div>
               <span class="helper">可留空，之後再補</span>
             </div>
             <form id="transaction-form" class="stack-form" novalidate>
               <div class="two-column">
                 <label class="field">
-                  <span>收入或支出</span>
+                  <span>Type</span>
                   <select id="transaction-type">
-                    <option value="expense">支出</option>
-                    <option value="income">收入</option>
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                    <option value="transfer">Transfer</option>
                   </select>
                 </label>
                 <label class="field">
-                  <span>金額</span>
+                  <span>Amount</span>
                   <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
                 </label>
               </div>
-              <label class="field">
-                <span>分類</span>
-                <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：餐飲">
+              <div id="expense-fields" class="stack-form">
+                <fieldset class="category-fieldset">
+                  <legend>Category</legend>
+                  <div id="category-buttons" class="category-buttons"></div>
+                </fieldset>
+                <label class="field">
+                  <span>Category name</span>
+                  <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：吃飯">
+                </label>
                 <datalist id="category-options"></datalist>
-              </label>
+                <label class="field">
+                  <span>Paid with</span>
+                  <select id="transaction-payment-method">
+                    <option value="card">Card</option>
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank</option>
+                  </select>
+                </label>
+              </div>
+              <div id="income-fields" class="two-column" hidden>
+                <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off" placeholder="工資／投資／其他"></label>
+                <label class="field"><span>Account</span><select id="transaction-income-account"></select></label>
+              </div>
+              <div id="transfer-fields" class="two-column" hidden>
+                <label class="field"><span>From</span><select id="transaction-from-account"></select></label>
+                <label class="field"><span>To</span><select id="transaction-to-account"></select></label>
+              </div>
               <label class="field">
-                <span>備註</span>
-                <input id="transaction-note" type="text" autocomplete="off" placeholder="選填，一行就好">
+                <span>Title</span>
+                <input id="transaction-note" type="text" autocomplete="off" placeholder="選填">
               </label>
-              <button type="submit" class="button button-secondary button-full">新增這筆收支</button>
+              <button type="submit" class="button button-primary button-full">Add</button>
             </form>
             <div id="transaction-list" class="record-list" aria-live="polite"></div>
           </article>
