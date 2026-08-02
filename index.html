@@ -79,18 +79,24 @@
               <p class="eyebrow">Daily rhythm</p>
               <h2 id="work-page-heading">WORK</h2>
             </div>
-            <span id="autosave-status" class="save-state" aria-live="polite">輸入即存</span>
+            <div class="heading-actions">
+              <span id="autosave-status" class="save-state" aria-live="polite">輸入即存</span>
+              <button id="toggle-schedule" type="button" class="button button-secondary" aria-expanded="false" aria-controls="schedule-section">Schedule</button>
+            </div>
           </div>
 
-          <div class="quick-summary" aria-label="今日摘要">
-            <div><span>工時</span><strong id="today-work-total">0 小時</strong></div>
-            <div><span>收支</span><strong id="today-net-total">NT$ 0</strong></div>
+          <div id="work-summary" class="quick-summary" aria-label="工作與收入摘要">
+            <div><span>Hours today</span><strong id="today-work-total">0 小時</strong></div>
+            <div class="income-summary">
+              <span>This month · Income</span><strong id="work-month-income">NT$ 0</strong>
+              <label class="target-field">Target <input id="income-target" type="number" min="0" step="1000" inputmode="decimal"></label>
+            </div>
           </div>
 
           <article id="sleep-card" class="card" aria-labelledby="sleep-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">01・睡眠</p>
+                <p class="step-label">02・睡眠</p>
                 <h3 id="sleep-heading">昨晚睡得如何？</h3>
               </div>
               <strong id="sleep-total" class="card-number">—</strong>
@@ -116,7 +122,7 @@
           <article id="work-card" class="card card-accent" aria-labelledby="work-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">02・工作</p>
+                <p class="step-label">01・工作</p>
                 <h3 id="work-heading">今天的工作段</h3>
               </div>
               <span id="work-status" class="status-pill">尚未上班</span>
@@ -187,7 +193,7 @@
           <article class="card" aria-labelledby="recovery-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">04・恢復</p>
+                <p class="step-label">03・恢復</p>
                 <h3 id="recovery-heading">什麼讓你恢復一點？</h3>
               </div>
             </div>
@@ -217,6 +223,25 @@
               <input id="daily-note" type="text" autocomplete="off" placeholder="今天還想記住什麼？">
             </label>
           </article>
+
+          <section id="schedule-section" class="card" aria-labelledby="schedule-heading" hidden>
+            <div class="card-heading compact-heading">
+              <div>
+                <p class="step-label">SCHEDULE</p>
+                <h3 id="schedule-heading">固定時段</h3>
+              </div>
+            </div>
+            <form id="schedule-form" class="stack-form" novalidate>
+              <div class="schedule-grid">
+                <label class="field"><span>Weekday</span><select id="schedule-weekday"><option value="1">週一</option><option value="2">週二</option><option value="3">週三</option><option value="4">週四</option><option value="5">週五</option><option value="6">週六</option><option value="7">週日</option></select></label>
+                <label class="field"><span>Start</span><input id="schedule-start" type="time"></label>
+                <label class="field"><span>End</span><input id="schedule-end" type="time"></label>
+              </div>
+              <label class="field"><span>Name</span><input id="schedule-name" type="text" autocomplete="off" placeholder="例：固定工作時段"></label>
+              <button type="submit" class="button button-primary button-full">Add schedule</button>
+            </form>
+            <div id="schedule-list" class="record-list"></div>
+          </section>
         </section>
 
         <section id="page-projects" class="page" data-page="projects" aria-labelledby="projects-heading" hidden>
@@ -308,8 +333,8 @@
         <section id="page-review" class="page" data-page="review" aria-labelledby="review-heading" hidden>
           <div class="page-heading">
             <div>
-              <p class="eyebrow">最近七天</p>
-              <h2 id="review-heading">回顧</h2>
+              <p class="eyebrow">Seven days & monthly close</p>
+              <h2 id="review-heading">REVIEW</h2>
             </div>
           </div>
 
@@ -320,13 +345,27 @@
             <article class="metric"><span>有記錄</span><strong id="metric-days">0 天</strong></article>
           </div>
           <div id="review-list" class="review-list"></div>
+
+          <section class="card" aria-labelledby="monthly-close-heading">
+            <div class="section-heading"><h3 id="monthly-close-heading">MONTHLY CLOSE</h3></div>
+            <div class="metric-grid monthly-close-grid">
+              <article class="metric"><span>Income</span><strong id="review-month-income">NT$ 0</strong></article>
+              <article class="metric"><span>Expense</span><strong id="review-month-expense">NT$ 0</strong></article>
+              <article class="metric"><span>Net</span><strong id="review-month-net">NT$ 0</strong></article>
+            </div>
+            <label class="field"><span>Credit card statement</span><input id="statement-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0"></label>
+            <div class="statement-compare">
+              <div><span>Recorded last month</span><strong id="statement-recorded">NT$ 0</strong></div>
+              <div><span>Gap</span><strong id="statement-gap">NT$ 0</strong></div>
+            </div>
+          </section>
         </section>
 
         <section id="page-data" class="page" data-page="data" aria-labelledby="data-heading" hidden>
           <div class="page-heading">
             <div>
-              <p class="eyebrow">只存在這台裝置</p>
-              <h2 id="data-heading">資料</h2>
+              <p class="eyebrow">Local data only</p>
+              <h2 id="data-heading">DATA</h2>
             </div>
           </div>
 
@@ -344,13 +383,13 @@
           </aside>
 
           <article class="card data-card">
-            <h3>備份與帶走</h3>
-            <p>JSON 能完整還原；CSV 適合用 Excel 查看每日摘要。</p>
-            <button id="export-json" type="button" class="button button-primary button-full">匯出完整 JSON</button>
-            <button id="export-csv" type="button" class="button button-secondary button-full">匯出每日 CSV</button>
-            <label class="button button-quiet button-full file-button" for="import-json">匯入 JSON</label>
+            <h3>BACKUP & EXPORT</h3>
+            <p>JSON 能完整還原；CSV 包含每日、交易、義務、事件、帳戶、書單、排程與設定。</p>
+            <button id="export-json" type="button" class="button button-primary button-full">Export JSON</button>
+            <button id="export-csv" type="button" class="button button-secondary button-full">Export CSV</button>
+            <label class="button button-quiet button-full file-button" for="import-json">Import JSON</label>
             <input id="import-json" class="visually-hidden" type="file" accept="application/json,.json">
-            <p id="last-export" class="helper">尚未匯出備份</p>
+            <p id="last-export" class="helper">No export yet</p>
           </article>
 
           <article class="card data-card">
@@ -363,9 +402,9 @@
           </article>
 
           <article class="card danger-zone">
-            <h3>清除全部資料</h3>
+            <h3>CLEAR ALL DATA</h3>
             <p>只會清除目前這個網址與瀏覽器內的人生主控表資料。</p>
-            <button id="clear-data" type="button" class="button button-danger button-full">清除全部資料</button>
+            <button id="clear-data" type="button" class="button button-danger button-full">Clear all</button>
           </article>
         </section>
       </main>

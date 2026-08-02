@@ -300,7 +300,7 @@
 
   function queryElements() {
     [
-      "today-date", "autosave-status", "today-work-total", "today-net-total", "sleep-bedtime", "sleep-wake",
+      "today-date", "autosave-status", "today-work-total", "work-month-income", "income-target", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-category", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
@@ -313,7 +313,9 @@
       "obligation-completion-mode", "obligation-payment-method", "obligation-status", "obligation-note", "mileage-fields",
       "obligation-last-mileage", "obligation-current-mileage", "obligation-reminder-days", "obligation-threshold",
       "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list",
-      "metric-days", "review-list", "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
+      "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
+      "metric-days", "review-list", "review-month-income", "review-month-expense", "review-month-net", "statement-amount", "statement-recorded", "statement-gap",
+      "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
       "current-origin", "clear-data", "confirm-modal", "modal-title", "modal-message", "modal-confirm", "toast"
     ].forEach(id => { elements[id] = document.getElementById(id); });
   }
@@ -430,16 +432,30 @@
     renderTodaySummary();
     renderWorkSessions();
     renderTransactions();
+    renderSchedule();
   }
 
   function renderTodaySummary() {
     const day = readToday();
     const sleepMinutes = durationBetweenTimes(day.sleep.bedtime, day.sleep.wakeTime);
     const totalWork = workMinutes(day.workSessions);
-    const net = dayNet(day);
+    const monthKey = todayKey.slice(0, 7);
     elements["sleep-total"].textContent = formatMinutes(sleepMinutes);
     elements["today-work-total"].textContent = formatMinutes(totalWork);
-    elements["today-net-total"].textContent = formatCurrency(net);
+    elements["work-month-income"].textContent = formatCurrency(RuntimeCore.monthIncome(state, monthKey));
+    elements["income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 0);
+  }
+
+  function renderSchedule(forceOpen = false) {
+    const weekdayLabel = ["", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+    const entries = [...(state.schedule || [])].sort((a, b) => a.weekday - b.weekday || String(a.start).localeCompare(String(b.start)));
+    const open = forceOpen || entries.length > 0 || elements["toggle-schedule"].getAttribute("aria-expanded") === "true";
+    elements["schedule-section"].hidden = !open;
+    elements["toggle-schedule"].setAttribute("aria-expanded", String(open));
+    elements["schedule-list"].innerHTML = entries.length ? entries.map(item => `
+      <article class="record-row schedule-row">
+        <div><strong>${escapeHtml(item.name || "固定時段")}</strong><span>${escapeHtml(weekdayLabel[item.weekday] || "")} · ${escapeHtml(item.start || "—")}–${escapeHtml(item.end || "—")}</span></div>
+      </article>`).join("") : '<div class="empty-state compact-empty">尚未設定固定時段。</div>';
   }
 
   function renderWorkSessions() {
@@ -663,7 +679,7 @@
   }
 
   function renderReview() {
-    const summary = summarizeReview(state, todayKey);
+    const summary = RuntimeCore.summarizeReview(state, todayKey);
     elements["metric-sleep"].textContent = formatMinutes(summary.averageSleep);
     elements["metric-work"].textContent = formatMinutes(summary.totalWork);
     elements["metric-expense"].textContent = formatCurrency(summary.totalExpense);
@@ -679,12 +695,24 @@
           <div><span>恢復效果</span><strong>${row.recovery ? `${escapeHtml(row.recovery)} / 5` : "—"}</strong></div>
         </div>
       </article>`).join("");
+
+    const monthKey = todayKey.slice(0, 7);
+    const income = RuntimeCore.monthIncome(state, monthKey);
+    const expense = RuntimeCore.monthExpense(state, monthKey);
+    const statementValue = state.statements?.[monthKey];
+    const statement = RuntimeCore.cardStatementGap(state, monthKey, statementValue);
+    elements["review-month-income"].textContent = formatCurrency(income);
+    elements["review-month-expense"].textContent = formatCurrency(expense);
+    elements["review-month-net"].textContent = formatCurrency(income - expense);
+    elements["statement-amount"].value = statementValue ?? "";
+    elements["statement-recorded"].textContent = formatCurrency(statement.recorded);
+    elements["statement-gap"].textContent = formatCurrency(statement.gap);
   }
 
   function renderDataPage() {
     const protocolLabel = location.protocol === "file:" ? `直接雙擊（${location.href.split("?")[0]}）` : location.origin;
     elements["current-origin"].textContent = protocolLabel;
-    elements["last-export"].textContent = state.meta.lastExportAt ? `最近匯出：${formatUpdated(state.meta.lastExportAt)}` : "尚未匯出備份";
+    elements["last-export"].textContent = state.meta.lastExportAt ? `Last export: ${formatUpdated(state.meta.lastExportAt)}` : "No export yet";
   }
 
   function renderAll() {
@@ -729,8 +757,8 @@
   }
 
   function exportCsv() {
-    downloadFile(`\uFEFF${dataStore.exportCsv()}`, `人生主控表_${todayKey}_每日摘要.csv`, "text/csv;charset=utf-8");
-    showToast("每日 CSV 已匯出");
+    downloadFile(`\uFEFF${dataStore.exportCsv()}`, `人生主控表_${todayKey}_完整資料.csv`, "text/csv;charset=utf-8");
+    showToast("完整 CSV 已匯出");
   }
 
   function openConfirmation({ title, message, firstLabel = "第一次確認", finalLabel = "再次確認", action, trigger }) {
@@ -797,6 +825,36 @@
     bindAutosaveInput("recovery-activity", "recovery.activity");
     bindAutosaveInput("recovery-effect", "recovery.effect");
     bindAutosaveInput("daily-note", "note");
+
+    elements["income-target"].addEventListener("input", event => {
+      runDataChange(() => dataStore.updateSettings({ monthlyIncomeTarget: Math.max(0, Number(event.target.value) || 0) }));
+    });
+
+    elements["toggle-schedule"].addEventListener("click", () => {
+      const open = elements["schedule-section"].hidden;
+      elements["toggle-schedule"].setAttribute("aria-expanded", String(open));
+      renderSchedule(open);
+      if (open) elements["schedule-name"].focus();
+    });
+
+    elements["schedule-form"].addEventListener("submit", event => {
+      event.preventDefault();
+      const name = elements["schedule-name"].value.trim();
+      if (!name) {
+        showToast("請輸入時段名稱");
+        elements["schedule-name"].focus();
+        return;
+      }
+      runDataChange(() => dataStore.addScheduleItem({
+        weekday: Number(elements["schedule-weekday"].value),
+        start: elements["schedule-start"].value,
+        end: elements["schedule-end"].value,
+        name
+      }));
+      elements["schedule-form"].reset();
+      renderSchedule(true);
+      showToast("Schedule added");
+    });
 
     elements["punch-button"].addEventListener("click", () => {
       const day = readToday();
@@ -1113,6 +1171,14 @@
       showToast("Book added");
     });
 
+    elements["statement-amount"].addEventListener("input", event => {
+      const monthKey = todayKey.slice(0, 7);
+      runDataChange(() => dataStore.setStatementAmount(monthKey, Math.max(0, Number(event.target.value) || 0)));
+      const statement = RuntimeCore.cardStatementGap(state, monthKey, state.statements?.[monthKey]);
+      elements["statement-recorded"].textContent = formatCurrency(statement.recorded);
+      elements["statement-gap"].textContent = formatCurrency(statement.gap);
+    });
+
     elements["export-json"].addEventListener("click", () => exportJson());
     elements["export-csv"].addEventListener("click", exportCsv);
     elements["import-json"].addEventListener("change", async event => {
@@ -1120,7 +1186,7 @@
       if (!file) return;
       try {
         const parsed = JSON.parse(await file.text());
-        const validation = validateImportedState(parsed);
+        const validation = RuntimeCore.validateImportedState(parsed);
         if (!validation.valid) {
           showToast(validation.reason, 5000);
           return;
@@ -1193,9 +1259,13 @@
     const recentTransactions = document.getElementById("recent-transactions");
     if (transactionList && recentTransactions) recentTransactions.appendChild(transactionList);
     const workCard = document.getElementById("work-card");
+    const workSummary = document.getElementById("work-summary");
     const sleepCard = document.getElementById("sleep-card");
     if (workCard && sleepCard && workCard.parentElement === sleepCard.parentElement) {
       sleepCard.parentElement.insertBefore(workCard, sleepCard);
+    }
+    if (workCard && workSummary && workCard.parentElement === workSummary.parentElement) {
+      workCard.after(workSummary);
     }
   }
 
