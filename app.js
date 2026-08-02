@@ -304,7 +304,7 @@
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-category", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
-      "category-options", "category-buttons", "transaction-list", "money-radar", "money-radar-list", "account-balances",
+      "category-options", "category-buttons", "category-form", "category-name", "category-manager", "transaction-list", "money-radar", "money-radar-list", "account-balances",
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
@@ -542,6 +542,14 @@
     `).join("");
   }
 
+  function renderCategoryManager() {
+    elements["category-manager"].innerHTML = state.categories.map(category => `
+      <label class="category-manager-row" data-category-id="${escapeHtml(category.id)}">
+        <input class="record-input" type="text" value="${escapeHtml(category.name)}" data-category-field="name" aria-label="分類名稱 ${escapeHtml(category.name)}">
+        <span><input type="checkbox" ${category.active ? "checked" : ""} data-category-field="active" aria-label="啟用 ${escapeHtml(category.name)}"> Active</span>
+      </label>`).join("");
+  }
+
   function renderRadar() {
     const items = RuntimeCore.radarItems(state, todayKey);
     elements["money-radar"].hidden = !items.length;
@@ -594,6 +602,7 @@
     populateCategoryOptions();
     renderTransactionForm();
     renderCategoryButtons();
+    renderCategoryManager();
     renderRadar();
     renderAccounts();
     renderSpending();
@@ -935,6 +944,43 @@
       if (button.dataset.lastAmount !== "") elements["transaction-amount"].value = button.dataset.lastAmount;
       renderCategoryButtons();
       elements["transaction-amount"].focus();
+    });
+
+    elements["category-form"].addEventListener("submit", event => {
+      event.preventDefault();
+      const name = elements["category-name"].value.trim();
+      if (!name) return;
+      runDataChange(() => dataStore.addCategory(name));
+      elements["category-name"].value = "";
+      populateCategoryOptions();
+      renderCategoryButtons();
+      renderCategoryManager();
+      showToast("Category added");
+    });
+
+    elements["category-manager"].addEventListener("input", event => {
+      const row = event.target.closest("[data-category-id]");
+      if (!row || event.target.dataset.categoryField !== "name") return;
+      const value = event.target.value.trim();
+      if (value) runDataChange(() => dataStore.updateCategory(row.dataset.categoryId, { name: value }));
+    });
+
+    elements["category-manager"].addEventListener("change", event => {
+      const row = event.target.closest("[data-category-id]");
+      const field = event.target.dataset.categoryField;
+      if (!row || !field) return;
+      const value = field === "active" ? event.target.checked : event.target.value.trim();
+      if (field === "name" && !value) {
+        renderCategoryManager();
+        return;
+      }
+      if (field === "active") runDataChange(() => dataStore.updateCategory(row.dataset.categoryId, { active: value }));
+      populateCategoryOptions();
+      renderCategoryButtons();
+      renderCategoryManager();
+      renderTransactions();
+      renderSpending();
+      showToast(field === "active" ? "Category updated" : "Category renamed");
     });
 
     elements["transaction-list"].addEventListener("input", event => {

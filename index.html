@@ -187,6 +187,15 @@
               </label>
               <button type="submit" class="button button-primary button-full">Add</button>
             </form>
+            <details class="recess-group category-manager-wrap">
+              <summary>Manage categories</summary>
+              <form id="category-form" class="input-action-row" novalidate>
+                <label class="visually-hidden" for="category-name">New category</label>
+                <input id="category-name" type="text" autocomplete="off" placeholder="New category">
+                <button type="submit" class="button button-secondary">Add</button>
+              </form>
+              <div id="category-manager" class="category-manager"></div>
+            </details>
             <div id="transaction-list" class="record-list" aria-live="polite"></div>
           </article>
 
