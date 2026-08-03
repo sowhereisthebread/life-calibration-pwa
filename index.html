@@ -2,7 +2,7 @@
 <html lang="zh-Hant-TW">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="theme-color" content="#A4AAB0">
     <meta name="description" content="手機優先、資料留在本機的人生記錄工具。">
     <meta name="mobile-web-app-capable" content="yes">
@@ -28,7 +28,7 @@
           <p class="eyebrow">v0.3.5</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
-        <img class="brand-icon" src="./icons/brand-mark.png" width="32" height="32" alt="">
+        <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
       </header>
 
       <aside id="backup-reminder" class="notice notice-warning" hidden>
@@ -79,15 +79,10 @@
                   </label>
                 </div>
                 <div id="expense-fields" class="stack-form">
-                  <fieldset class="category-fieldset">
-                    <legend>Category</legend>
-                    <div id="category-buttons" class="category-buttons"></div>
-                  </fieldset>
                   <label class="field">
-                    <span>Category name</span>
-                    <input id="transaction-category" type="text" list="category-options" autocomplete="off" placeholder="例如：吃飯">
+                    <span>Item</span>
+                    <input id="transaction-item" type="text" autocomplete="off" placeholder="例如：咖啡">
                   </label>
-                  <datalist id="category-options"></datalist>
                   <label class="field">
                     <span>Paid with</span>
                     <select id="transaction-payment-method">
@@ -105,21 +100,12 @@
                   <label class="field"><span>From</span><select id="transaction-from-account"></select></label>
                   <label class="field"><span>To</span><select id="transaction-to-account"></select></label>
                 </div>
-                <label class="field">
-                  <span>Title</span>
+                <label id="transaction-title-field" class="field">
+                  <span>Title (optional)</span>
                   <input id="transaction-note" type="text" autocomplete="off" placeholder="選填">
                 </label>
                 <button type="submit" class="button button-primary button-full">Add</button>
               </form>
-              <details class="recess-group category-manager-wrap">
-                <summary>Manage categories</summary>
-                <form id="category-form" class="input-action-row" novalidate>
-                  <label class="visually-hidden" for="category-name">New category</label>
-                  <input id="category-name" type="text" autocomplete="off" placeholder="New category">
-                  <button type="submit" class="button button-secondary">Add</button>
-                </form>
-                <div id="category-manager" class="category-manager"></div>
-              </details>
             </article>
           </div>
           <section class="card accounts-panel" aria-labelledby="accounts-heading">
@@ -139,7 +125,7 @@
           </section>
           <section class="money-summary" aria-labelledby="spent-heading">
             <p class="step-label">THIS MONTH · SPENT</p>
-            <strong id="month-spent" class="hero-number">NT$ 0</strong>
+            <strong id="month-spent" class="primary-number primary-number-hero">NT$ 0</strong>
             <div class="spending-breakdown">
               <div id="spending-chart" class="chart-wrap"></div>
               <div id="category-ranking" class="category-ranking"></div>
@@ -180,7 +166,7 @@
           <div id="work-summary" class="quick-summary" aria-label="工作與收入摘要">
             <div><span>Hours today</span><strong id="today-work-total">0 小時</strong></div>
             <div class="income-summary">
-              <span>This month · Income</span><strong id="work-month-income">NT$ 0</strong>
+              <span>This month · Income</span><strong id="work-month-income" class="primary-number">NT$ 0</strong>
               <label class="target-field">Target <input id="income-target" type="number" min="0" step="1000" inputmode="decimal"></label>
             </div>
           </div>
@@ -364,19 +350,19 @@
           </div>
 
           <div class="metric-grid" aria-label="最近七天摘要">
-            <article class="metric"><span>平均睡眠</span><strong id="metric-sleep">—</strong></article>
-            <article class="metric"><span>總工時</span><strong id="metric-work">0 小時</strong></article>
-            <article class="metric"><span>支出合計</span><strong id="metric-expense">NT$ 0</strong></article>
-            <article class="metric"><span>有記錄</span><strong id="metric-days">0 天</strong></article>
+            <article class="metric"><span>平均睡眠</span><strong id="metric-sleep" class="primary-number">—</strong></article>
+            <article class="metric"><span>總工時</span><strong id="metric-work" class="primary-number">0 小時</strong></article>
+            <article class="metric"><span>支出合計</span><strong id="metric-expense" class="primary-number">NT$ 0</strong></article>
+            <article class="metric"><span>有記錄</span><strong id="metric-days" class="primary-number">0 天</strong></article>
           </div>
           <div id="review-list" class="review-list"></div>
 
           <section class="card" aria-labelledby="monthly-close-heading">
             <div class="section-heading"><h3 id="monthly-close-heading">MONTHLY CLOSE</h3></div>
             <div class="metric-grid monthly-close-grid">
-              <article class="metric"><span>Income</span><strong id="review-month-income">NT$ 0</strong></article>
-              <article class="metric"><span>Expense</span><strong id="review-month-expense">NT$ 0</strong></article>
-              <article class="metric"><span>Net</span><strong id="review-month-net">NT$ 0</strong></article>
+              <article class="metric"><span>Income</span><strong id="review-month-income" class="primary-number">NT$ 0</strong></article>
+              <article class="metric"><span>Expense</span><strong id="review-month-expense" class="primary-number">NT$ 0</strong></article>
+              <article class="metric"><span>Net</span><strong id="review-month-net" class="primary-number">NT$ 0</strong></article>
             </div>
             <label class="field"><span>Credit card statement</span><input id="statement-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0"></label>
             <div class="statement-compare">

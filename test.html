@@ -290,13 +290,26 @@
           equal(result.recorded, 800);
           equal(result.gap, 200);
         });
-        test("分類記住使用次數與最近金額", () => {
+        test("相容用 Item 欄位仍保留使用次數與最近金額", () => {
           const store = createMemoryStore();
           store.addTransaction("2026-08-01", { id: "c1", type: "expense", amount: 35, category: "咖啡" });
           store.addTransaction("2026-08-02", { id: "c2", type: "expense", amount: 45, category: "咖啡" });
           const category = store.readState().categories.find(item => item.name === "咖啡");
           equal(category.useCount, 2);
           equal(category.lastAmount, 45);
+        });
+        test("Item 完全相同文字合併、不同文字分開、空白歸其他", () => {
+          const store = createMemoryStore();
+          store.addTransaction("2026-08-01", { id: "i1", type: "expense", amount: 35, category: "咖啡" });
+          store.addTransaction("2026-08-02", { id: "i2", type: "expense", amount: 50, category: "咖啡" });
+          store.addTransaction("2026-08-03", { id: "i3", type: "expense", amount: 40, category: "菸" });
+          store.addTransaction("2026-08-04", { id: "i4", type: "expense", amount: 60, category: "香菸" });
+          store.addTransaction("2026-08-05", { id: "i5", type: "expense", amount: 20, category: "   " });
+          const ranking = Core.categoryRanking(store.readState(), "2026-08");
+          equal(ranking.find(item => item.name === "咖啡").amount, 85);
+          equal(ranking.find(item => item.name === "菸").amount, 40);
+          equal(ranking.find(item => item.name === "香菸").amount, 60);
+          equal(ranking.find(item => item.name === "其他").amount, 20);
         });
         test("里程超過門檻顯示 Service due", () => {
           const state = stateWithEvent({ type: "mileage" }, null, { service: { lastServiceMileage: 40000, currentMileage: 50000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } });
@@ -457,6 +470,21 @@
           request.open("GET", "./manifest.json", false);
           request.send();
           equal(JSON.parse(request.responseText).theme_color, "#A4AAB0");
+        });
+        test("快速記帳 UI 僅保留 Item 並鎖定 viewport 縮放", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./index.html", false);
+          request.send();
+          const documentCopy = new DOMParser().parseFromString(request.responseText, "text/html");
+          const viewport = documentCopy.querySelector('meta[name="viewport"]')?.content || "";
+          if (!viewport.includes("maximum-scale=1") || !viewport.includes("user-scalable=no")) throw new Error("viewport 未鎖定縮放");
+          if (!documentCopy.getElementById("transaction-item")) throw new Error("缺少 Item 欄位");
+          ["transaction-category", "category-buttons", "category-form", "category-manager"].forEach(id => {
+            if (documentCopy.getElementById(id)) throw new Error(`仍存在分類介面：${id}`);
+          });
+          ["month-spent", "work-month-income", "metric-sleep", "review-month-net"].forEach(id => {
+            if (!documentCopy.getElementById(id)?.classList.contains("primary-number")) throw new Error(`${id} 未使用共用主數字 class`);
+          });
         });
 
         const passed = results.filter(result => result.pass).length;

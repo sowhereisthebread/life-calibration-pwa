@@ -41,9 +41,9 @@
     [
       "today-date", "autosave-status", "today-work-total", "work-month-income", "income-target", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
-      "transaction-amount", "transaction-category", "transaction-note", "transaction-payment-method", "transaction-income-source",
+      "transaction-amount", "transaction-item", "transaction-title-field", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
-      "category-options", "category-buttons", "category-form", "category-name", "category-manager", "transaction-list", "money-radar", "money-radar-list", "account-balances",
+      "transaction-list", "money-radar", "money-radar-list", "account-balances",
       "account-form", "account-name", "account-starting", "account-manager",
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
@@ -155,15 +155,6 @@
     document.getElementById(`page-${pageName}`)?.focus({ preventScroll: true });
   }
 
-  function populateCategoryOptions() {
-    const categories = RuntimeCore.orderedCategories(state).map(category => category.name);
-    elements["category-options"].innerHTML = categories.map(category => `<option value="${escapeHtml(category)}"></option>`).join("");
-  }
-
-  function preferredCategory() {
-    return RuntimeCore.orderedCategories(state)[0]?.name || RuntimeCore.DEFAULT_CATEGORIES[0];
-  }
-
   function renderToday() {
     const day = readToday();
     elements["sleep-bedtime"].value = day.sleep.bedtime || "";
@@ -231,7 +222,7 @@
   function renderTransactions() {
     const transactions = RuntimeCore.allTransactions(state).sort((a, b) => String(b.occurredOn).localeCompare(String(a.occurredOn)));
     if (!transactions.length) {
-      elements["transaction-list"].innerHTML = '<div class="empty-state"><strong>Nothing logged yet.</strong>Choose a category to begin.</div>';
+      elements["transaction-list"].innerHTML = '<div class="empty-state"><strong>Nothing logged yet.</strong>Add the first transaction above.</div>';
       return;
     }
     const groups = transactions.reduce((result, transaction) => {
@@ -244,15 +235,16 @@
         <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
         ${items.map(transaction => `
           <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
-            <summary><span>${escapeHtml(transaction.title || transaction.category || typeLabel[transaction.type])}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
+            <summary><span>${escapeHtml(transaction.type === "expense" ? (transaction.category || "Other") : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
             <div class="transaction-editor">
               <div class="inline-fields">
                 <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
                 <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
               </div>
-              <label class="field"><span>Category</span><input class="record-input" type="text" list="category-options" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
-              <label class="field"><span>Title</span><input class="record-input" type="text" value="${escapeHtml(transaction.title || "")}" data-transaction-field="title"></label>
-              <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>
+              ${transaction.type === "expense" ? `
+                <label class="field"><span>Item</span><input class="record-input" type="text" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
+                <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>
+              ` : `<label class="field"><span>Title (optional)</span><input class="record-input" type="text" value="${escapeHtml(transaction.title || "")}" data-transaction-field="title"></label>`}
               <button type="button" class="record-remove" data-remove-transaction="${escapeHtml(transaction.id)}">Delete</button>
             </div>
           </details>`).join("")}
@@ -264,6 +256,7 @@
     elements["expense-fields"].hidden = type !== "expense";
     elements["income-fields"].hidden = type !== "income";
     elements["transfer-fields"].hidden = type !== "transfer";
+    elements["transaction-title-field"].hidden = type === "expense";
     const accountOptions = RuntimeCore.selectableAccounts(state).map(account => `<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}</option>`).join("");
     ["transaction-income-account", "transaction-from-account", "transaction-to-account"].forEach(id => {
       if (!elements[id]) return;
@@ -278,21 +271,6 @@
       elements["transaction-from-account"].value = "main";
       elements["transaction-to-account"].value = "card";
     }
-  }
-
-  function renderCategoryButtons() {
-    const categories = RuntimeCore.orderedCategories(state);
-    elements["category-buttons"].innerHTML = categories.map(category => `
-      <button type="button" class="category-chip ${elements["transaction-category"].value === category.name ? "is-selected" : ""}" data-category-name="${escapeHtml(category.name)}" data-last-amount="${category.lastAmount ?? ""}">${escapeHtml(category.name)}</button>
-    `).join("");
-  }
-
-  function renderCategoryManager() {
-    elements["category-manager"].innerHTML = state.categories.map(category => `
-      <label class="category-manager-row" data-category-id="${escapeHtml(category.id)}">
-        <input class="record-input" type="text" value="${escapeHtml(category.name)}" data-category-field="name" aria-label="分類名稱 ${escapeHtml(category.name)}">
-        <span><input type="checkbox" ${category.active ? "checked" : ""} data-category-field="active" aria-label="啟用 ${escapeHtml(category.name)}"> Active</span>
-      </label>`).join("");
   }
 
   function renderRadar() {
@@ -349,10 +327,7 @@
   }
 
   function renderMoney() {
-    populateCategoryOptions();
     renderTransactionForm();
-    renderCategoryButtons();
-    renderCategoryManager();
     renderRadar();
     renderAccounts();
     renderSpending();
@@ -360,19 +335,9 @@
   }
 
   function renderProjects() {
-    const rank = { active: 0, paused: 1, done: 2 };
-    const projects = [...state.projects].sort((a, b) => {
-      const statusDiff = (rank[a.status] ?? 3) - (rank[b.status] ?? 3);
-      if (statusDiff) return statusDiff;
-      return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
-    });
-
-    if (!projects.length) {
-      elements["project-list"].innerHTML = '<div class="empty-state"><strong>還沒有專案</strong>新增後，只留下一個清楚的下一步。</div>';
-      return;
-    }
-
-    elements["project-list"].innerHTML = projects.map(project => `
+    const openSections = new Set([...elements["project-list"].querySelectorAll("details[open][data-project-section]")].map(group => group.dataset.projectSection));
+    const projects = [...state.projects].sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    const projectMarkup = project => `
       <article class="card project-card ${project.status === "done" ? "is-complete" : ""}" data-project-id="${escapeHtml(project.id)}">
         <div class="project-card-header">
           <label class="field"><span>名稱</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
@@ -383,7 +348,19 @@
           <p class="project-updated">最後更新：${escapeHtml(formatUpdated(project.updatedAt))}</p>
           <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">刪除專案</button>
         </div>
-      </article>`).join("");
+      </article>`;
+    const active = projects.filter(project => project.status === "active");
+    const paused = projects.filter(project => project.status === "paused");
+    const done = projects.filter(project => project.status === "done");
+    const collapsedGroup = (status, label, items) => `
+      <details class="recess-group project-status-group" data-project-section="${status}" ${openSections.has(status) ? "open" : ""}>
+        <summary>${label} · ${items.length}</summary>
+        <div class="project-status-list">${items.map(projectMarkup).join("") || '<div class="empty-state compact-empty">Nothing here.</div>'}</div>
+      </details>`;
+    elements["project-list"].innerHTML = `
+      ${active.map(projectMarkup).join("") || '<div class="empty-state compact-empty"><strong>還沒有進行中專案</strong>新增後，只留下一個清楚的下一步。</div>'}
+      ${collapsedGroup("paused", "PAUSED", paused)}
+      ${collapsedGroup("done", "DONE", done)}`;
   }
 
   function taskMarkup(event, obligation) {
@@ -427,14 +404,24 @@
 
   function renderBooks() {
     const statusLabel = { current: "This month", queued: "Queued", frozen: "Frozen", finished: "Finished" };
-    const rank = { current: 0, queued: 1, frozen: 2, finished: 3 };
-    const books = [...state.books].sort((a, b) => (rank[a.status] ?? 4) - (rank[b.status] ?? 4));
-    elements["book-list"].innerHTML = books.length ? books.map(book => `
+    const openSections = new Set([...elements["book-list"].querySelectorAll("details[open][data-book-section]")].map(group => group.dataset.bookSection));
+    const bookMarkup = book => `
       <article class="book-item ${book.status === "current" ? "is-current" : ""}" data-book-id="${escapeHtml(book.id)}">
         <input class="record-input" type="text" value="${escapeHtml(book.name)}" data-book-field="name" aria-label="Book name">
         <select class="record-input" data-book-field="status" aria-label="Book status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option><option value="finished" ${book.status === "finished" ? "selected" : ""}>Finished</option></select>
         <span>${statusLabel[book.status] || "Queued"}</span>
-      </article>`).join("") : '<div class="empty-state compact-empty">Nothing here.</div>';
+      </article>`;
+    const current = state.books.filter(book => book.status === "current");
+    const collapsedGroup = (status, label) => {
+      const items = state.books.filter(book => book.status === status);
+      if (!items.length) return "";
+      return `<details class="recess-group book-status-group" data-book-section="${status}" ${openSections.has(status) ? "open" : ""}><summary>${label} · ${items.length}</summary><div class="book-status-list">${items.map(bookMarkup).join("")}</div></details>`;
+    };
+    elements["book-list"].innerHTML = state.books.length ? `
+      ${current.length ? `<section class="book-current-section"><h4>THIS MONTH</h4>${current.map(bookMarkup).join("")}</section>` : ""}
+      ${collapsedGroup("queued", "QUEUED")}
+      ${collapsedGroup("frozen", "FROZEN")}
+      ${collapsedGroup("finished", "FINISHED")}` : '<div class="empty-state compact-empty">Nothing here.</div>';
   }
 
   function renderReview() {
@@ -750,15 +737,16 @@
     elements["transaction-form"].addEventListener("submit", event => {
       event.preventDefault();
       const type = elements["transaction-type"].value;
-      const category = elements["transaction-category"].value.trim();
+      const item = elements["transaction-item"].value.trim();
+      const title = type === "expense" ? "" : elements["transaction-note"].value.trim();
       const amountValue = Number(elements["transaction-amount"].value);
       runDataChange(() => dataStore.addTransaction(todayKey, {
           id: RuntimeCore.uid("money"),
           type,
           amount: Number.isFinite(amountValue) ? Math.max(0, amountValue) : 0,
-          category: type === "expense" ? category : "",
-          title: elements["transaction-note"].value.trim(),
-          note: elements["transaction-note"].value.trim(),
+          category: type === "expense" ? item : "",
+          title,
+          note: title,
           paymentMethod: type === "expense" ? elements["transaction-payment-method"].value : "",
           incomeSource: type === "income" ? elements["transaction-income-source"].value.trim() : "",
           accountId: type === "income" ? elements["transaction-income-account"].value : "",
@@ -767,6 +755,7 @@
           occurredOn: todayKey
         }));
       elements["transaction-amount"].value = "";
+      elements["transaction-item"].value = "";
       elements["transaction-note"].value = "";
       if (type === "income") elements["transaction-income-source"].value = "";
       renderMoney();
@@ -776,51 +765,6 @@
     });
 
     elements["transaction-type"].addEventListener("change", renderTransactionForm);
-    elements["category-buttons"].addEventListener("click", event => {
-      const button = event.target.closest("[data-category-name]");
-      if (!button) return;
-      elements["transaction-category"].value = button.dataset.categoryName;
-      if (button.dataset.lastAmount !== "") elements["transaction-amount"].value = button.dataset.lastAmount;
-      renderCategoryButtons();
-      elements["transaction-amount"].focus();
-    });
-
-    elements["category-form"].addEventListener("submit", event => {
-      event.preventDefault();
-      const name = elements["category-name"].value.trim();
-      if (!name) return;
-      runDataChange(() => dataStore.addCategory(name));
-      elements["category-name"].value = "";
-      populateCategoryOptions();
-      renderCategoryButtons();
-      renderCategoryManager();
-      showToast("Category added");
-    });
-
-    elements["category-manager"].addEventListener("input", event => {
-      const row = event.target.closest("[data-category-id]");
-      if (!row || event.target.dataset.categoryField !== "name") return;
-      const value = event.target.value.trim();
-      if (value) runDataChange(() => dataStore.updateCategory(row.dataset.categoryId, { name: value }));
-    });
-
-    elements["category-manager"].addEventListener("change", event => {
-      const row = event.target.closest("[data-category-id]");
-      const field = event.target.dataset.categoryField;
-      if (!row || !field) return;
-      const value = field === "active" ? event.target.checked : event.target.value.trim();
-      if (field === "name" && !value) {
-        renderCategoryManager();
-        return;
-      }
-      if (field === "active") runDataChange(() => dataStore.updateCategory(row.dataset.categoryId, { active: value }));
-      populateCategoryOptions();
-      renderCategoryButtons();
-      renderCategoryManager();
-      renderTransactions();
-      renderSpending();
-      showToast(field === "active" ? "Category updated" : "Category renamed");
-    });
 
     elements["transaction-list"].addEventListener("input", event => {
       const field = event.target.dataset.transactionField;
@@ -831,7 +775,6 @@
       if (!transaction) return;
       const value = field === "amount" ? Math.max(0, Number(event.target.value) || 0) : event.target.value;
       runDataChange(() => dataStore.updateTransaction(dayKey, transaction.id, { [field]: value }));
-      if (field === "category") populateCategoryOptions();
       renderSpending();
       renderAccounts();
     });
@@ -1171,9 +1114,8 @@
           if (!runDataChange(() => dataStore.clear(), "已清除")) return;
           elements["transaction-type"].value = "expense";
           elements["transaction-amount"].value = "";
-          elements["transaction-category"].value = preferredCategory();
+          elements["transaction-item"].value = "";
           elements["transaction-note"].value = "";
-          populateCategoryOptions();
           renderAll();
           showToast("全部資料已清除");
         }
@@ -1206,7 +1148,7 @@
     elements["today-date"].textContent = new Intl.DateTimeFormat("zh-TW", {
       month: "numeric", day: "numeric", weekday: "short"
     }).format(new Date());
-    elements["transaction-category"].value = preferredCategory();
+    elements["transaction-item"].value = "";
     runDataChange(() => dataStore.touchOpened());
     bindEvents();
     renderAll();
