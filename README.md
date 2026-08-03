@@ -8,7 +8,8 @@
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
 - v0.3.8：統一表單欄位的垂直節奏，移除 MONEY Quick Add 右上角輔助文字，並以共用 logical sizing 規則修正 iPhone 原生日期／時間欄位及其他控制項的卡片邊界；資料模型與 schema v3 不變。
-- 發布狀態：v0.3.8 已完成本機自動測試與 320／375／390／430 響應式驗證，release commit 與 GitHub Pages 結果待本輪發布後補記。
+- 發布狀態：v0.3.8 已於 2026-08-03 由 release commit `2cdd5224f1fd7d7986af3005baad7dea6672c267` 推送；GitHub Pages 的 `pages-build-deployment #16` 已成功完成 build、report-build-status 與 deploy。
+- 電腦端驗收：正式網址顯示 v0.3.8 並載入 `app.js?v=0.3.8`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 68 項自動測試及 320／375／390／430 四種寬度、七種展開狀態的控制項邊界驗證亦通過。
 - 實機驗收：v0.3.8 尚待 Tako 在 iPhone 覆驗表單間距、TASKS Due 日期選擇器與全 App 水平邊界，不在本機施工階段自行宣告通過。
 - 發布狀態：v0.3.7 已於 2026-08-03 由 release commit `27715721b90c3978140aa9915f6f72fd05c4b659` 推送；GitHub Pages 的 `pages-build-deployment #14` 已成功完成 build、report-build-status 與 deploy。
 - 電腦端驗收：正式網址顯示 v0.3.7 並載入 `app.js?v=0.3.7`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 67 項自動測試與 390 × 844 響應式驗證亦通過。
