@@ -7,7 +7,8 @@
 - PROJECTS：專案只保留 ACTIVE／PAUSED，完成或不再需要時經確認後刪除；另含可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、只保留 THIS MONTH／QUEUED／FROZEN 的書單與冷凍項目，書籍可經確認後直接刪除。
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
-- 發布狀態：v0.3.7 已完成本機程式、資料遷移、67 項自動測試與 390 × 844 電腦端響應式驗證；正式 release commit、Pages 部署與電腦端線上驗證將在推送後回填。
+- 發布狀態：v0.3.7 已於 2026-08-03 由 release commit `27715721b90c3978140aa9915f6f72fd05c4b659` 推送；GitHub Pages 的 `pages-build-deployment #14` 已成功完成 build、report-build-status 與 deploy。
+- 電腦端驗收：正式網址顯示 v0.3.7 並載入 `app.js?v=0.3.7`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 67 項自動測試與 390 × 844 響應式驗證亦通過。
 - 實機驗收：v0.3.7 尚待 Tako 在 iPhone 主畫面版本覆驗，不在本機施工階段自行宣告通過。
 - 發布歷史：v0.3.6 已於 2026-08-03 由 commit `11dd75e2f2190a6ccc10818ff675fda6300211a7` 部署至既有 GitHub Pages；build、deploy、report-build-status 均成功，iPhone 已確認顯示且 Amount／Item 輸入不再自動縮放。v0.3.5 亦已於 2026-08-03 部署至同一正式網址。
 
