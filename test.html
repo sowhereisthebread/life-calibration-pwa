@@ -605,6 +605,36 @@
           if (!recoveryCard?.querySelector("#recovery-activity") || !recoveryCard?.querySelector("#recovery-effect")) throw new Error("一句話備註未併入恢復卡");
         });
 
+        test("v0.3.8 表單間距與欄位邊界防護存在", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html?v=0.3.8", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          const recoveryStack = documentCopy.getElementById("recovery-activity")?.closest(".field-stack");
+          const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
+          if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
+          if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
+          if (!documentCopy.body.textContent.includes("v0.3.8")) throw new Error("頁首版本不是 v0.3.8");
+          if (documentCopy.querySelector('script[src="./app.js?v=0.3.8"]') === null) throw new Error("app.js 未使用 v0.3.8 查詢字串");
+          if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
+          if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
+
+          const styleRequest = new XMLHttpRequest();
+          styleRequest.open("GET", "./style.css?v=0.3.8", false);
+          styleRequest.send();
+          const css = styleRequest.responseText;
+          ["--space-field-control", "--space-field-group", "min-inline-size: 0", "max-inline-size: 100%", "inline-size: 100%", "minmax(0, 1fr)"].forEach(rule => {
+            if (!css.includes(rule)) throw new Error(`缺少共用 CSS 邊界規則：${rule}`);
+          });
+          if (css.includes("overflow-x: hidden")) throw new Error("仍以 body overflow-x 隱藏欄位溢出");
+          if (css.includes("min-width: 320px")) throw new Error("根元素仍強制 320px 最小寬度");
+
+          const workerRequest = new XMLHttpRequest();
+          workerRequest.open("GET", "./sw.js?v=0.3.8", false);
+          workerRequest.send();
+          if (!workerRequest.responseText.includes('life-calibration-v0.3.8') || !workerRequest.responseText.includes('./app.js?v=0.3.8')) throw new Error("Service Worker 版本未同步");
+        });
+
         const passed = results.filter(result => result.pass).length;
         document.getElementById("summary").textContent = `${passed} / ${results.length} 項通過`;
         document.getElementById("summary").classList.add(passed === results.length ? "pass" : "fail");

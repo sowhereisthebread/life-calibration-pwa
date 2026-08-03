@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.7" defer></script>
+    <script src="./app.js?v=0.3.8" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +25,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.3.7</p>
+          <p class="eyebrow">v0.3.8</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -61,7 +61,6 @@
                   <p class="step-label">QUICK ADD</p>
                   <h3 id="money-heading">Add transaction</h3>
                 </div>
-                <span class="helper">可留空，之後再補</span>
               </div>
               <form id="transaction-form" class="stack-form" novalidate>
                 <div class="two-column">
@@ -204,25 +203,27 @@
                 <h3 id="recovery-heading">什麼讓你恢復一點？</h3>
               </div>
             </div>
-            <label class="field">
-              <span>做了什麼</span>
-              <input id="recovery-activity" type="text" autocomplete="off">
-            </label>
-            <label class="field">
-              <span>效果</span>
-              <select id="recovery-effect">
-                <option value="">尚未評分</option>
-                <option value="1">1・幾乎沒幫助</option>
-                <option value="2">2・有一點</option>
-                <option value="3">3・普通</option>
-                <option value="4">4・有幫助</option>
-                <option value="5">5・很有幫助</option>
-              </select>
-            </label>
-            <label class="field visually-labeled">
-              <span>一句話備註</span>
-              <input id="daily-note" type="text" autocomplete="off">
-            </label>
+            <div class="field-stack">
+              <label class="field">
+                <span>做了什麼</span>
+                <input id="recovery-activity" type="text" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>效果</span>
+                <select id="recovery-effect">
+                  <option value="">尚未評分</option>
+                  <option value="1">1・幾乎沒幫助</option>
+                  <option value="2">2・有一點</option>
+                  <option value="3">3・普通</option>
+                  <option value="4">4・有幫助</option>
+                  <option value="5">5・很有幫助</option>
+                </select>
+              </label>
+              <label class="field visually-labeled">
+                <span>一句話備註</span>
+                <input id="daily-note" type="text" autocomplete="off">
+              </label>
+            </div>
           </article>
 
           <section id="schedule-section" class="card" aria-labelledby="schedule-heading" hidden>

@@ -1,12 +1,15 @@
 # 人生主控表・校準版
 
-目前版本為 v0.3.7：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。第 1、2 版瀏覽器資料與匯出 JSON 會自動升級為資料版本 3，儲存鍵仍為 `lifeCalibrationData`。
+目前版本為 v0.3.8：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。第 1、2 版瀏覽器資料與匯出 JSON 會自動升級為資料版本 3，儲存鍵仍為 `lifeCalibrationData`。
 
 - MONEY：支出以單一 Item 快速記帳，相同 Item 文字直接合併統計；另含收入、帳戶移轉、帳戶餘額、自訂帳戶新增／改名／封存／解封、本月 Item 圖與最近交易。帳戶不保存期初餘額；要帶入初始金額時，新增收入交易並指定帳戶。預設三帳戶可改名但永遠啟用。
 - WORK：打卡、每日／每月營業額與可調營業額目標、睡眠、恢復（內含一句話備註）與固定課表；營業額不會自動寫入 MONEY。390 px 手機寬度下，Schedule 的 Start／End 維持左右並排且不再溢出卡片。
 - PROJECTS：專案只保留 ACTIVE／PAUSED，完成或不再需要時經確認後刪除；另含可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、只保留 THIS MONTH／QUEUED／FROZEN 的書單與冷凍項目，書籍可經確認後直接刪除。
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
+- v0.3.8：統一表單欄位的垂直節奏，移除 MONEY Quick Add 右上角輔助文字，並以共用 logical sizing 規則修正 iPhone 原生日期／時間欄位及其他控制項的卡片邊界；資料模型與 schema v3 不變。
+- 發布狀態：v0.3.8 已完成本機自動測試與 320／375／390／430 響應式驗證，release commit 與 GitHub Pages 結果待本輪發布後補記。
+- 實機驗收：v0.3.8 尚待 Tako 在 iPhone 覆驗表單間距、TASKS Due 日期選擇器與全 App 水平邊界，不在本機施工階段自行宣告通過。
 - 發布狀態：v0.3.7 已於 2026-08-03 由 release commit `27715721b90c3978140aa9915f6f72fd05c4b659` 推送；GitHub Pages 的 `pages-build-deployment #14` 已成功完成 build、report-build-status 與 deploy。
 - 電腦端驗收：正式網址顯示 v0.3.7 並載入 `app.js?v=0.3.7`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 67 項自動測試與 390 × 844 響應式驗證亦通過。
 - 實機驗收：v0.3.7 尚待 Tako 在 iPhone 主畫面版本覆驗，不在本機施工階段自行宣告通過。
