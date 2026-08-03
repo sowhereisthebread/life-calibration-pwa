@@ -1,11 +1,12 @@
-# TAKO v0.3.9｜現行狀態
+# TAKO v0.4.0｜現行狀態
 
-更新：2026-08-03
+更新：2026-08-04
 
 ## 版本與 Git
 
-- 正式版本：**v0.3.9**。
+- 正式版本：**v0.4.0**。
 - branch：`master`。
+- v0.4.0 程式發布 commit：`#待補`（push 後補記；iPhone 實機驗收完成時一併記錄該版基線 commit）。
 - v0.3.9 完成部署、電腦驗收與 iPhone 實機驗收時的 App 基線 commit：`84ec6183092bc02ae981e76392ba559f7f459ed3`。
 - v0.3.9 程式發布 commit：`acb86f75674815851d3038624d54ff1ad5606650`。
 - 正式網址：<https://sowhereisthebread.github.io/life-calibration-pwa/>
@@ -13,9 +14,11 @@
 
 ## 驗收結果
 
+- v0.4.0 已完成電腦瀏覽器驗收：`test.html` 72／72 通過，App 與測試頁 console 無 warning／error，390×844 與 320px 版面無水平溢出。
+- v0.4.0 的 iPhone 主畫面 PWA 實機驗收 `#待補`，待 Tako 執行。
 - v0.3.9 已完成電腦瀏覽器與 iPhone 主畫面 PWA 實機驗收，手機既有資料正常。
 - `test.html` 保存現行驗收規格。
-- 目前沒有現行 `#待補`；App 程式、測試、資料模型及資產沒有待處理變動。
+- 除上述 iPhone 實機驗收外，App 程式、測試、資料模型及資產沒有待處理變動。
 
 ## 資料與相容性
 

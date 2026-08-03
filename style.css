@@ -466,10 +466,76 @@ fieldset {
   gap: 12px;
 }
 
-.project-card {
+.project-item {
+  min-width: 0;
+}
+
+.project-summary,
+.task-summary {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--recess);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  touch-action: manipulation;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.project-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.project-summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-summary > span,
+.task-chevron {
+  width: 8px;
+  height: 8px;
+  justify-self: center;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 180ms ease;
+}
+
+.project-item.is-expanded .project-summary,
+.task-item.is-expanded .task-summary {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  background: rgba(255,255,255,.14);
+}
+
+.project-item.is-expanded .project-summary > span,
+.task-item.is-expanded .task-chevron {
+  transform: rotate(225deg);
+}
+
+.project-summary:focus-visible,
+.task-summary:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.project-details {
   display: grid;
   gap: 14px;
   margin: 0;
+  border-top: 0;
+  border-top-right-radius: 0;
+  border-top-left-radius: 0;
 }
 
 .project-card-header {
@@ -486,6 +552,17 @@ fieldset {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.74rem;
+}
+
+.project-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-actions .button {
+  min-height: 44px;
 }
 
 .metric-grid {
@@ -1394,6 +1471,21 @@ a:focus-visible {
   font-size: 1rem;
 }
 
+.transfer-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--recess);
+}
+
+.transfer-summary > span,
+.transfer-summary small {
+  color: var(--sub);
+  font-size: .74rem;
+}
+
 .mileage-fields {
   display: grid;
   min-width: 0;
@@ -1535,21 +1627,79 @@ input[type="time"] {
 }
 
 .task-item {
+  min-width: 0;
+}
+
+.task-summary {
   display: grid;
-  grid-template-columns: minmax(0,1fr) minmax(100px,140px);
+  grid-template-columns: minmax(0, 1fr) 18px;
   gap: 10px;
-  align-items: end;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.task-summary-copy,
+.task-main {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.task-summary-copy > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-summary-meta {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  color: var(--sub);
+  font-size: .74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-summary-meta.has-due {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.task-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-summary-meta.has-due .task-note {
+  text-align: right;
+}
+
+.task-details {
+  display: grid;
+  gap: 12px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-top: 0;
+  border-bottom-right-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
   background: rgba(255,255,255,.1);
 }
 
-.task-main {
-  display: grid;
-  align-self: center;
+.task-details-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 14px;
 }
 
+.task-detail-name {
+  overflow-wrap: anywhere;
+}
+
+.task-details-meta span,
 .task-main span {
   color: var(--sub);
   font-size: .74rem;
@@ -1558,17 +1708,35 @@ input[type="time"] {
 
 .task-actions {
   display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.task-actions .button {
+.task-actions > .button {
   width: 100%;
 }
 
+.task-actions-secondary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.task-actions-secondary .button {
+  min-width: 0;
+  min-height: 44px;
+  padding-right: 6px;
+  padding-left: 6px;
+  font-size: .74rem;
+}
+
 .task-item.is-done {
+  display: grid;
   grid-template-columns: minmax(0,1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
   background: var(--recess);
   opacity: .82;
 }
@@ -1599,7 +1767,7 @@ input[type="time"] {
   margin-top: 10px;
 }
 
-.project-status-group .project-card {
+.project-status-group .project-summary {
   background: var(--card);
 }
 
@@ -1664,6 +1832,12 @@ input[type="time"] {
 }
 
 @media (max-width: 430px) {
+  #page-projects input,
+  #page-projects select,
+  #page-projects textarea {
+    font-size: 16px;
+  }
+
   #schedule-section {
     padding-right: 12px;
     padding-left: 12px;
@@ -1689,7 +1863,6 @@ input[type="time"] {
     font-size: 16px;
   }
 
-  .task-item,
   .book-item {
     grid-template-columns: 1fr;
   }

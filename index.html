@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.9" defer></script>
+    <script src="./app.js?v=0.4.0" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +25,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.3.9</p>
+          <p class="eyebrow">v0.4.0</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -282,14 +282,14 @@
           </section>
 
           <section class="card" aria-labelledby="tasks-heading">
-            <div class="section-heading"><h3 id="tasks-heading">TASKS</h3><button id="toggle-obligation-form" type="button" class="button button-quiet" aria-expanded="false" aria-controls="obligation-form">Full form</button></div>
+            <div class="section-heading"><h3 id="tasks-heading">TASKS</h3></div>
             <form id="quick-task-form" class="input-action-row" novalidate>
               <label class="visually-hidden" for="quick-task-name">Name</label>
               <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
               <button type="submit" class="button button-primary">Add</button>
             </form>
             <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
-              <div class="section-heading compact-heading"><h4 id="obligation-form-title">Add obligation</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet" hidden>Cancel edit</button></div>
+              <div class="section-heading compact-heading"><h4 id="obligation-form-title">Task details</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet">Close</button></div>
               <label class="field"><span>Name</span><input id="obligation-name" type="text" autocomplete="off"></label>
               <div class="two-column">
                 <label class="field"><span>Repeats</span><select id="obligation-cycle"><option value="none">None</option><option value="once">Once</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="after_days">After N days</option><option value="mileage">By mileage</option></select></label>
@@ -313,8 +313,13 @@
                 <label class="field"><span>When done</span><select id="obligation-completion-mode"><option value="none">No transaction</option><option value="expense">Expense</option><option value="transfer">Card payment · Transfer</option></select></label>
               </div>
               <div class="two-column">
-                <label class="field"><span>Paid with</span><select id="obligation-payment-method"><option value="bank">Bank</option><option value="card">Card</option><option value="cash">Cash</option></select></label>
+                <label id="obligation-payment-method-field" class="field" hidden><span>Paid with</span><select id="obligation-payment-method"><option value="bank">Bank</option><option value="card">Card</option><option value="cash">Cash</option></select></label>
                 <label class="field"><span>Status</span><select id="obligation-status"><option value="active">Active</option><option value="frozen">Frozen</option></select></label>
+              </div>
+              <div id="obligation-transfer-fields" class="transfer-summary" role="note" hidden>
+                <span>Account transfer</span>
+                <strong>Main account → Credit card</strong>
+                <small>Card payment transfers between accounts and is not counted as an expense.</small>
               </div>
               <label class="field"><span>Note</span><input id="obligation-note" type="text" autocomplete="off"></label>
               <fieldset id="mileage-fields" class="mileage-fields" hidden>

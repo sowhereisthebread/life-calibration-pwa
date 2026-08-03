@@ -325,6 +325,19 @@
           equal(result.state.events.find(item => item.id === "event-1").actualAmount, 120);
           equal(Core.allTransactions(result.state).length, 0);
         });
+        test("每月 No transaction 保留下一期但不建立交易", () => {
+          const result = Core.completeEvent(stateWithEvent({ type: "monthly", day: 30 }, "2026-08-30", { amount: null, completionMode: "none", note: "檢查監理服務" }), "event-1", { completedDate: "2026-08-30" });
+          equal(result.state.events.find(item => item.id !== "event-1").dueDate, "2026-09-30");
+          equal(Core.allTransactions(result.state).length, 0);
+          equal(result.state.obligations[0].note, "檢查監理服務");
+        });
+        test("Expense TASK 完成後建立支出並保留付款方式", () => {
+          const result = Core.completeEvent(stateWithEvent({ type: "once" }, "2026-08-20", { amount: 680, completionMode: "expense", paymentMethod: "cash" }), "event-1", { completedDate: "2026-08-20" });
+          const transaction = Core.allTransactions(result.state)[0];
+          equal(transaction.type, "expense");
+          equal(transaction.amount, 680);
+          equal(transaction.paymentMethod, "cash");
+        });
         test("里程完成以目前里程重新起算", () => {
           const result = Core.completeEvent(stateWithEvent({ type: "mileage" }, null, { service: { lastServiceMileage: 40000, currentMileage: 50100, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } }), "event-1", { completedDate: "2026-08-02" });
           equal(result.state.obligations[0].service.lastServiceMileage, 50100);
@@ -605,22 +618,22 @@
           if (!recoveryCard?.querySelector("#recovery-activity") || !recoveryCard?.querySelector("#recovery-effect")) throw new Error("一句話備註未併入恢復卡");
         });
 
-        test("v0.3.9 表單間距、欄位邊界與版本防護存在", () => {
+        test("v0.4.0 表單間距、欄位邊界與版本防護存在", () => {
           const indexRequest = new XMLHttpRequest();
-          indexRequest.open("GET", "./index.html?v=0.3.9", false);
+          indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
           const recoveryStack = documentCopy.getElementById("recovery-activity")?.closest(".field-stack");
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (!documentCopy.body.textContent.includes("v0.3.9")) throw new Error("頁首版本不是 v0.3.9");
-          if (documentCopy.querySelector('script[src="./app.js?v=0.3.9"]') === null) throw new Error("app.js 未使用 v0.3.9 查詢字串");
+          if (!documentCopy.body.textContent.includes("v0.4.0")) throw new Error("頁首版本不是 v0.4.0");
+          if (documentCopy.querySelector('script[src="./app.js?v=0.4.0"]') === null) throw new Error("app.js 未使用 v0.4.0 查詢字串");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 
           const styleRequest = new XMLHttpRequest();
-          styleRequest.open("GET", "./style.css?v=0.3.9", false);
+          styleRequest.open("GET", "./style.css?v=0.4.0", false);
           styleRequest.send();
           const css = styleRequest.responseText;
           ["--space-field-control", "--space-field-group", "min-inline-size: 0", "max-inline-size: 100%", "inline-size: 100%", "minmax(0, 1fr)"].forEach(rule => {
@@ -630,14 +643,40 @@
           if (css.includes("min-width: 320px")) throw new Error("根元素仍強制 320px 最小寬度");
 
           const workerRequest = new XMLHttpRequest();
-          workerRequest.open("GET", "./sw.js?v=0.3.9", false);
+          workerRequest.open("GET", "./sw.js?v=0.4.0", false);
           workerRequest.send();
-          if (!workerRequest.responseText.includes('life-calibration-v0.3.9') || !workerRequest.responseText.includes('./app.js?v=0.3.9')) throw new Error("Service Worker 版本未同步");
+          if (!workerRequest.responseText.includes('life-calibration-v0.4.0') || !workerRequest.responseText.includes('./app.js?v=0.4.0')) throw new Error("Service Worker 版本未同步");
+        });
+
+        test("PROJECTS 與 TASKS 使用精簡摘要及條件式金流欄位", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html?v=0.4.0", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          if (documentCopy.getElementById("toggle-obligation-form") || documentCopy.body.textContent.includes("Full form")) throw new Error("仍存在 Full form 入口");
+          if (!documentCopy.getElementById("obligation-payment-method-field")?.hidden) throw new Error("Paid with 未預設隱藏");
+          if (!documentCopy.getElementById("obligation-transfer-fields")?.hidden) throw new Error("帳戶移轉摘要未預設隱藏");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?v=0.4.0", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          ["syncObligationCompletionFields", "mode !== \"expense\"", "mode !== \"transfer\"", "openObligationEditor(created.obligation.id", "data-toggle-task", "data-toggle-project"].forEach(rule => {
+            if (!app.includes(rule)) throw new Error(`缺少收合或條件式欄位邏輯：${rule}`);
+          });
+
+          const styleRequest = new XMLHttpRequest();
+          styleRequest.open("GET", "./style.css?v=0.4.0", false);
+          styleRequest.send();
+          const css = styleRequest.responseText;
+          [".project-summary", ".task-summary", ".task-summary-meta.has-due", "text-overflow: ellipsis", ".task-actions-secondary", "#page-projects input", "font-size: 16px"].forEach(rule => {
+            if (!css.includes(rule)) throw new Error(`缺少精簡摘要樣式：${rule}`);
+          });
         });
 
         test("iOS date control 使用自訂外觀與完整原生操作層", () => {
           const indexRequest = new XMLHttpRequest();
-          indexRequest.open("GET", "./index.html?v=0.3.9", false);
+          indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
           const dateInputs = Array.from(documentCopy.querySelectorAll('input[type="date"]'));
@@ -650,7 +689,7 @@
           });
 
           const styleRequest = new XMLHttpRequest();
-          styleRequest.open("GET", "./style.css?v=0.3.9", false);
+          styleRequest.open("GET", "./style.css?v=0.4.0", false);
           styleRequest.send();
           const css = styleRequest.responseText;
           [
@@ -669,7 +708,7 @@
           if (/\.date-control[^}]*overflow\s*:\s*hidden/s.test(css)) throw new Error("日期控制項仍以 overflow hidden 遮蔽問題");
 
           const appRequest = new XMLHttpRequest();
-          appRequest.open("GET", "./app.js?v=0.3.9", false);
+          appRequest.open("GET", "./app.js?v=0.4.0", false);
           appRequest.send();
           if (!appRequest.responseText.includes("syncDateControl") || !appRequest.responseText.includes("date-control-value")) {
             throw new Error("日期顯示未與原生 input 值同步");

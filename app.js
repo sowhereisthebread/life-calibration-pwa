@@ -36,6 +36,8 @@
   let editingEventId = null;
   let mileageObligationId = null;
   let mileageReturnFocus = null;
+  let expandedProjectId = null;
+  let expandedTaskKey = null;
 
   function queryElements() {
     [
@@ -48,10 +50,10 @@
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
-      "projects-radar", "projects-radar-list", "toggle-obligation-form", "quick-task-form", "quick-task-name", "obligation-form",
+      "projects-radar", "projects-radar-list", "quick-task-form", "quick-task-name", "obligation-form",
       "obligation-form-title", "cancel-obligation-edit", "obligation-submit", "obligation-name", "obligation-cycle", "obligation-due",
       "obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month", "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
-      "obligation-completion-mode", "obligation-payment-method", "obligation-status", "obligation-note", "mileage-fields",
+      "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
       "obligation-last-mileage", "obligation-current-mileage", "obligation-mileage-updated", "obligation-reminder-days", "obligation-threshold",
       "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list",
       "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
@@ -338,22 +340,32 @@
   function renderProjects() {
     const openSections = new Set([...elements["project-list"].querySelectorAll("details[open][data-project-section]")].map(group => group.dataset.projectSection));
     const projects = [...state.projects].sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
-    const projectMarkup = project => `
-      <article class="card project-card" data-project-id="${escapeHtml(project.id)}">
-        <div class="project-card-header">
-          <label class="field"><span>名稱</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
-          <label class="field"><span>狀態</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>進行中</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>暫停</option></select></label>
-        </div>
-        <label class="field"><span>下一步</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" data-project-field="nextStep"></label>
-        <div class="record-row-header">
-          <p class="project-updated">最後更新：${escapeHtml(formatUpdated(project.updatedAt))}</p>
-          <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">刪除專案</button>
-        </div>
-      </article>`;
+    const projectMarkup = project => {
+      const expanded = expandedProjectId === project.id;
+      const detailsId = `project-details-${project.id}`;
+      return `
+        <article class="project-item ${expanded ? "is-expanded" : ""}" data-project-id="${escapeHtml(project.id)}">
+          <button type="button" class="project-summary" data-toggle-project="${escapeHtml(project.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailsId)}">
+            <strong>${escapeHtml(project.name || "未命名專案")}</strong><span aria-hidden="true"></span>
+          </button>
+          ${expanded ? `<div id="${escapeHtml(detailsId)}" class="card project-details">
+            <div class="project-card-header">
+              <label class="field"><span>名稱</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
+              <label class="field"><span>狀態</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>進行中</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>暫停</option></select></label>
+            </div>
+            <label class="field"><span>下一步</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" data-project-field="nextStep"></label>
+            <p class="project-updated">最後更新：${escapeHtml(formatUpdated(project.updatedAt))}</p>
+            <div class="project-actions">
+              <button type="button" class="button button-primary" data-close-project="${escapeHtml(project.id)}">Save & close</button>
+              <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">刪除專案</button>
+            </div>
+          </div>` : ""}
+        </article>`;
+    };
     const active = projects.filter(project => project.status === "active");
     const paused = projects.filter(project => project.status === "paused");
     const collapsedGroup = (status, label, items) => `
-      <details class="recess-group project-status-group" data-project-section="${status}" ${openSections.has(status) ? "open" : ""}>
+      <details class="recess-group project-status-group" data-project-section="${status}" ${openSections.has(status) || items.some(project => project.id === expandedProjectId) ? "open" : ""}>
         <summary>${label} · ${items.length}</summary>
         <div class="project-status-list">${items.map(projectMarkup).join("") || '<div class="empty-state compact-empty">Nothing here.</div>'}</div>
       </details>`;
@@ -363,13 +375,35 @@
   }
 
   function taskMarkup(event, obligation) {
-    const dueLabel = event.dueDate ? `Due ${event.dueDate}` : "No date";
+    const expanded = expandedTaskKey === event.id;
+    const dueLabel = event.dueDate ? `Due ${event.dueDate}` : "";
+    const note = obligation.note || "";
+    const detailId = `task-details-${event.id}`;
+    const cycleLabel = { none: "None", once: "Once", monthly: "Monthly", yearly: "Yearly", after_days: "After N days", mileage: "By mileage" }[obligation.cycle.type] || "None";
+    const completionLabel = { none: "No transaction", expense: "Expense", transfer: "Account transfer" }[obligation.completionMode] || "No transaction";
     return `
-      <article class="task-item" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
-        <div class="task-main"><strong>${escapeHtml(obligation.name)}</strong><span>${escapeHtml(dueLabel)}${obligation.amount !== null ? ` · ${escapeHtml(formatCurrency(obligation.amount))}` : ""}</span></div>
-        <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
-        <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button></div>
+      <article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
+        <button type="button" class="task-summary" data-toggle-task="${escapeHtml(event.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+          <span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong>${dueLabel || note ? `<span class="task-summary-meta ${dueLabel ? "has-due" : ""}">${dueLabel ? `<span>${escapeHtml(dueLabel)}</span>` : ""}${note ? `<span class="task-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>` : ""}</span>` : ""}</span>
+          <span class="task-chevron" aria-hidden="true"></span>
+        </button>
+        ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
+          <strong class="task-detail-name">${escapeHtml(obligation.name)}</strong>
+          <div class="task-details-meta"><span>Repeats <strong>${escapeHtml(cycleLabel)}</strong></span><span>When done <strong>${escapeHtml(completionLabel)}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div>
+          <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
+          <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><div class="task-actions-secondary"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button></div></div>
+        </div>` : ""}
       </article>`;
+  }
+
+  function frozenTaskMarkup(obligation) {
+    const taskKey = `frozen:${obligation.id}`;
+    const expanded = expandedTaskKey === taskKey;
+    const detailId = `frozen-details-${obligation.id}`;
+    return `<article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}">
+      <button type="button" class="task-summary" data-toggle-task="${escapeHtml(taskKey)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}"><span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong>${obligation.note ? `<span class="task-summary-meta"><span class="task-note" title="${escapeHtml(obligation.note)}">${escapeHtml(obligation.note)}</span></span>` : ""}</span><span class="task-chevron" aria-hidden="true"></span></button>
+      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details"><strong class="task-detail-name">${escapeHtml(obligation.name)}</strong><div class="task-details-meta"><span>Status <strong>Frozen</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div><div class="task-actions-secondary"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-primary" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button></div></div>` : ""}
+    </article>`;
   }
 
   function renderCommitments() {
@@ -397,7 +431,7 @@
     }).join("") : empty;
 
     const frozen = state.obligations.filter(item => item.status === "frozen");
-    elements["frozen-list"].innerHTML = frozen.length ? frozen.map(obligation => `<article class="task-item" data-obligation-id="${escapeHtml(obligation.id)}"><div class="task-main"><strong>${escapeHtml(obligation.name)}</strong><span>${obligation.amount !== null ? escapeHtml(formatCurrency(obligation.amount)) : "Frozen"}</span></div><div class="task-actions"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button></div></article>`).join("") : '<div class="empty-state compact-empty">Nothing frozen.</div>';
+    elements["frozen-list"].innerHTML = frozen.length ? frozen.map(frozenTaskMarkup).join("") : '<div class="empty-state compact-empty">Nothing frozen.</div>';
     renderBooks();
   }
 
@@ -570,6 +604,12 @@
     syncDateControls();
   }
 
+  function syncObligationCompletionFields() {
+    const mode = elements["obligation-completion-mode"].value;
+    elements["obligation-payment-method-field"].hidden = mode !== "expense";
+    elements["obligation-transfer-fields"].hidden = mode !== "transfer";
+  }
+
   function resetObligationForm({ close = false } = {}) {
     editingObligationId = null;
     editingEventId = null;
@@ -580,13 +620,14 @@
     elements["obligation-reminder-days"].value = "15";
     elements["obligation-threshold"].value = "10000";
     elements["obligation-payment-method"].value = "bank";
-    elements["obligation-form-title"].textContent = "Add obligation";
-    elements["obligation-submit"].textContent = "Add obligation";
-    elements["cancel-obligation-edit"].hidden = true;
+    elements["obligation-form-title"].textContent = "Task details";
+    elements["obligation-submit"].textContent = "Save task";
+    elements["cancel-obligation-edit"].hidden = false;
     syncObligationCycleFields();
+    syncObligationCompletionFields();
     if (close) {
       elements["obligation-form"].hidden = true;
-      elements["toggle-obligation-form"].setAttribute("aria-expanded", "false");
+      expandedTaskKey = null;
     }
   }
 
@@ -615,12 +656,12 @@
     elements["obligation-mileage-updated"].value = obligation.service.mileageUpdatedAt ? String(obligation.service.mileageUpdatedAt).slice(0, 10) : "";
     elements["obligation-reminder-days"].value = String(obligation.service.reminderDays || 15);
     elements["obligation-threshold"].value = String(obligation.service.thresholdKm || 10000);
-    elements["obligation-form-title"].textContent = "Edit obligation";
+    elements["obligation-form-title"].textContent = "Edit task";
     elements["obligation-submit"].textContent = "Save changes";
     elements["cancel-obligation-edit"].hidden = false;
     elements["obligation-form"].hidden = false;
-    elements["toggle-obligation-form"].setAttribute("aria-expanded", "true");
     syncObligationCycleFields();
+    syncObligationCompletionFields();
     elements["obligation-form"].scrollIntoView({ behavior: "smooth", block: "start" });
     elements["obligation-name"].focus({ preventScroll: true });
   }
@@ -900,7 +941,20 @@
     });
     elements["project-list"].addEventListener("change", () => renderProjects());
     elements["project-list"].addEventListener("click", event => {
+      const toggle = event.target.closest("[data-toggle-project]");
+      const close = event.target.closest("[data-close-project]");
       const button = event.target.closest("[data-remove-project]");
+      if (toggle) {
+        expandedProjectId = expandedProjectId === toggle.dataset.toggleProject ? null : toggle.dataset.toggleProject;
+        renderProjects();
+        return;
+      }
+      if (close) {
+        expandedProjectId = null;
+        renderProjects();
+        showToast("Project saved");
+        return;
+      }
       if (!button) return;
       const project = state.projects.find(item => item.id === button.dataset.removeProject);
       openConfirmation({
@@ -910,26 +964,24 @@
         trigger: button,
         action: () => {
           runDataChange(() => dataStore.deleteProject(button.dataset.removeProject));
+          expandedProjectId = null;
           renderProjects();
           showToast("專案已刪除");
         }
       });
     });
 
-    elements["toggle-obligation-form"].addEventListener("click", () => {
-      const show = elements["obligation-form"].hidden;
-      if (show) resetObligationForm();
-      elements["obligation-form"].hidden = !show;
-      elements["toggle-obligation-form"].setAttribute("aria-expanded", String(show));
-      if (show) elements["obligation-name"].focus();
+    elements["cancel-obligation-edit"].addEventListener("click", () => {
+      resetObligationForm({ close: true });
+      renderCommitments();
     });
 
-    elements["cancel-obligation-edit"].addEventListener("click", () => resetObligationForm({ close: true }));
-
     elements["obligation-cycle"].addEventListener("change", syncObligationCycleFields);
+    elements["obligation-completion-mode"].addEventListener("change", syncObligationCompletionFields);
     elements["obligation-amount"].addEventListener("input", () => {
       if (elements["obligation-completion-mode"].value === "transfer") return;
       elements["obligation-completion-mode"].value = elements["obligation-amount"].value === "" ? "none" : "expense";
+      syncObligationCompletionFields();
     });
     elements["obligation-handling"].addEventListener("change", () => {
       elements["obligation-payment-method"].value = elements["obligation-handling"].value === "auto" ? "card" : "bank";
@@ -943,10 +995,15 @@
         elements["quick-task-name"].focus();
         return;
       }
-      runDataChange(() => dataStore.addObligation({ name, cycle: { type: "none" }, amount: null, handling: "manual", completionMode: "none", paymentMethod: "bank", status: "active", note: "" }, null));
+      let created = null;
+      const saved = runDataChange(() => {
+        created = dataStore.addObligation({ name, cycle: { type: "none" }, amount: null, handling: "manual", completionMode: "none", paymentMethod: "bank", status: "active", note: "" }, null);
+      });
+      if (!saved || !created) return;
       elements["quick-task-name"].value = "";
       renderCommitments();
-      showToast("Task added");
+      openObligationEditor(created.obligation.id, created.event.id);
+      showToast("Task added — add details");
     });
 
     elements["obligation-form"].addEventListener("submit", event => {
@@ -1017,6 +1074,7 @@
       if (event.target.dataset.bookField === "status") renderBooks();
     });
     projectsPage.addEventListener("click", event => {
+      const toggleTask = event.target.closest("[data-toggle-task]");
       const complete = event.target.closest("[data-complete-event]");
       const edit = event.target.closest("[data-edit-obligation]");
       const mileage = event.target.closest("[data-update-mileage]");
@@ -1025,6 +1083,11 @@
       const unfreeze = event.target.closest("[data-unfreeze-obligation]");
       const undo = event.target.closest("[data-undo-event]");
       const removeBook = event.target.closest("[data-remove-book]");
+      if (toggleTask) {
+        expandedTaskKey = expandedTaskKey === toggleTask.dataset.toggleTask ? null : toggleTask.dataset.toggleTask;
+        renderCommitments();
+        return;
+      }
       if (removeBook) {
         const book = state.books.find(item => item.id === removeBook.dataset.removeBook);
         openConfirmation({
@@ -1051,15 +1114,19 @@
         const amountInput = row?.querySelector("[data-event-field='actualAmount']");
         const actualAmount = amountInput?.value === "" ? null : Number(amountInput?.value);
         runDataChange(() => dataStore.completeEvent(complete.dataset.completeEvent, { completedDate: todayKey, actualAmount }));
+        expandedTaskKey = null;
         showToast("Marked done");
       } else if (freeze) {
         runDataChange(() => dataStore.updateObligation(freeze.dataset.freezeObligation, { status: "frozen" }));
+        expandedTaskKey = null;
         showToast("Frozen");
       } else if (archive) {
         runDataChange(() => dataStore.updateObligation(archive.dataset.archiveObligation, { status: "archived" }));
+        expandedTaskKey = null;
         showToast("Archived");
       } else if (unfreeze) {
         runDataChange(() => dataStore.updateObligation(unfreeze.dataset.unfreezeObligation, { status: "active" }));
+        expandedTaskKey = null;
         showToast("Unfrozen");
       } else if (undo) {
         runDataChange(() => dataStore.undoEvent(undo.dataset.undoEvent));
