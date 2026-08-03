@@ -10,24 +10,12 @@
 - v0.3.9 程式發布 commit：`acb86f75674815851d3038624d54ff1ad5606650`。
 - 正式網址：<https://sowhereisthebread.github.io/life-calibration-pwa/>
 - GitHub Pages：public repo `sowhereisthebread/life-calibration-pwa`，由 `master` 的 `/(root)` 發布。
-- 本次後續文件 commit 不改變 v0.3.9 App 程式、測試、資料模型或資產。
 
 ## 驗收結果
 
-- v0.3.9 已完成 iPhone 主畫面 PWA 實機驗收。
-- 手機既有資料正常。
-- Schedule 的 Start／End 手機欄位溢出已解決。
-- `test.html` 保留 69 項靜態測試定義；本輪是文件施工，未修改也未重跑測試。
-- 目前沒有現行 `#待補`，也不需要重新部署。
-
-## 現行功能
-
-- 頁面固定為 MONEY／WORK／PROJECTS／REVIEW／DATA，預設開啟 MONEY。
-- MONEY：支出、收入、帳戶移轉、帳戶餘額、自訂帳戶與本月 Item 統計。
-- WORK：今日工時、每日／每月營業額、可調營業額目標、睡眠、恢復與固定課表；營業額不會自動寫入 MONEY。
-- PROJECTS：ACTIVE／PAUSED 專案、重複義務、里程提醒、無日期待辦、書單與冷凍項目。
-- REVIEW：最近七天資料、本月收入／支出／淨額及信用卡帳單差額。
-- DATA：雷達提前天數、完整 JSON 備份還原與 CSV 分析匯出。
+- v0.3.9 已完成電腦瀏覽器與 iPhone 主畫面 PWA 實機驗收，手機既有資料正常。
+- `test.html` 保存現行驗收規格。
+- 目前沒有現行 `#待補`；App 程式、測試、資料模型及資產沒有待處理變動。
 
 ## 資料與相容性
 
@@ -38,4 +26,4 @@
 - 資料只存在目前瀏覽器與目前 origin 的 localStorage；不同網址、IP、通訊埠、瀏覽器或裝置不會自動同步。這是現行產品邊界，不是待裁決項目。
 - JSON 是完整備份與還原格式；CSV 只供分析，不能取代完整備份。
 
-產品正典為上一層知識庫的 `TAKO/TAKO_架構.md`；本檔只記錄 App repo 的版本、驗收與工程狀態。歷史決策僅保留於 `_archive/`，不作為現行入口或規則。
+產品簡介見 `README.md`；產品正典為上一層知識庫的 `TAKO/TAKO_架構.md`；原始碼與 `test.html` 是實作及驗收證據。本檔只記錄 App repo 的版本、驗收與工程狀態，普通版本演進與修復歷程由 Git history 保存，不作為現行入口或規則。

@@ -1,6 +1,6 @@
 # TAKO
 
-TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記帳、記錄工作與生活節奏、管理義務及專案，並做短期回顧。正式版本為 **v0.3.9**，預設開啟 MONEY。
+TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記帳、記錄工作與生活節奏、管理義務及專案，並做短期回顧；預設開啟 MONEY。
 
 ## 五個分頁
 
@@ -24,4 +24,4 @@ TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記�
 - macOS／Linux 本機：執行 `./start.sh`，再開啟畫面顯示的網址。
 - 也可直接開啟 `index.html`，但它與正式網址、localhost 是不同 origin，資料彼此獨立。
 
-目前版本與驗收狀態見 [STATUS.md](STATUS.md)；部署、更新及 iPhone 安裝方式見 [DEPLOY.md](DEPLOY.md)。
+正式版本與工程狀態見 [STATUS.md](STATUS.md)；部署、更新及 iPhone 安裝方式見 [DEPLOY.md](DEPLOY.md)；產品正典位於外層知識庫的 `TAKO/TAKO_架構.md`。
