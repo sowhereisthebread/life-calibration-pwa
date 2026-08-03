@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.8" defer></script>
+    <script src="./app.js?v=0.3.9" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +25,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.3.8</p>
+          <p class="eyebrow">v0.3.9</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -293,7 +293,14 @@
               <label class="field"><span>Name</span><input id="obligation-name" type="text" autocomplete="off"></label>
               <div class="two-column">
                 <label class="field"><span>Repeats</span><select id="obligation-cycle"><option value="none">None</option><option value="once">Once</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="after_days">After N days</option><option value="mileage">By mileage</option></select></label>
-                <label class="field"><span>Due</span><input id="obligation-due" type="date"></label>
+                <label class="field">
+                  <span>Due</span>
+                  <span class="date-control">
+                    <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">Select date</span>
+                    <span class="date-control-icon" aria-hidden="true"></span>
+                    <input id="obligation-due" type="date" data-date-control>
+                  </span>
+                </label>
               </div>
               <div class="two-column">
                 <label id="obligation-cycle-day-field" class="field" hidden><span>Cycle day</span><input id="obligation-cycle-day" type="number" min="1" max="31" step="1" inputmode="numeric" value="1"></label>
@@ -313,7 +320,14 @@
               <fieldset id="mileage-fields" class="mileage-fields" hidden>
                 <legend>Mileage</legend>
                 <div class="two-column"><label class="field"><span>Last service</span><input id="obligation-last-mileage" type="number" min="0" step="1" inputmode="numeric"></label><label class="field"><span>Current</span><input id="obligation-current-mileage" type="number" min="0" step="1" inputmode="numeric"></label></div>
-                <label class="field"><span>Mileage updated</span><input id="obligation-mileage-updated" type="date"></label>
+                <label class="field">
+                  <span>Mileage updated</span>
+                  <span class="date-control">
+                    <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">Select date</span>
+                    <span class="date-control-icon" aria-hidden="true"></span>
+                    <input id="obligation-mileage-updated" type="date" data-date-control>
+                  </span>
+                </label>
                 <div class="two-column"><label class="field"><span>Update reminder days</span><input id="obligation-reminder-days" type="number" min="1" step="1" value="15"></label><label class="field"><span>Service threshold km</span><input id="obligation-threshold" type="number" min="1" step="1" value="10000"></label></div>
               </fieldset>
               <button id="obligation-submit" type="submit" class="button button-primary button-full">Add obligation</button>
@@ -461,7 +475,14 @@
         <p class="eyebrow">Mileage</p>
         <h2 id="mileage-modal-title">Update mileage</h2>
         <label class="field"><span>Current mileage</span><input id="mileage-current" type="number" min="0" step="1" inputmode="numeric" required></label>
-        <label class="field"><span>Update date</span><input id="mileage-date" type="date" required></label>
+        <label class="field">
+          <span>Update date</span>
+          <span class="date-control">
+            <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">Select date</span>
+            <span class="date-control-icon" aria-hidden="true"></span>
+            <input id="mileage-date" type="date" data-date-control required>
+          </span>
+        </label>
         <div class="modal-actions">
           <button type="button" class="button button-quiet" data-mileage-cancel>Cancel</button>
           <button type="submit" class="button button-primary">Save mileage</button>

@@ -1,16 +1,19 @@
 # 人生主控表・校準版
 
-目前版本為 v0.3.8：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。第 1、2 版瀏覽器資料與匯出 JSON 會自動升級為資料版本 3，儲存鍵仍為 `lifeCalibrationData`。
+目前版本為 v0.3.9：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。第 1、2 版瀏覽器資料與匯出 JSON 會自動升級為資料版本 3，儲存鍵仍為 `lifeCalibrationData`。
 
 - MONEY：支出以單一 Item 快速記帳，相同 Item 文字直接合併統計；另含收入、帳戶移轉、帳戶餘額、自訂帳戶新增／改名／封存／解封、本月 Item 圖與最近交易。帳戶不保存期初餘額；要帶入初始金額時，新增收入交易並指定帳戶。預設三帳戶可改名但永遠啟用。
 - WORK：打卡、每日／每月營業額與可調營業額目標、睡眠、恢復（內含一句話備註）與固定課表；營業額不會自動寫入 MONEY。390 px 手機寬度下，Schedule 的 Start／End 維持左右並排且不再溢出卡片。
 - PROJECTS：專案只保留 ACTIVE／PAUSED，完成或不再需要時經確認後刪除；另含可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、只保留 THIS MONTH／QUEUED／FROZEN 的書單與冷凍項目，書籍可經確認後直接刪除。
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
+- v0.3.9：針對 iOS WebKit 原生 date control 在自身元素盒外繪製的問題，改用共用自訂日期殼層顯示清楚的 ISO 日期與日曆圖示，並以取消原生 appearance 的透明真實 `input[type=date]` 覆蓋完整操作區；日期值、儲存格式、原生 picker 與義務邏輯不變，Due、Mileage updated 及里程更新 modal 的 Update date 一併套用。
+- 發布狀態：v0.3.9 正在進行本機修正與回歸測試，尚未發布。
+- 實機驗收：v0.3.9 發布後仍須等待 Tako 在 iPhone 主畫面 PWA 再次覆驗，不以電腦模擬宣告通過。
 - v0.3.8：統一表單欄位的垂直節奏，移除 MONEY Quick Add 右上角輔助文字，並以共用 logical sizing 規則修正 iPhone 原生日期／時間欄位及其他控制項的卡片邊界；資料模型與 schema v3 不變。
 - 發布狀態：v0.3.8 已於 2026-08-03 由 release commit `2cdd5224f1fd7d7986af3005baad7dea6672c267` 推送；GitHub Pages 的 `pages-build-deployment #16` 已成功完成 build、report-build-status 與 deploy。
 - 電腦端驗收：正式網址顯示 v0.3.8 並載入 `app.js?v=0.3.8`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 68 項自動測試及 320／375／390／430 四種寬度、七種展開狀態的控制項邊界驗證亦通過。
-- 實機驗收：v0.3.8 尚待 Tako 在 iPhone 覆驗表單間距、TASKS Due 日期選擇器與全 App 水平邊界，不在本機施工階段自行宣告通過。
+- 實機驗收：v0.3.8 已於 2026-08-03 經 Tako 在 iPhone 主畫面 PWA 實機驗收判定失敗；PROJECTS → TASKS 的 Full form／Edit obligation 內，Due 原生日期控制項仍會在元素盒外繪製並超出卡片右側。既有一般 viewport、scrollWidth 與 boundingClientRect 驗證無法捕捉此 iOS WebKit 內部呈現問題，本項待下一修正版處理後再次實機覆驗。
 - 發布狀態：v0.3.7 已於 2026-08-03 由 release commit `27715721b90c3978140aa9915f6f72fd05c4b659` 推送；GitHub Pages 的 `pages-build-deployment #14` 已成功完成 build、report-build-status 與 deploy。
 - 電腦端驗收：正式網址顯示 v0.3.7 並載入 `app.js?v=0.3.7`；首頁、樣式、資料核心、資料存取、Service Worker 與 manifest 均回應 200，五分頁可切換且 console 無啟動錯誤。本機 67 項自動測試與 390 × 844 響應式驗證亦通過。
 - 實機驗收：v0.3.7 尚待 Tako 在 iPhone 主畫面版本覆驗，不在本機施工階段自行宣告通過。

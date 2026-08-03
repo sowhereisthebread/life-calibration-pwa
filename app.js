@@ -539,6 +539,27 @@
     action?.();
   }
 
+  function syncDateControl(input) {
+    const control = input?.closest(".date-control");
+    const value = control?.querySelector(".date-control-value");
+    if (!control || !value) return;
+    value.textContent = input.value || value.dataset.datePlaceholder || "Select date";
+    control.classList.toggle("is-empty", !input.value);
+    control.classList.toggle("is-disabled", input.disabled);
+  }
+
+  function syncDateControls() {
+    document.querySelectorAll("input[data-date-control]").forEach(syncDateControl);
+  }
+
+  function bindDateControls() {
+    document.querySelectorAll("input[data-date-control]").forEach(input => {
+      input.addEventListener("input", () => syncDateControl(input));
+      input.addEventListener("change", () => syncDateControl(input));
+    });
+    syncDateControls();
+  }
+
   function syncObligationCycleFields() {
     const cycle = elements["obligation-cycle"].value;
     elements["mileage-fields"].hidden = cycle !== "mileage";
@@ -546,6 +567,7 @@
     elements["obligation-cycle-day-field"].hidden = !["monthly", "yearly"].includes(cycle);
     elements["obligation-cycle-month-field"].hidden = cycle !== "yearly";
     elements["obligation-interval-field"].hidden = cycle !== "after_days";
+    syncDateControls();
   }
 
   function resetObligationForm({ close = false } = {}) {
@@ -611,6 +633,7 @@
     elements["mileage-modal-title"].textContent = `Update mileage · ${obligation.name}`;
     elements["mileage-current"].value = obligation.service.currentMileage ?? "";
     elements["mileage-date"].value = todayKey;
+    syncDateControl(elements["mileage-date"]);
     elements["mileage-modal"].hidden = false;
     elements["mileage-current"].focus();
     elements["mileage-current"].select();
@@ -1163,6 +1186,7 @@
     }).format(new Date());
     elements["transaction-item"].value = "";
     runDataChange(() => dataStore.touchOpened());
+    bindDateControls();
     bindEvents();
     renderAll();
     registerServiceWorker();
