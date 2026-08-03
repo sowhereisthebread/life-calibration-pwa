@@ -1,30 +1,41 @@
-# 人生主控表・校準版 v0.3.6 狀態
+# TAKO v0.3.9｜現行狀態
 
-## 目的與邊界
-- 目的：提供手機優先、60 秒內可完成基本記錄，並整合記帳、義務、專案與月結的本機人生主控表。
-- 回答三件事：錢去了哪裡、下一步做什麼、最近作息與工作狀況如何。
-- 本輪不做通知、帳號、雲端同步或後端服務；個人金額、醫療項目與書名不進 repo。
-- TAKO v0.3.6 已於 2026-08-03 推送並部署至既有 GitHub Pages；正式網址與 PWA 安裝身分不變。v0.3.5 的既有發布紀錄仍保留為歷史事實。
+更新：2026-08-03
 
-## 現行依據
-- 現行正典：`TAKO_架構.md`；v0.3 交辦稿與事故規則均已退役。
-- 技術：純 HTML、CSS、JavaScript；不使用框架、打包工具、CDN 或外部素材。
-- 資料：schema v2 的單一版本化 JSON 存於目前瀏覽器的 localStorage，儲存鍵維持 `lifeCalibrationData`；v1 會自動無損升級，由獨立資料模組統一存取，不上傳。
-- 頁面：MONEY／WORK／PROJECTS／REVIEW／DATA；預設 MONEY。
-- 開啟：可雙擊 index.html，或用 start.bat／start.sh 啟動本機伺服器。
-- 資料邊界：不同網址、IP、通訊埠、瀏覽器或裝置的資料不互通。
-- 部署：正式網址為 https://sowhereisthebread.github.io/life-calibration-pwa/；GitHub repo 為 `sowhereisthebread/life-calibration-pwa`（public），從 `master` 的 `/(root)` 發布。
-- 版本：目前正式版本為 v0.3.6；已部署版本為 v0.3.6，部署日期為 2026-08-03。
-- 正式部署 commit：`11dd75e2f2190a6ccc10818ff675fda6300211a7`；GitHub Pages 的 build、deploy、report-build-status 均成功。
-- 部署紀錄規則：每次 push 後由執行者更新「已部署版本」、「部署日期」與正式部署 commit。
-- v0.3.6 已於 iPhone 確認顯示；Amount／Item 輸入後不再自動縮放，其餘本輪功能正常。既有 manifest、Service Worker 與離線 App shell 行為未退化。
-- Git 範圍：`life-calibration/` 是獨立 repo；上一層知識庫 repo 已忽略此目錄，不對外發布。
+## 版本與 Git
 
-## 待裁決
-- #待補 跨裝置同步：建議先跑七天，再依實際摩擦決定是否承擔帳號與雲端複雜度。
+- 正式版本：**v0.3.9**。
+- branch：`master`。
+- v0.3.9 完成部署、電腦驗收與 iPhone 實機驗收時的 App 基線 commit：`84ec6183092bc02ae981e76392ba559f7f459ed3`。
+- v0.3.9 程式發布 commit：`acb86f75674815851d3038624d54ff1ad5606650`。
+- 正式網址：<https://sowhereisthebread.github.io/life-calibration-pwa/>
+- GitHub Pages：public repo `sowhereisthebread/life-calibration-pwa`，由 `master` 的 `/(root)` 發布。
+- 本次後續文件 commit 不改變 v0.3.9 App 程式、測試、資料模型或資產。
 
-## 已知待辦
-- iPhone 原生 Schedule 的 Start／End 雖維持左右並排，欄位仍會超出卡片；不阻擋 v0.3.6 驗收，排入下一輪 UI 修正。
+## 驗收結果
 
-## 進行中
-- v0.3.6 已發布並完成 iPhone 驗收；Schedule 欄位溢出留待下一輪 UI 修正，跨裝置同步待七天實測後裁決。
+- v0.3.9 已完成 iPhone 主畫面 PWA 實機驗收。
+- 手機既有資料正常。
+- Schedule 的 Start／End 手機欄位溢出已解決。
+- `test.html` 保留 69 項靜態測試定義；本輪是文件施工，未修改也未重跑測試。
+- 目前沒有現行 `#待補`，也不需要重新部署。
+
+## 現行功能
+
+- 頁面固定為 MONEY／WORK／PROJECTS／REVIEW／DATA，預設開啟 MONEY。
+- MONEY：支出、收入、帳戶移轉、帳戶餘額、自訂帳戶與本月 Item 統計。
+- WORK：今日工時、每日／每月營業額、可調營業額目標、睡眠、恢復與固定課表；營業額不會自動寫入 MONEY。
+- PROJECTS：ACTIVE／PAUSED 專案、重複義務、里程提醒、無日期待辦、書單與冷凍項目。
+- REVIEW：最近七天資料、本月收入／支出／淨額及信用卡帳單差額。
+- DATA：雷達提前天數、完整 JSON 備份還原與 CSV 分析匯出。
+
+## 資料與相容性
+
+- 現行資料版本為 **schema v3**，localStorage key 維持 `lifeCalibrationData`。
+- 第 1、2 版的瀏覽器資料與匯出 JSON 可自動遷移到 v3；匯入接受 v1／v2／v3。
+- v1／v2 各帳戶的非零期初餘額會各自轉成一次、有遷移標記且指定原帳戶的收入交易；零值不生成交易，轉換後帳戶不再保留期初餘額欄位。
+- 舊資料或 JSON 中的 `category`／`categories` 僅為相容欄位，現行支出輸入沒有分類 UI。
+- 資料只存在目前瀏覽器與目前 origin 的 localStorage；不同網址、IP、通訊埠、瀏覽器或裝置不會自動同步。這是現行產品邊界，不是待裁決項目。
+- JSON 是完整備份與還原格式；CSV 只供分析，不能取代完整備份。
+
+產品正典為上一層知識庫的 `TAKO/TAKO_架構.md`；本檔只記錄 App repo 的版本、驗收與工程狀態。歷史決策僅保留於 `_archive/`，不作為現行入口或規則。

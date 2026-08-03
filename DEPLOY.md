@@ -1,6 +1,6 @@
 # 人生主控表：GitHub Pages 部署步驟
 
-本 App 已於 2026-08-01 完成發布並在 iPhone 加入主畫面；正式網址為 https://sowhereisthebread.github.io/life-calibration-pwa/，public repo 為 `sowhereisthebread/life-calibration-pwa`。本文件保留首次部署、重新安裝與後續更新指引。
+TAKO v0.3.9 已正式發布並完成 iPhone 主畫面 PWA 實機驗收；正式網址為 https://sowhereisthebread.github.io/life-calibration-pwa/，public repo 為 `sowhereisthebread/life-calibration-pwa`。本文件只保留首次部署、重新安裝與後續更新指引。
 
 ## 發布範圍與資料安全
 
