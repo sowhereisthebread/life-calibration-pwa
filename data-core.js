@@ -1,8 +1,9 @@
 (() => {
   "use strict";
 
-  const DATA_VERSION = 2;
-  const SUPPORTED_IMPORT_VERSIONS = [1, 2];
+  const DATA_VERSION = 3;
+  const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3];
+  const STARTING_BALANCE_MIGRATION = "v3-starting-balance-to-income";
   const DEFAULT_CATEGORY_NAMES = ["吃飯", "咖啡", "加油", "交通", "衣物", "生活", "醫療", "其他"];
   const DEFAULT_ACCOUNTS = [
     { id: "main", name: "主帳戶", kind: "main" },
@@ -54,6 +55,12 @@
     return Number.isFinite(number) ? Math.max(minimum, number) : fallback;
   }
 
+  function normalizeWorkRevenue(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
   function isSystemAccount(accountId) {
     return SYSTEM_ACCOUNT_IDS.has(String(accountId || ""));
   }
@@ -62,6 +69,7 @@
     return {
       sleep: { bedtime: "", wakeTime: "" },
       workSessions: [],
+      workRevenue: null,
       transactions: [],
       recovery: { activity: "", effect: "" },
       note: "",
@@ -81,7 +89,7 @@
   }
 
   function createDefaultAccounts() {
-    return DEFAULT_ACCOUNTS.map(account => ({ ...account, startingBalance: 0, active: true, system: true }));
+    return DEFAULT_ACCOUNTS.map(account => ({ ...account, active: true, system: true }));
   }
 
   function createEmptyState(now = new Date()) {
@@ -109,11 +117,15 @@
 
   function normalizeTransaction(raw, dayKey = "") {
     const type = ["income", "expense", "transfer"].includes(raw?.type) ? raw.type : "expense";
+    // 遷移交易保留舊資料的正負號，才能無損承接信用卡等負期初值。
+    const migrationAmount = raw?.migrationMarker?.startsWith(`${STARTING_BALANCE_MIGRATION}:`) && type === "income"
+      ? Number(raw?.amount)
+      : null;
     return {
       ...(raw && typeof raw === "object" ? raw : {}),
       id: String(raw?.id || uid("transaction")),
       type,
-      amount: numberOrNull(raw?.amount) ?? 0,
+      amount: Number.isFinite(migrationAmount) ? migrationAmount : (numberOrNull(raw?.amount) ?? 0),
       category: String(raw?.category || ""),
       title: String(raw?.title ?? raw?.note ?? ""),
       note: String(raw?.note || ""),
@@ -135,6 +147,7 @@
       ...raw,
       sleep: { ...base.sleep, ...(raw.sleep && typeof raw.sleep === "object" ? raw.sleep : {}) },
       workSessions: Array.isArray(raw.workSessions) ? clone(raw.workSessions) : [],
+      workRevenue: normalizeWorkRevenue(raw.workRevenue),
       transactions: Array.isArray(raw.transactions) ? raw.transactions.map(item => normalizeTransaction(item, dayKey)) : [],
       recovery: { ...base.recovery, ...(raw.recovery && typeof raw.recovery === "object" ? raw.recovery : {}) },
       note: String(raw.note || "")
@@ -207,10 +220,83 @@
       id,
       name: String(raw?.name || fallback.name || "未命名帳戶"),
       kind: ["main", "cash", "card", "other"].includes(raw?.kind) ? raw.kind : (fallback.kind || "other"),
-      startingBalance: Number.isFinite(Number(raw?.startingBalance)) ? Number(raw.startingBalance) : 0,
       active: system ? true : raw?.active !== false,
       system
     };
+  }
+
+  function normalizeProject(raw) {
+    return {
+      ...(raw && typeof raw === "object" ? raw : {}),
+      id: String(raw?.id || uid("project")),
+      name: String(raw?.name || "未命名專案"),
+      status: raw?.status === "paused" ? "paused" : "active",
+      nextStep: String(raw?.nextStep || ""),
+      updatedAt: raw?.updatedAt || null
+    };
+  }
+
+  function normalizeBook(raw) {
+    return {
+      ...(raw && typeof raw === "object" ? raw : {}),
+      id: String(raw?.id || uid("book")),
+      name: String(raw?.name || "未命名"),
+      status: ["current", "queued", "frozen"].includes(raw?.status) ? raw.status : "queued"
+    };
+  }
+
+  function dateKeyFromValue(value) {
+    if (validDateKey(value)) return String(value);
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : localDateKey(date);
+  }
+
+  function migrationDateKey(value) {
+    const createdAt = dateKeyFromValue(value?.meta?.createdAt);
+    if (createdAt) return createdAt;
+    const candidates = [
+      ...Object.keys(value?.days || {}),
+      ...Object.values(value?.days || {}).flatMap(day => (day?.transactions || []).map(item => item?.occurredOn)),
+      ...(value?.projects || []).flatMap(item => [item?.createdAt, item?.updatedAt]),
+      ...(value?.obligations || []).flatMap(item => [item?.createdAt, item?.updatedAt]),
+      ...(value?.events || []).flatMap(item => [item?.dueDate, item?.completedAt]),
+      value?.meta?.lastOpenedAt,
+      value?.meta?.lastExportAt
+    ].map(dateKeyFromValue).filter(Boolean).sort();
+    return candidates[0] || localDateKey();
+  }
+
+  function migrateStartingBalances(state, source) {
+    if (![1, 2].includes(Number(source?.version)) || !Array.isArray(source?.accounts)) return;
+    const dayKey = migrationDateKey(source);
+    let migrated = false;
+    source.accounts.forEach(rawAccount => {
+      const accountId = String(rawAccount?.id || "");
+      const amount = Number(rawAccount?.startingBalance);
+      if (!accountId || !Number.isFinite(amount) || amount === 0 || !state.accounts.some(account => account.id === accountId)) return;
+      const migrationMarker = `${STARTING_BALANCE_MIGRATION}:${accountId}`;
+      const exists = Object.values(state.days).some(item => item.transactions.some(transaction => transaction.migrationMarker === migrationMarker));
+      if (exists) return;
+      const day = state.days[dayKey] || (state.days[dayKey] = createEmptyDay());
+      day.transactions.push(normalizeTransaction({
+        id: `migration-starting-balance-${accountId}`,
+        type: "income",
+        amount,
+        title: "期初金額移轉",
+        incomeSource: "期初金額移轉",
+        accountId,
+        occurredOn: dayKey,
+        migrationMarker
+      }, dayKey));
+      migrated = true;
+    });
+    if (migrated) {
+      state.meta.migrations = {
+        ...(state.meta.migrations && typeof state.meta.migrations === "object" ? state.meta.migrations : {}),
+        [STARTING_BALANCE_MIGRATION]: true
+      };
+    }
   }
 
   function normalizeCategory(raw, index = 0) {
@@ -245,12 +331,13 @@
   function normalizeState(value) {
     const empty = createEmptyState();
     if (!value || typeof value !== "object" || Array.isArray(value)) return empty;
-    const state = createEmptyState(value.meta?.createdAt ? new Date(value.meta.createdAt) : new Date());
+    const createdAt = value.meta?.createdAt ? new Date(value.meta.createdAt) : new Date();
+    const state = createEmptyState(Number.isNaN(createdAt.getTime()) ? new Date() : createdAt);
 
     Object.entries(value.days && typeof value.days === "object" && !Array.isArray(value.days) ? value.days : {}).forEach(([key, day]) => {
       if (validDateKey(key)) state.days[key] = normalizeDay(day, key);
     });
-    state.projects = Array.isArray(value.projects) ? clone(value.projects) : [];
+    state.projects = Array.isArray(value.projects) ? value.projects.filter(item => item?.status !== "done").map(normalizeProject) : [];
     state.obligations = Array.isArray(value.obligations) ? value.obligations.map(normalizeObligation) : [];
     state.events = Array.isArray(value.events) ? value.events.map(normalizeEvent) : [];
     state.accounts = Array.isArray(value.accounts) && value.accounts.length
@@ -258,7 +345,7 @@
       : createDefaultAccounts();
     DEFAULT_ACCOUNTS.forEach(defaultAccount => {
       if (!state.accounts.some(account => account.id === defaultAccount.id)) {
-        state.accounts.push(normalizeAccount({ ...defaultAccount, startingBalance: 0, active: true }));
+        state.accounts.push(normalizeAccount({ ...defaultAccount, active: true }));
       }
     });
 
@@ -278,7 +365,7 @@
       refreshCategoryStats(state);
     }
 
-    state.books = Array.isArray(value.books) ? clone(value.books) : [];
+    state.books = Array.isArray(value.books) ? value.books.filter(item => item?.status !== "finished").map(normalizeBook) : [];
     state.schedule = Array.isArray(value.schedule) ? clone(value.schedule) : [];
     state.settings = {
       radarDays: numberOrDefault(value.settings?.radarDays, 7),
@@ -291,6 +378,7 @@
       ...empty.meta,
       ...(value.meta && typeof value.meta === "object" ? value.meta : {})
     };
+    migrateStartingBalances(state, value);
     state.version = DATA_VERSION;
     return state;
   }
@@ -300,7 +388,7 @@
       return { valid: false, reason: "檔案內容不是人生主控表資料。" };
     }
     if (!SUPPORTED_IMPORT_VERSIONS.includes(value.version)) {
-      return { valid: false, reason: "資料版本不相容。目前支援第 1、2 版。" };
+      return { valid: false, reason: "資料版本不相容。目前支援第 1、2、3 版。" };
     }
     if (!value.days || typeof value.days !== "object" || Array.isArray(value.days)) {
       return { valid: false, reason: "檔案缺少每日資料。" };
@@ -454,7 +542,10 @@
   }
 
   function transactionAmount(transaction) {
-    return numberOrNull(transaction?.amount) ?? 0;
+    const amount = Number(transaction?.amount);
+    if (!Number.isFinite(amount)) return 0;
+    if (transaction?.type === "income" && transaction?.migrationMarker?.startsWith(`${STARTING_BALANCE_MIGRATION}:`)) return amount;
+    return Math.max(0, amount);
   }
 
   function allTransactions(state) {
@@ -483,12 +574,19 @@
     return monthTransactions(state, monthKey).reduce((total, item) => item.type === "income" ? total + transactionAmount(item) : total, 0);
   }
 
+  function monthWorkRevenue(state, monthKey) {
+    return Object.entries(state?.days || {}).reduce((total, [dayKey, day]) => {
+      if (!dayKey.startsWith(monthKey)) return total;
+      return total + (normalizeWorkRevenue(day?.workRevenue) ?? 0);
+    }, 0);
+  }
+
   function monthExpense(state, monthKey) {
     return monthTransactions(state, monthKey).reduce((total, item) => item.type === "expense" ? total + transactionAmount(item) : total, 0);
   }
 
   function accountBalances(state) {
-    const balances = Object.fromEntries((state.accounts || []).map(account => [account.id, Number(account.startingBalance) || 0]));
+    const balances = Object.fromEntries((state.accounts || []).map(account => [account.id, 0]));
     const paymentAccount = { card: "card", cash: "cash", bank: "main" };
     allTransactions(state).forEach(transaction => {
       const amount = transactionAmount(transaction);
@@ -546,7 +644,7 @@
   function hasDayRecord(day) {
     return Boolean(day && (
       day.sleep?.bedtime || day.sleep?.wakeTime || day.workSessions?.length || day.transactions?.length ||
-      day.recovery?.activity || day.recovery?.effect || day.note
+      normalizeWorkRevenue(day.workRevenue) !== null || day.recovery?.activity || day.recovery?.effect || day.note
     ));
   }
 
@@ -648,14 +746,14 @@
   function buildCsv(state) {
     const rows = [["資料類型", "日期", "識別碼", "名稱", "狀態或種類", "金額", "明細"]];
     Object.entries(state.days).sort(([a], [b]) => a.localeCompare(b)).forEach(([date, day]) => {
-      rows.push(["每日", date, "", "", "", "", { sleep: day.sleep, recovery: day.recovery, note: day.note }]);
+      rows.push(["每日", date, "", "", "", day.workRevenue ?? "", { sleep: day.sleep, workRevenue: day.workRevenue, recovery: day.recovery, note: day.note }]);
       day.workSessions.forEach(item => rows.push(["工作段", date, item.id, "", "", "", item]));
       day.transactions.forEach(item => rows.push(["交易", date, item.id, item.title || item.category, item.type, item.amount, item]));
     });
     [
       ["專案", state.projects], ["義務", state.obligations], ["事件", state.events], ["帳戶", state.accounts],
       ["分類", state.categories], ["書單", state.books], ["課表", state.schedule]
-    ].forEach(([type, list]) => list.forEach(item => rows.push([type, "", item.id || "", item.name || "", item.status || item.kind || "", item.amount ?? item.startingBalance ?? "", item])));
+    ].forEach(([type, list]) => list.forEach(item => rows.push([type, "", item.id || "", item.name || "", item.status || item.kind || "", item.amount ?? "", item])));
     rows.push(["設定", "", "", "", "", "", state.settings]);
     Object.entries(state.statements).forEach(([month, amount]) => rows.push(["帳單", month, "", "", "", amount, ""]));
     return rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
@@ -673,6 +771,7 @@
   globalThis.LifeCalibrationCore = Object.freeze({
     DATA_VERSION,
     SUPPORTED_IMPORT_VERSIONS: [...SUPPORTED_IMPORT_VERSIONS],
+    STARTING_BALANCE_MIGRATION,
     DEFAULT_CATEGORY_NAMES: [...DEFAULT_CATEGORY_NAMES],
     DEFAULT_CATEGORIES: [...DEFAULT_CATEGORY_NAMES],
     DEFAULT_ACCOUNTS: clone(DEFAULT_ACCOUNTS),
@@ -684,6 +783,7 @@
     dateFromKey,
     createEmptyDay,
     createEmptyState,
+    normalizeWorkRevenue,
     normalizeTransaction,
     normalizeObligation,
     normalizeEvent,
@@ -700,6 +800,7 @@
     dayExpense,
     dayNet,
     monthIncome,
+    monthWorkRevenue,
     monthExpense,
     monthTransactions,
     accountBalances,

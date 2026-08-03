@@ -56,7 +56,7 @@
           });
         }
 
-        test("空白資料為 schema v2", () => equal(Core.createEmptyState().version, 2));
+        test("空白資料為 schema v3", () => equal(Core.createEmptyState().version, 3));
         test("核心缺席時不得建立資料模組或寫入 localStorage", () => {
           let reads = 0;
           let writes = 0;
@@ -78,7 +78,7 @@
           if (!request.responseText.includes("if (!RuntimeCore)")) throw new Error("缺少核心停止條件");
         });
         test("預設分類依 v0.3 指定順序", () => equal(Core.DEFAULT_CATEGORIES.join("、"), "吃飯、咖啡、加油、交通、衣物、生活、醫療、其他"));
-        test("空白資料包含全部 v2 型別", () => {
+        test("空白資料包含全部 v3 型別", () => {
           const state = Core.createEmptyState();
           ["obligations", "events", "accounts", "categories", "books", "schedule"].forEach(key => {
             if (!Array.isArray(state[key])) throw new Error(`缺少 ${key}`);
@@ -89,6 +89,8 @@
           equal(state.accounts.map(item => item.name).join("、"), "主帳戶、現金、信用卡");
           equal(state.settings.radarDays, 7);
           equal(state.settings.monthlyIncomeTarget, 60000);
+          equal(state.accounts.some(item => Object.prototype.hasOwnProperty.call(item, "startingBalance")), false);
+          equal(Core.createEmptyDay().workRevenue, null);
         });
         test("備份提醒略過後當天不再顯示、隔天恢復", () => {
           const state = Core.createEmptyState(new Date("2026-07-01T00:00:00+08:00"));
@@ -122,7 +124,9 @@
           if (!Core.buildCsv(state).startsWith("資料類型,日期,識別碼")) throw new Error("缺少預期標題");
         });
         test("v1 匯入資料通過版本檢查", () => equal(Core.validateImportedState({ version: 1, days: {}, projects: [] }).valid, true));
-        test("v2 匯入資料通過版本檢查", () => equal(Core.validateImportedState(Core.createEmptyState()).valid, true));
+        test("v2 匯入資料通過版本檢查", () => equal(Core.validateImportedState({ version: 2, days: {}, projects: [] }).valid, true));
+        test("v3 匯入資料通過版本檢查", () => equal(Core.validateImportedState(Core.createEmptyState()).valid, true));
+        test("匯入版本清單只接受 v1、v2、v3", () => equal(Core.SUPPORTED_IMPORT_VERSIONS.join(","), "1,2,3"));
         test("錯誤版本不會通過匯入檢查", () => equal(Core.validateImportedState({ version: 99, days: {}, projects: [] }).valid, false));
         test("v1 每日資料、交易與專案升級後一筆不失", () => {
           const upgraded = Core.normalizeState({
@@ -132,12 +136,100 @@
             customCategories: ["舊分類"],
             meta: {}
           });
-          equal(upgraded.version, 2);
+          equal(upgraded.version, 3);
           equal(upgraded.days["2026-08-01"].note, "保留");
           equal(upgraded.days["2026-08-01"].transactions.length, 1);
           equal(upgraded.days["2026-08-01"].transactions[0].title, "舊備註");
           equal(upgraded.projects.length, 1);
           equal(upgraded.categories.some(item => item.name === "舊分類"), true);
+        });
+        test("v2 單一 Starting balance 轉成有標記的收入交易", () => {
+          const legacy = Core.createEmptyState(new Date("2026-07-15T20:00:00+08:00"));
+          legacy.version = 2;
+          legacy.accounts.forEach(account => { account.startingBalance = account.id === "main" ? 1000 : 0; });
+          const upgraded = Core.normalizeState(legacy);
+          const transaction = Core.allTransactions(upgraded).find(item => item.migrationMarker?.startsWith(Core.STARTING_BALANCE_MIGRATION));
+          equal(transaction.type, "income");
+          equal(transaction.amount, 1000);
+          equal(transaction.accountId, "main");
+          equal(transaction.title, "期初金額移轉");
+          equal(transaction.occurredOn, "2026-07-15");
+          equal(Object.prototype.hasOwnProperty.call(upgraded.accounts[0], "startingBalance"), false);
+        });
+        test("v2 多帳戶 Starting balance 各自保留餘額", () => {
+          const legacy = Core.createEmptyState(new Date("2026-07-15T12:00:00+08:00"));
+          legacy.version = 2;
+          legacy.accounts.find(item => item.id === "main").startingBalance = 1000;
+          legacy.accounts.find(item => item.id === "cash").startingBalance = 200;
+          legacy.accounts.find(item => item.id === "card").startingBalance = -300;
+          const upgraded = Core.normalizeState(legacy);
+          const migrated = Core.allTransactions(upgraded).filter(item => item.migrationMarker?.startsWith(Core.STARTING_BALANCE_MIGRATION));
+          equal(migrated.length, 3);
+          const balances = Core.accountBalances(upgraded);
+          equal(balances.main, 1000);
+          equal(balances.cash, 200);
+          equal(balances.card, -300);
+        });
+        test("零元 Starting balance 不生成交易或空白日期", () => {
+          const legacy = Core.createEmptyState(new Date("2026-07-15T12:00:00+08:00"));
+          legacy.version = 2;
+          legacy.accounts.forEach(account => { account.startingBalance = 0; });
+          const upgraded = Core.normalizeState(legacy);
+          equal(Core.allTransactions(upgraded).length, 0);
+          equal(Object.keys(upgraded.days).length, 0);
+        });
+        test("Starting balance 遷移重跑與 JSON round trip 不重複", () => {
+          const legacy = Core.createEmptyState(new Date("2026-07-15T12:00:00+08:00"));
+          legacy.version = 2;
+          legacy.accounts[0].startingBalance = 1000;
+          const first = Core.normalizeState(legacy);
+          const second = Core.normalizeState(first);
+          const roundTrip = Core.normalizeState(JSON.parse(JSON.stringify(second)));
+          equal(Core.allTransactions(first).length, 1);
+          equal(Core.allTransactions(second).length, 1);
+          equal(Core.allTransactions(roundTrip).length, 1);
+        });
+        test("Starting balance 日期無效時使用最早舊資料日期", () => {
+          const legacy = Core.createEmptyState();
+          legacy.version = 2;
+          legacy.meta.createdAt = "invalid";
+          legacy.days["2026-07-20"] = Core.createEmptyDay();
+          legacy.days["2026-07-05"] = Core.createEmptyDay();
+          legacy.accounts[0].startingBalance = 50;
+          const upgraded = Core.normalizeState(legacy);
+          equal(Core.allTransactions(upgraded)[0].occurredOn, "2026-07-05");
+        });
+        test("v2 Done 專案與 Finished 書籍移除，其餘狀態保留", () => {
+          const legacy = Core.createEmptyState();
+          legacy.version = 2;
+          legacy.projects = [
+            { id: "p1", name: "Active", status: "active" },
+            { id: "p2", name: "Paused", status: "paused" },
+            { id: "p3", name: "Done", status: "done" }
+          ];
+          legacy.books = [
+            { id: "b1", name: "Current", status: "current" },
+            { id: "b2", name: "Queued", status: "queued" },
+            { id: "b3", name: "Frozen", status: "frozen" },
+            { id: "b4", name: "Finished", status: "finished" }
+          ];
+          const upgraded = Core.normalizeState(legacy);
+          equal(upgraded.projects.map(item => item.status).join(","), "active,paused");
+          equal(upgraded.books.map(item => item.status).join(","), "current,queued,frozen");
+          equal(JSON.stringify(upgraded).includes('"status":"done"'), false);
+          equal(JSON.stringify(upgraded).includes('"status":"finished"'), false);
+        });
+        test("workRevenue 正規化、月加總與每日記錄判定正確", () => {
+          const state = Core.createEmptyState();
+          state.days["2026-08-01"] = { ...Core.createEmptyDay(), workRevenue: 1200 };
+          state.days["2026-08-02"] = { ...Core.createEmptyDay(), workRevenue: "800" };
+          state.days["2026-08-03"] = { ...Core.createEmptyDay(), workRevenue: -1 };
+          state.days["2026-07-31"] = { ...Core.createEmptyDay(), workRevenue: 500 };
+          const normalized = Core.normalizeState(state);
+          equal(normalized.days["2026-08-03"].workRevenue, null);
+          equal(Core.monthWorkRevenue(normalized, "2026-08"), 2000);
+          equal(Core.hasDayRecord(normalized.days["2026-08-01"]), true);
+          equal(Core.hasDayRecord({ ...Core.createEmptyDay(), workRevenue: 0 }), true);
         });
         test("資料模組可讀寫每日欄位且回傳副本", () => {
           const store = createMemoryStore();
@@ -186,7 +278,7 @@
           if (!store.exportCsv().startsWith("資料類型,日期")) throw new Error("CSV 標題錯誤");
           store.clear();
           equal(store.readDay("2026-08-01").note, "");
-          equal(store.readState().version, 2);
+          equal(store.readState().version, 3);
         });
 
         function createObligation(cycle, extras = {}) {
@@ -267,9 +359,6 @@
         });
         test("三帳戶餘額依支出收入移轉正確運算", () => {
           const state = Core.createEmptyState();
-          state.accounts.find(item => item.id === "main").startingBalance = 1000;
-          state.accounts.find(item => item.id === "cash").startingBalance = 200;
-          state.accounts.find(item => item.id === "card").startingBalance = -300;
           state.days["2026-08-01"] = Core.createEmptyDay();
           state.days["2026-08-01"].transactions = [
             { type: "expense", amount: 50, paymentMethod: "cash" },
@@ -278,9 +367,9 @@
             { type: "transfer", amount: 300, fromAccountId: "main", toAccountId: "card" }
           ];
           const balances = Core.accountBalances(state);
-          equal(balances.main, 1200);
-          equal(balances.cash, 150);
-          equal(balances.card, -100);
+          equal(balances.main, 200);
+          equal(balances.cash, -50);
+          equal(balances.card, 200);
         });
         test("卡片差額使用上一個日曆月刷卡支出", () => {
           const state = Core.createEmptyState();
@@ -337,10 +426,12 @@
           state.events.push(Core.normalizeEvent({ obligationId: "obligation-1" }));
           state.books.push({ id: "book-1", name: "測試", status: "queued" });
           state.schedule.push({ id: "schedule-1", weekday: 1, start: "09:00", end: "10:00", name: "課" });
+          state.days["2026-08-01"] = { ...Core.createEmptyDay(), workRevenue: 1200 };
           const csv = Core.buildCsv(state);
           ["義務", "事件", "帳戶", "分類", "書單", "課表", "設定"].forEach(label => {
             if (!csv.includes(label)) throw new Error(`CSV 缺少 ${label}`);
           });
+          if (!csv.includes("workRevenue")) throw new Error("CSV 缺少每日營業額");
         });
 
         test("修改義務後完整欄位與里程設定正確保留", () => {
@@ -424,7 +515,8 @@
 
         test("自訂帳戶可新增改名封存與解封", () => {
           const store = createMemoryStore();
-          const account = store.addAccount("旅行", 1000);
+          const account = store.addAccount("旅行");
+          equal(Object.prototype.hasOwnProperty.call(account, "startingBalance"), false);
           store.updateAccount(account.id, { name: "旅行金", active: false });
           let saved = store.readState().accounts.find(item => item.id === account.id);
           equal(saved.name, "旅行金");
@@ -436,18 +528,18 @@
 
         test("封存帳戶不出現在新交易可選清單", () => {
           const state = Core.createEmptyState();
-          state.accounts.push({ id: "account-trip", name: "旅行", kind: "other", startingBalance: 0, active: false });
+          state.accounts.push({ id: "account-trip", name: "旅行", kind: "other", active: false });
           equal(Core.selectableAccounts(state).some(item => item.id === "account-trip"), false);
           equal(Core.selectableAccounts(state).length, 3);
         });
 
         test("封存帳戶的歷史交易與餘額仍正確", () => {
           const store = createMemoryStore();
-          const account = store.addAccount("旅行", 1000);
+          const account = store.addAccount("旅行");
           store.addTransaction("2026-08-01", { id: "trip-income", type: "income", amount: 500, accountId: account.id });
           store.updateAccount(account.id, { active: false });
           const state = store.readState();
-          equal(Core.accountBalances(state)[account.id], 1500);
+          equal(Core.accountBalances(state)[account.id], 500);
           equal(Core.allTransactions(state).some(item => item.id === "trip-income"), true);
           equal(state.accounts.find(item => item.id === account.id).name, "旅行");
         });
@@ -463,6 +555,26 @@
           reopened.importState(JSON.parse(backup));
           equal(reopened.readState().settings.radarDays, 12);
           equal(reopened.readState().settings.monthlyIncomeTarget, 72000);
+        });
+
+        test("每日營業額自動儲存、清空與 JSON 匯出入保留", () => {
+          const store = createMemoryStore();
+          store.writeDayField("2026-08-01", "workRevenue", "1500");
+          equal(store.readDay("2026-08-01").workRevenue, 1500);
+          const backup = JSON.parse(store.exportJson());
+          store.clear();
+          store.importState(backup);
+          equal(store.readDay("2026-08-01").workRevenue, 1500);
+          store.writeDayField("2026-08-01", "workRevenue", null);
+          equal(store.readDay("2026-08-01").workRevenue, null);
+        });
+
+        test("書籍可正式刪除且不存在時不改資料", () => {
+          const store = createMemoryStore();
+          const book = store.addBook({ name: "測試", status: "queued" });
+          equal(store.deleteBook(book.id), true);
+          equal(store.readState().books.length, 0);
+          equal(store.deleteBook(book.id), false);
         });
 
         test("manifest 主題色為 #A4AAB0", () => {
@@ -482,9 +594,15 @@
           ["transaction-category", "category-buttons", "category-form", "category-manager"].forEach(id => {
             if (documentCopy.getElementById(id)) throw new Error(`仍存在分類介面：${id}`);
           });
-          ["month-spent", "work-month-income", "metric-sleep", "review-month-net"].forEach(id => {
+          ["month-spent", "work-month-revenue", "metric-sleep", "review-month-net"].forEach(id => {
             if (!documentCopy.getElementById(id)?.classList.contains("primary-number")) throw new Error(`${id} 未使用共用主數字 class`);
           });
+          if (documentCopy.querySelector("[placeholder]")) throw new Error("仍存在輸入框 placeholder");
+          if (documentCopy.getElementById("account-starting") || documentCopy.body.textContent.includes("Starting balance")) throw new Error("仍存在 Starting balance 介面");
+          if (!documentCopy.getElementById("work-revenue")) throw new Error("缺少今日營業額欄位");
+          if (documentCopy.body.textContent.includes("昨晚睡得如何？")) throw new Error("仍存在睡眠主觀提問");
+          const recoveryCard = documentCopy.getElementById("daily-note")?.closest("article");
+          if (!recoveryCard?.querySelector("#recovery-activity") || !recoveryCard?.querySelector("#recovery-effect")) throw new Error("一句話備註未併入恢復卡");
         });
 
         const passed = results.filter(result => result.pass).length;

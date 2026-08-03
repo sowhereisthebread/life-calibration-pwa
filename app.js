@@ -39,12 +39,12 @@
 
   function queryElements() {
     [
-      "today-date", "autosave-status", "today-work-total", "work-month-income", "income-target", "sleep-bedtime", "sleep-wake",
+      "today-date", "autosave-status", "today-work-total", "work-month-revenue", "revenue-target", "work-revenue", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-item", "transaction-title-field", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
       "transaction-list", "money-radar", "money-radar-list", "account-balances",
-      "account-form", "account-name", "account-starting", "account-manager",
+      "account-form", "account-name", "account-manager",
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
@@ -159,6 +159,7 @@
     const day = readToday();
     elements["sleep-bedtime"].value = day.sleep.bedtime || "";
     elements["sleep-wake"].value = day.sleep.wakeTime || "";
+    elements["work-revenue"].value = day.workRevenue ?? "";
     elements["recovery-activity"].value = day.recovery.activity || "";
     elements["recovery-effect"].value = String(day.recovery.effect || "");
     elements["daily-note"].value = day.note || "";
@@ -175,8 +176,8 @@
     const monthKey = todayKey.slice(0, 7);
     elements["sleep-total"].textContent = RuntimeCore.formatMinutes(sleepMinutes);
     elements["today-work-total"].textContent = RuntimeCore.formatMinutes(totalWork);
-    elements["work-month-income"].textContent = formatCurrency(RuntimeCore.monthIncome(state, monthKey));
-    elements["income-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
+    elements["work-month-revenue"].textContent = formatCurrency(RuntimeCore.monthWorkRevenue(state, monthKey));
+    elements["revenue-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
   }
 
   function renderSchedule(forceOpen = false) {
@@ -295,7 +296,7 @@
   function renderAccounts() {
     const balances = RuntimeCore.accountBalances(state);
     elements["account-balances"].innerHTML = state.accounts.filter(account => account.active).map(account => `
-      <label class="account-item"><span>${escapeHtml(account.name)}</span><strong>${escapeHtml(formatCurrency(balances[account.id] || 0))}</strong><small>Starting balance</small><input type="number" step="1" inputmode="decimal" value="${escapeHtml(account.startingBalance || 0)}" data-account-starting="${escapeHtml(account.id)}" aria-label="${escapeHtml(account.name)} Starting balance"></label>
+      <article class="account-item"><span>${escapeHtml(account.name)}</span><strong>${escapeHtml(formatCurrency(balances[account.id] || 0))}</strong></article>
     `).join("");
     elements["account-manager"].innerHTML = state.accounts.map(account => `
       <article class="manager-row ${account.active ? "" : "is-archived"}" data-account-id="${escapeHtml(account.id)}">
@@ -338,12 +339,12 @@
     const openSections = new Set([...elements["project-list"].querySelectorAll("details[open][data-project-section]")].map(group => group.dataset.projectSection));
     const projects = [...state.projects].sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
     const projectMarkup = project => `
-      <article class="card project-card ${project.status === "done" ? "is-complete" : ""}" data-project-id="${escapeHtml(project.id)}">
+      <article class="card project-card" data-project-id="${escapeHtml(project.id)}">
         <div class="project-card-header">
           <label class="field"><span>名稱</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
-          <label class="field"><span>狀態</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>進行中</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>暫停</option><option value="done" ${project.status === "done" ? "selected" : ""}>完成</option></select></label>
+          <label class="field"><span>狀態</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>進行中</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>暫停</option></select></label>
         </div>
-        <label class="field"><span>下一步</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" placeholder="下一個可以直接動手的動作" data-project-field="nextStep"></label>
+        <label class="field"><span>下一步</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" data-project-field="nextStep"></label>
         <div class="record-row-header">
           <p class="project-updated">最後更新：${escapeHtml(formatUpdated(project.updatedAt))}</p>
           <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">刪除專案</button>
@@ -351,7 +352,6 @@
       </article>`;
     const active = projects.filter(project => project.status === "active");
     const paused = projects.filter(project => project.status === "paused");
-    const done = projects.filter(project => project.status === "done");
     const collapsedGroup = (status, label, items) => `
       <details class="recess-group project-status-group" data-project-section="${status}" ${openSections.has(status) ? "open" : ""}>
         <summary>${label} · ${items.length}</summary>
@@ -359,8 +359,7 @@
       </details>`;
     elements["project-list"].innerHTML = `
       ${active.map(projectMarkup).join("") || '<div class="empty-state compact-empty"><strong>還沒有進行中專案</strong>新增後，只留下一個清楚的下一步。</div>'}
-      ${collapsedGroup("paused", "PAUSED", paused)}
-      ${collapsedGroup("done", "DONE", done)}`;
+      ${collapsedGroup("paused", "PAUSED", paused)}`;
   }
 
   function taskMarkup(event, obligation) {
@@ -403,12 +402,13 @@
   }
 
   function renderBooks() {
-    const statusLabel = { current: "This month", queued: "Queued", frozen: "Frozen", finished: "Finished" };
+    const statusLabel = { current: "This month", queued: "Queued", frozen: "Frozen" };
     const openSections = new Set([...elements["book-list"].querySelectorAll("details[open][data-book-section]")].map(group => group.dataset.bookSection));
     const bookMarkup = book => `
       <article class="book-item ${book.status === "current" ? "is-current" : ""}" data-book-id="${escapeHtml(book.id)}">
         <input class="record-input" type="text" value="${escapeHtml(book.name)}" data-book-field="name" aria-label="Book name">
-        <select class="record-input" data-book-field="status" aria-label="Book status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option><option value="finished" ${book.status === "finished" ? "selected" : ""}>Finished</option></select>
+        <select class="record-input" data-book-field="status" aria-label="Book status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option></select>
+        <button type="button" class="record-remove" data-remove-book="${escapeHtml(book.id)}">Delete</button>
         <span>${statusLabel[book.status] || "Queued"}</span>
       </article>`;
     const current = state.books.filter(book => book.status === "current");
@@ -420,8 +420,7 @@
     elements["book-list"].innerHTML = state.books.length ? `
       ${current.length ? `<section class="book-current-section"><h4>THIS MONTH</h4>${current.map(bookMarkup).join("")}</section>` : ""}
       ${collapsedGroup("queued", "QUEUED")}
-      ${collapsedGroup("frozen", "FROZEN")}
-      ${collapsedGroup("finished", "FINISHED")}` : '<div class="empty-state compact-empty">Nothing here.</div>';
+      ${collapsedGroup("frozen", "FROZEN")}` : '<div class="empty-state compact-empty">Nothing here.</div>';
   }
 
   function renderReview() {
@@ -653,11 +652,17 @@
 
     bindAutosaveInput("sleep-bedtime", "sleep.bedtime");
     bindAutosaveInput("sleep-wake", "sleep.wakeTime");
+    elements["work-revenue"].addEventListener("input", event => {
+      const value = RuntimeCore.normalizeWorkRevenue(event.target.value);
+      if (event.target.value !== "" && value === null) event.target.value = "";
+      runDataChange(() => dataStore.writeDayField(todayKey, "workRevenue", value));
+      renderTodaySummary();
+    });
     bindAutosaveInput("recovery-activity", "recovery.activity");
     bindAutosaveInput("recovery-effect", "recovery.effect");
     bindAutosaveInput("daily-note", "note");
 
-    elements["income-target"].addEventListener("input", event => {
+    elements["revenue-target"].addEventListener("input", event => {
       runDataChange(() => dataStore.updateSettings({ monthlyIncomeTarget: Math.max(0, Number(event.target.value) || 0) }));
     });
 
@@ -798,13 +803,6 @@
       });
     });
 
-    elements["account-balances"].addEventListener("input", event => {
-      const accountId = event.target.dataset.accountStarting;
-      if (!accountId) return;
-      runDataChange(() => dataStore.updateAccount(accountId, { startingBalance: Number(event.target.value) || 0 }));
-      renderAccounts();
-    });
-
     elements["account-form"].addEventListener("submit", event => {
       event.preventDefault();
       const name = elements["account-name"].value.trim();
@@ -813,9 +811,8 @@
         elements["account-name"].focus();
         return;
       }
-      runDataChange(() => dataStore.addAccount(name, elements["account-starting"].value));
+      runDataChange(() => dataStore.addAccount(name));
       elements["account-form"].reset();
-      elements["account-starting"].value = "0";
       renderAccounts();
       renderTransactionForm();
       showToast("Account added");
@@ -1004,6 +1001,22 @@
       const archive = event.target.closest("[data-archive-obligation]");
       const unfreeze = event.target.closest("[data-unfreeze-obligation]");
       const undo = event.target.closest("[data-undo-event]");
+      const removeBook = event.target.closest("[data-remove-book]");
+      if (removeBook) {
+        const book = state.books.find(item => item.id === removeBook.dataset.removeBook);
+        openConfirmation({
+          title: "刪除這本書？",
+          message: `「${book?.name || "未命名"}」會從書單移除。`,
+          finalLabel: "確認刪除書籍",
+          trigger: removeBook,
+          action: () => {
+            runDataChange(() => dataStore.deleteBook(removeBook.dataset.removeBook));
+            renderBooks();
+            showToast("Book deleted");
+          }
+        });
+        return;
+      }
       if (edit) {
         openObligationEditor(edit.dataset.editObligation, edit.closest("[data-event-id]")?.dataset.eventId || null);
         return;

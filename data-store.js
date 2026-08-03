@@ -5,6 +5,7 @@
   const DAY_FIELD_PATHS = new Set([
     "sleep.bedtime",
     "sleep.wakeTime",
+    "workRevenue",
     "recovery.activity",
     "recovery.effect",
     "note"
@@ -76,7 +77,8 @@
       if (!DAY_FIELD_PATHS.has(fieldPath)) throw new Error(`不支援的每日欄位：${fieldPath}`);
       const day = ensureDay(dayKey);
       const parts = fieldPath.split(".");
-      if (parts.length === 1) day[parts[0]] = value;
+      if (fieldPath === "workRevenue") day.workRevenue = core.normalizeWorkRevenue(value);
+      else if (parts.length === 1) day[parts[0]] = value;
       else day[parts[0]][parts[1]] = value;
       persist(dayKey);
       return readDay(dayKey);
@@ -135,16 +137,22 @@
     }
 
     function addProject(project) {
-      state.projects.push(clone(project));
+      const entry = {
+        ...clone(project),
+        status: project?.status === "paused" ? "paused" : "active"
+      };
+      state.projects.push(entry);
       persist();
-      return clone(project);
+      return clone(entry);
     }
 
     function updateProject(projectId, changes) {
       const project = state.projects.find(item => item.id === projectId);
       if (!project) return false;
       ["name", "status", "nextStep"].forEach(field => {
-        if (Object.prototype.hasOwnProperty.call(changes, field)) project[field] = changes[field];
+        if (!Object.prototype.hasOwnProperty.call(changes, field)) return;
+        if (field === "status") project.status = changes.status === "paused" ? "paused" : "active";
+        else project[field] = changes[field];
       });
       project.updatedAt = timestamp();
       persist();
@@ -232,10 +240,6 @@
         const name = String(changes.name || "").trim();
         if (name) account.name = name;
       }
-      if (Object.prototype.hasOwnProperty.call(changes, "startingBalance")) {
-        const balance = Number(changes.startingBalance);
-        if (Number.isFinite(balance)) account.startingBalance = balance;
-      }
       if (Object.prototype.hasOwnProperty.call(changes, "active") && !core.isSystemAccount(accountId)) {
         account.active = Boolean(changes.active);
       }
@@ -244,15 +248,13 @@
       return true;
     }
 
-    function addAccount(name, startingBalance = 0) {
+    function addAccount(name) {
       const value = String(name || "").trim();
       if (!value) return null;
-      const balance = Number(startingBalance);
       const account = {
         id: core.uid("account"),
         name: value,
         kind: "other",
-        startingBalance: Number.isFinite(balance) ? balance : 0,
         active: true,
         system: false
       };
@@ -298,7 +300,7 @@
     }
 
     function addBook(book) {
-      const entry = { id: book.id || core.uid("book"), name: String(book.name || "未命名"), status: ["current", "queued", "frozen", "finished"].includes(book.status) ? book.status : "queued" };
+      const entry = { id: book.id || core.uid("book"), name: String(book.name || "未命名"), status: ["current", "queued", "frozen"].includes(book.status) ? book.status : "queued" };
       state.books.push(entry);
       persist();
       return clone(entry);
@@ -308,8 +310,18 @@
       const book = state.books.find(item => item.id === bookId);
       if (!book) return false;
       ["name", "status"].forEach(field => {
-        if (Object.prototype.hasOwnProperty.call(changes, field)) book[field] = changes[field];
+        if (!Object.prototype.hasOwnProperty.call(changes, field)) return;
+        if (field === "status") book.status = ["current", "queued", "frozen"].includes(changes.status) ? changes.status : "queued";
+        else book[field] = changes[field];
       });
+      persist();
+      return true;
+    }
+
+    function deleteBook(bookId) {
+      const previousLength = state.books.length;
+      state.books = state.books.filter(item => item.id !== bookId);
+      if (state.books.length === previousLength) return false;
       persist();
       return true;
     }
@@ -408,6 +420,7 @@
       updateCategory,
       addBook,
       updateBook,
+      deleteBook,
       addScheduleItem,
       updateSettings,
       setStatementAmount,

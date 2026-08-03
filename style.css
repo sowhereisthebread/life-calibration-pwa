@@ -450,10 +450,6 @@ h3 {
   margin: 0;
 }
 
-.project-card.is-complete {
-  opacity: 0.72;
-}
-
 .project-card-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 118px;
@@ -824,7 +820,7 @@ h3 {
 
 .schedule-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -832,7 +828,13 @@ h3 {
 .schedule-grid input,
 .schedule-grid select {
   min-width: 0;
+  max-width: 100%;
   width: 100%;
+  inline-size: 100%;
+}
+
+#work-revenue-field {
+  margin-top: 14px;
 }
 
 .schedule-row > div {
@@ -879,7 +881,7 @@ h3 {
   }
 
   .schedule-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .schedule-grid .field:first-child {
@@ -995,11 +997,6 @@ body {
   border-color: var(--line);
   background: rgba(255,255,255,.18);
   color: var(--ink);
-}
-
-.field input::placeholder,
-.record-input::placeholder {
-  color: var(--label);
 }
 
 button:focus-visible,
@@ -1489,7 +1486,7 @@ a:focus-visible {
 
 .book-item {
   display: grid;
-  grid-template-columns: minmax(0,1fr) 130px;
+  grid-template-columns: minmax(0,1fr) 130px auto;
   gap: 8px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -1534,12 +1531,23 @@ a:focus-visible {
   }
 
   #schedule-section .schedule-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 6px;
   }
 
+  #schedule-section .schedule-grid > .field {
+    min-width: 0;
+    max-width: 100%;
+    inline-size: 100%;
+  }
+
   #schedule-section input[type="time"] {
+    min-width: 0;
+    max-width: 100%;
+    inline-size: 100%;
     padding-right: 5px;
     padding-left: 5px;
+    font-size: 16px;
   }
 
   .task-item,

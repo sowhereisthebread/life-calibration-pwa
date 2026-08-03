@@ -1,16 +1,15 @@
 # 人生主控表・校準版
 
-目前正式版本為 v0.3.6：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。v0.2 的瀏覽器資料與匯出 JSON 會自動升級為資料版本 2，儲存鍵仍為 `lifeCalibrationData`。
+目前版本為 v0.3.7：預設開啟 MONEY，底部固定為 MONEY／WORK／PROJECTS／REVIEW／DATA 五頁。第 1、2 版瀏覽器資料與匯出 JSON 會自動升級為資料版本 3，儲存鍵仍為 `lifeCalibrationData`。
 
-- MONEY：支出以單一 Item 快速記帳，相同 Item 文字直接合併統計；另含收入、帳戶移轉、帳戶餘額、自訂帳戶新增／改名／封存／解封、本月 Item 圖與最近交易。預設三帳戶可改名但永遠啟用。
-- WORK：打卡、本月收入目標、睡眠、恢復、備註與固定課表。
-- PROJECTS：ACTIVE 專案直接顯示，PAUSED／DONE 預設收合；另含可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、依狀態收合的書單與冷凍項目。
+- MONEY：支出以單一 Item 快速記帳，相同 Item 文字直接合併統計；另含收入、帳戶移轉、帳戶餘額、自訂帳戶新增／改名／封存／解封、本月 Item 圖與最近交易。帳戶不保存期初餘額；要帶入初始金額時，新增收入交易並指定帳戶。預設三帳戶可改名但永遠啟用。
+- WORK：打卡、每日／每月營業額與可調營業額目標、睡眠、恢復（內含一句話備註）與固定課表；營業額不會自動寫入 MONEY。390 px 手機寬度下，Schedule 的 Start／End 維持左右並排且不再溢出卡片。
+- PROJECTS：專案只保留 ACTIVE／PAUSED，完成或不再需要時經確認後刪除；另含可編輯的重複義務與本期到期日、可直接更新的里程提醒、無日期待辦、只保留 THIS MONTH／QUEUED／FROZEN 的書單與冷凍項目，書籍可經確認後直接刪除。
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
-- 發布狀態：v0.3.6 已於 2026-08-03 由 commit `11dd75e2f2190a6ccc10818ff675fda6300211a7` 部署至既有 GitHub Pages；build、deploy、report-build-status 均成功。
-- 實機驗收：iPhone 已顯示 v0.3.6，Amount／Item 輸入後不再自動縮放，其餘本輪功能正常。
-- 已知待辦：iPhone 原生 Schedule 的 Start／End 雖維持左右並排，欄位仍會超出卡片；不阻擋 v0.3.6 驗收，留待下一輪 UI 修正。
-- 發布歷史：v0.3.5 已於 2026-08-03 推送並部署至同一個 GitHub Pages 正式網址。
+- 發布狀態：v0.3.7 已完成本機程式、資料遷移、67 項自動測試與 390 × 844 電腦端響應式驗證；正式 release commit、Pages 部署與電腦端線上驗證將在推送後回填。
+- 實機驗收：v0.3.7 尚待 Tako 在 iPhone 主畫面版本覆驗，不在本機施工階段自行宣告通過。
+- 發布歷史：v0.3.6 已於 2026-08-03 由 commit `11dd75e2f2190a6ccc10818ff675fda6300211a7` 部署至既有 GitHub Pages；build、deploy、report-build-status 均成功，iPhone 已確認顯示且 Amount／Item 輸入不再自動縮放。v0.3.5 亦已於 2026-08-03 部署至同一正式網址。
 
 - 正式網址：https://sowhereisthebread.github.io/life-calibration-pwa/
 - GitHub repo：`sowhereisthebread/life-calibration-pwa`（public）

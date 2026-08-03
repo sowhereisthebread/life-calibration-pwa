@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.3.6" defer></script>
+    <script src="./app.js?v=0.3.7" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +25,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.3.6</p>
+          <p class="eyebrow">v0.3.7</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -75,13 +75,13 @@
                   </label>
                   <label class="field">
                     <span>Amount</span>
-                    <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
+                    <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal">
                   </label>
                 </div>
                 <div id="expense-fields" class="stack-form">
                   <label class="field">
                     <span>Item</span>
-                    <input id="transaction-item" type="text" autocomplete="off" placeholder="例如：咖啡">
+                    <input id="transaction-item" type="text" autocomplete="off">
                   </label>
                   <label class="field">
                     <span>Paid with</span>
@@ -93,7 +93,7 @@
                   </label>
                 </div>
                 <div id="income-fields" class="two-column" hidden>
-                  <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off" placeholder="工資／投資／其他"></label>
+                  <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off"></label>
                   <label class="field"><span>Account</span><select id="transaction-income-account"></select></label>
                 </div>
                 <div id="transfer-fields" class="two-column" hidden>
@@ -102,7 +102,7 @@
                 </div>
                 <label id="transaction-title-field" class="field">
                   <span>Title (optional)</span>
-                  <input id="transaction-note" type="text" autocomplete="off" placeholder="選填">
+                  <input id="transaction-note" type="text" autocomplete="off">
                 </label>
                 <button type="submit" class="button button-primary button-full">Add</button>
               </form>
@@ -114,10 +114,7 @@
             <details class="manager-panel">
               <summary>Manage accounts</summary>
               <form id="account-form" class="stack-form compact-form" novalidate>
-                <div class="two-column">
-                  <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off" placeholder="Account name"></label>
-                  <label class="field"><span>Starting balance</span><input id="account-starting" type="number" step="1" inputmode="decimal" value="0"></label>
-                </div>
+                <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off"></label>
                 <button type="submit" class="button button-secondary button-full">Add account</button>
               </form>
               <div id="account-manager" class="manager-list"></div>
@@ -160,22 +157,25 @@
               <span id="work-status" class="status-pill">尚未上班</span>
             </div>
             <button id="punch-button" type="button" class="button button-primary button-full">上班打卡</button>
+            <label id="work-revenue-field" class="field">
+              <span>Today's revenue</span>
+              <input id="work-revenue" type="number" min="0" step="1" inputmode="decimal">
+            </label>
             <div id="work-sessions" class="record-list" aria-live="polite"></div>
           </article>
 
-          <div id="work-summary" class="quick-summary" aria-label="工作與收入摘要">
+          <div id="work-summary" class="quick-summary" aria-label="工作與營業額摘要">
             <div><span>Hours today</span><strong id="today-work-total">0 小時</strong></div>
             <div class="income-summary">
-              <span>This month · Income</span><strong id="work-month-income" class="primary-number">NT$ 0</strong>
-              <label class="target-field">Target <input id="income-target" type="number" min="0" step="1000" inputmode="decimal"></label>
+              <span>This month · Revenue</span><strong id="work-month-revenue" class="primary-number">NT$ 0</strong>
+              <label class="target-field">Revenue target <input id="revenue-target" type="number" min="0" step="1000" inputmode="decimal"></label>
             </div>
           </div>
 
-          <article id="sleep-card" class="card" aria-labelledby="sleep-heading">
+          <article id="sleep-card" class="card" aria-labelledby="sleep-section-label">
             <div class="card-heading">
               <div>
-                <p class="step-label">02・睡眠</p>
-                <h3 id="sleep-heading">昨晚睡得如何？</h3>
+                <p id="sleep-section-label" class="step-label">02・睡眠</p>
               </div>
               <strong id="sleep-total" class="card-number">—</strong>
             </div>
@@ -206,7 +206,7 @@
             </div>
             <label class="field">
               <span>做了什麼</span>
-              <input id="recovery-activity" type="text" autocomplete="off" placeholder="散步、午睡、和朋友聊聊…">
+              <input id="recovery-activity" type="text" autocomplete="off">
             </label>
             <label class="field">
               <span>效果</span>
@@ -219,15 +219,9 @@
                 <option value="5">5・很有幫助</option>
               </select>
             </label>
-          </article>
-
-          <article class="card" aria-labelledby="note-heading">
-            <div class="card-heading compact-heading">
-              <h3 id="note-heading">今天備註</h3>
-            </div>
             <label class="field visually-labeled">
               <span>一句話備註</span>
-              <input id="daily-note" type="text" autocomplete="off" placeholder="今天還想記住什麼？">
+              <input id="daily-note" type="text" autocomplete="off">
             </label>
           </article>
 
@@ -244,7 +238,7 @@
                 <label class="field"><span>Start</span><input id="schedule-start" type="time"></label>
                 <label class="field"><span>End</span><input id="schedule-end" type="time"></label>
               </div>
-              <label class="field"><span>Name</span><input id="schedule-name" type="text" autocomplete="off" placeholder="例：固定工作時段"></label>
+              <label class="field"><span>Name</span><input id="schedule-name" type="text" autocomplete="off"></label>
               <button type="submit" class="button button-primary button-full">Add schedule</button>
             </form>
             <div id="schedule-list" class="record-list"></div>
@@ -264,11 +258,11 @@
             <h3>新增一個專案</h3>
             <label class="field">
               <span>專案名稱</span>
-              <input id="project-name" type="text" autocomplete="off" placeholder="未命名專案">
+              <input id="project-name" type="text" autocomplete="off">
             </label>
             <label class="field">
               <span>下一步</span>
-              <input id="project-next-step" type="text" autocomplete="off" placeholder="下一個可以直接動手的動作">
+              <input id="project-next-step" type="text" autocomplete="off">
             </label>
             <div class="form-actions">
               <button type="button" id="cancel-project" class="button button-quiet">取消</button>
@@ -290,7 +284,7 @@
             <div class="section-heading"><h3 id="tasks-heading">TASKS</h3><button id="toggle-obligation-form" type="button" class="button button-quiet" aria-expanded="false" aria-controls="obligation-form">Full form</button></div>
             <form id="quick-task-form" class="input-action-row" novalidate>
               <label class="visually-hidden" for="quick-task-name">Name</label>
-              <input id="quick-task-name" class="record-input" type="text" autocomplete="off" placeholder="Name">
+              <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
               <button type="submit" class="button button-primary">Add</button>
             </form>
             <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
@@ -331,7 +325,7 @@
 
           <section class="card" aria-labelledby="books-heading">
             <div class="section-heading"><h3 id="books-heading">BOOKS</h3></div>
-            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off" placeholder="Name"><button type="submit" class="button button-primary">Add</button></form>
+            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">Add</button></form>
             <div id="book-list" class="book-list"></div>
           </section>
 
@@ -364,7 +358,7 @@
               <article class="metric"><span>Expense</span><strong id="review-month-expense" class="primary-number">NT$ 0</strong></article>
               <article class="metric"><span>Net</span><strong id="review-month-net" class="primary-number">NT$ 0</strong></article>
             </div>
-            <label class="field"><span>Credit card statement</span><input id="statement-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0"></label>
+            <label class="field"><span>Credit card statement</span><input id="statement-amount" type="number" min="0" step="1" inputmode="decimal"></label>
             <div class="statement-compare">
               <div><span>Recorded last month</span><strong id="statement-recorded">NT$ 0</strong></div>
               <div><span>Gap</span><strong id="statement-gap">NT$ 0</strong></div>
