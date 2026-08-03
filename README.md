@@ -8,7 +8,8 @@
 - REVIEW：最近七天資料與本月收入／支出／淨額、信用卡帳單差額。
 - DATA：雷達提前天數設定、完整 JSON 備份還原及涵蓋全部資料型別的 CSV 匯出。
 - v0.3.9：針對 iOS WebKit 原生 date control 在自身元素盒外繪製的問題，改用共用自訂日期殼層顯示清楚的 ISO 日期與日曆圖示，並以取消原生 appearance 的透明真實 `input[type=date]` 覆蓋完整操作區；日期值、儲存格式、原生 picker 與義務邏輯不變，Due、Mileage updated 及里程更新 modal 的 Update date 一併套用。
-- 發布狀態：v0.3.9 正在進行本機修正與回歸測試，尚未發布。
+- 發布狀態：v0.3.9 已於 2026-08-03 由 release commit `acb86f75674815851d3038624d54ff1ad5606650` 推送；GitHub Pages 的 `pages-build-deployment #18` 已成功完成 build、report-build-status 與 deploy。
+- 電腦端驗收：正式網址顯示 v0.3.9 並載入 `app.js?v=0.3.9`，三個 date input 均使用共用日期殼層與取消原生 appearance 的完整透明操作層；首頁、腳本、樣式與 Service Worker 均回應 200，Full form／Edit obligation／Mileage updated／里程更新 modal 的日期顯示與操作回歸通過，console 無錯誤。本機自動測試為 69／69。
 - 實機驗收：v0.3.9 發布後仍須等待 Tako 在 iPhone 主畫面 PWA 再次覆驗，不以電腦模擬宣告通過。
 - v0.3.8：統一表單欄位的垂直節奏，移除 MONEY Quick Add 右上角輔助文字，並以共用 logical sizing 規則修正 iPhone 原生日期／時間欄位及其他控制項的卡片邊界；資料模型與 schema v3 不變。
 - 發布狀態：v0.3.8 已於 2026-08-03 由 release commit `2cdd5224f1fd7d7986af3005baad7dea6672c267` 推送；GitHub Pages 的 `pages-build-deployment #16` 已成功完成 build、report-build-status 與 deploy。
