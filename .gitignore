@@ -8,3 +8,9 @@ Thumbs.db
 /*備份*.json
 /backup/
 /backups/
+
+# 這是公開 repo。以下含 Design 對話與知識庫內容，不得公開。
+# 兩者仍留在本機工作目錄，只是不進版控：
+#   _design-reference.html 是視覺基準，施工時必讀（SPEC.md、HANDOFF.md 都指向它）
+_design-reference.html
+*.zip

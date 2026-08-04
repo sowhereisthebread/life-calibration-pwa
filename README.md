@@ -4,11 +4,11 @@ TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記�
 
 ## 五個分頁
 
-- **MONEY**：快速記錄支出、收入與帳戶移轉，管理帳戶餘額，並查看本月 Item 統計與最近交易。
-- **WORK**：打卡，記錄今日工時、每日／每月營業額、可調營業額目標、睡眠、恢復與固定課表；營業額不會自動寫入 MONEY。
-- **PROJECTS**：管理 ACTIVE／PAUSED 專案、重複義務、里程提醒、無日期待辦與書單／冷凍項目。
+- **MONEY**：快速記錄支出、收入與帳戶移轉，查看唯讀的帳戶餘額列、本月 Item 統計與最近交易。
+- **WORK**：打卡與今日工時、今日營收、本月營收與可調目標（附達成率與進度條）、今日工作段、睡眠、恢復與固定課表；營收不會自動寫入 MONEY。
+- **PROJECTS**（導覽列顯示 `PROJ`）：管理 ACTIVE／PAUSED 專案、重複義務、里程提醒、無日期待辦與書單／冷凍項目。
 - **REVIEW**：查看最近七天資料、本月收入／支出／淨額及信用卡帳單差額。
-- **DATA**：調整雷達提前天數，並匯出或匯入完整 JSON 備份、匯出 CSV 分析資料。
+- **DATA**：調整雷達提前天數、管理帳戶（新增／改名／封存），並匯出或匯入完整 JSON 備份、匯出 CSV 分析資料。
 
 ## 資料邊界
 
@@ -25,3 +25,14 @@ TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記�
 - 也可直接開啟 `index.html`，但它與正式網址、localhost 是不同 origin，資料彼此獨立。
 
 正式版本與工程狀態見 [STATUS.md](STATUS.md)；部署、更新及 iPhone 安裝方式見 [DEPLOY.md](DEPLOY.md)；產品正典位於外層知識庫的 `TAKO/TAKO_架構.md`。
+
+## 視覺層
+
+唯一視覺基準是 [_design-reference.html](_design-reference.html)（Design 端的實際渲染成品，TURN 6 最新、TURN 5 的 `5a` 是唯一完整頁面模型）。
+[SPEC.md](SPEC.md) 是它的文字規格，描述施工後的實際狀況：色彩 token、六層材質與元件對應、尺寸階層、字體、中英文規則、以及基準有但尚未實作的項目。
+
+動 `style.css` 或版面前先讀這兩份。三者衝突時的順位：**`_design-reference.html` ＞ `SPEC.md` ＞ `TAKO_架構.md` 第五章**。
+
+等寬字 IBM Plex Mono 已自帶於 [fonts/](fonts/)（latin 子集 400／500，SIL OFL 1.1），列入 `sw.js` 快取，不依賴 CDN。
+
+本次視覺改版的交接紀錄見 [HANDOFF.md](HANDOFF.md)。

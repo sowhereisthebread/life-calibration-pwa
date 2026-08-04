@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <meta name="theme-color" content="#A4AAB0">
+    <meta name="theme-color" content="#9CA5AC">
     <meta name="description" content="手機優先、資料留在本機的人生記錄工具。">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,7 +16,8 @@
     <link rel="stylesheet" href="./style.css">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
-    <script src="./app.js?v=0.4.0" defer></script>
+    <link rel="preload" href="./fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
+    <script src="./app.js?v=0.4.1" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要內容</a>
@@ -25,7 +26,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">v0.4.0</p>
+          <p class="eyebrow">0.4.0</p>
         </div>
         <div id="today-date" class="header-date" aria-label="今天日期"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -63,7 +64,7 @@
                 </div>
               </div>
               <form id="transaction-form" class="stack-form" novalidate>
-                <div class="two-column">
+                <div class="quick-add-grid">
                   <label class="field">
                     <span>Type</span>
                     <select id="transaction-type">
@@ -77,7 +78,7 @@
                     <input id="transaction-amount" type="number" min="0" step="1" inputmode="decimal">
                   </label>
                 </div>
-                <div id="expense-fields" class="stack-form">
+                <div id="expense-fields" class="quick-add-grid">
                   <label class="field">
                     <span>Item</span>
                     <input id="transaction-item" type="text" autocomplete="off">
@@ -91,11 +92,11 @@
                     </select>
                   </label>
                 </div>
-                <div id="income-fields" class="two-column" hidden>
+                <div id="income-fields" class="quick-add-grid" hidden>
                   <label class="field"><span>Source</span><input id="transaction-income-source" type="text" autocomplete="off"></label>
                   <label class="field"><span>Account</span><select id="transaction-income-account"></select></label>
                 </div>
-                <div id="transfer-fields" class="two-column" hidden>
+                <div id="transfer-fields" class="quick-add-grid" hidden>
                   <label class="field"><span>From</span><select id="transaction-from-account"></select></label>
                   <label class="field"><span>To</span><select id="transaction-to-account"></select></label>
                 </div>
@@ -103,24 +104,16 @@
                   <span>Title (optional)</span>
                   <input id="transaction-note" type="text" autocomplete="off">
                 </label>
-                <button type="submit" class="button button-primary button-full">Add</button>
+                <button type="submit" class="button button-primary button-full">新增</button>
               </form>
             </article>
           </div>
           <section class="card accounts-panel" aria-labelledby="accounts-heading">
             <div class="section-heading"><h3 id="accounts-heading">ACCOUNTS</h3></div>
             <div id="account-balances" class="account-balances"></div>
-            <details class="manager-panel">
-              <summary>Manage accounts</summary>
-              <form id="account-form" class="stack-form compact-form" novalidate>
-                <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off"></label>
-                <button type="submit" class="button button-secondary button-full">Add account</button>
-              </form>
-              <div id="account-manager" class="manager-list"></div>
-            </details>
           </section>
           <section class="money-summary" aria-labelledby="spent-heading">
-            <p class="step-label">THIS MONTH · SPENT</p>
+            <p class="step-label">本月支出</p>
             <strong id="month-spent" class="primary-number primary-number-hero">NT$ 0</strong>
             <div class="spending-breakdown">
               <div id="spending-chart" class="chart-wrap"></div>
@@ -143,33 +136,63 @@
             </div>
             <div class="heading-actions">
               <span id="autosave-status" class="save-state" aria-live="polite">輸入即存</span>
-              <button id="toggle-schedule" type="button" class="button button-secondary" aria-expanded="false" aria-controls="schedule-section">Schedule</button>
+              <button id="toggle-schedule" type="button" class="button button-secondary button-mono" aria-expanded="false" aria-controls="schedule-section">SCHEDULE</button>
             </div>
           </div>
 
-          <article id="work-card" class="card card-accent" aria-labelledby="work-heading">
+          <article id="work-card" class="card" aria-labelledby="work-heading">
             <div class="card-heading">
-              <div>
-                <p class="step-label">01・工作</p>
-                <h3 id="work-heading">今天的工作段</h3>
-              </div>
+              <h3 id="work-heading" class="step-label">01 · SHIFT</h3>
               <span id="work-status" class="status-pill">尚未上班</span>
             </div>
-            <button id="punch-button" type="button" class="button button-primary button-full">上班打卡</button>
+            <div class="hero-row">
+              <div class="hero-value">
+                <strong id="today-work-total" class="primary-number">0:00</strong>
+                <span class="hero-unit">今天累計</span>
+              </div>
+              <button id="punch-button" type="button" class="button shift-punch">上班</button>
+            </div>
             <label id="work-revenue-field" class="field">
-              <span>Today's revenue</span>
-              <input id="work-revenue" type="number" min="0" step="1" inputmode="decimal">
+              <span>今日營收</span>
+              <span class="money-input">
+                <span class="money-prefix" aria-hidden="true">$</span>
+                <input id="work-revenue" type="number" min="0" step="1" inputmode="decimal" placeholder="輸入金額">
+              </span>
             </label>
-            <div id="work-sessions" class="record-list" aria-live="polite"></div>
           </article>
 
-          <div id="work-summary" class="quick-summary" aria-label="工作與營業額摘要">
-            <div><span>Hours today</span><strong id="today-work-total">0 小時</strong></div>
-            <div class="income-summary">
-              <span>This month · Revenue</span><strong id="work-month-revenue" class="primary-number">NT$ 0</strong>
-              <label class="target-field">Revenue target <input id="revenue-target" type="number" min="0" step="1000" inputmode="decimal"></label>
+          <article id="work-summary" class="card" aria-labelledby="work-revenue-label">
+            <div class="card-heading">
+              <h3 id="work-revenue-label" class="step-label">本月營收</h3>
+              <label class="target-field">目標
+                <span class="visually-hidden">本月營收目標</span>
+                <input id="revenue-target" type="number" min="0" step="1000" inputmode="decimal">
+              </label>
             </div>
+            <div class="hero-row">
+              <div class="hero-value">
+                <strong id="work-month-revenue" class="primary-number">NT$ 0</strong>
+                <span id="work-revenue-percent" class="hero-unit hero-unit-mono">0%</span>
+              </div>
+            </div>
+            <div class="dew-bar" role="img" aria-labelledby="work-revenue-percent">
+              <i id="work-revenue-bar"></i>
+            </div>
+          </article>
+
+          <div class="stat-row" aria-label="工作統計">
+            <div class="stat"><span>時薪</span><strong id="stat-hourly">—</strong></div>
+            <div class="stat"><span>本週</span><strong id="stat-week">—</strong></div>
+            <div class="stat"><span>本月</span><strong id="stat-month">—</strong></div>
           </div>
+
+          <article class="card sessions-card" aria-labelledby="work-sessions-label">
+            <div class="card-heading">
+              <h3 id="work-sessions-label" class="step-label">今日工作段</h3>
+              <span id="work-session-count" class="step-note">0 段</span>
+            </div>
+            <div id="work-sessions" class="session-list" aria-live="polite"></div>
+          </article>
 
           <article id="sleep-card" class="card" aria-labelledby="sleep-section-label">
             <div class="card-heading">
@@ -286,7 +309,7 @@
             <form id="quick-task-form" class="input-action-row" novalidate>
               <label class="visually-hidden" for="quick-task-name">Name</label>
               <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
-              <button type="submit" class="button button-primary">Add</button>
+              <button type="submit" class="button button-primary">新增</button>
             </form>
             <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
               <div class="section-heading compact-heading"><h4 id="obligation-form-title">Task details</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet">Close</button></div>
@@ -345,7 +368,7 @@
 
           <section class="card" aria-labelledby="books-heading">
             <div class="section-heading"><h3 id="books-heading">BOOKS</h3></div>
-            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">Add</button></form>
+            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">新增</button></form>
             <div id="book-list" class="book-list"></div>
           </section>
 
@@ -365,7 +388,7 @@
 
           <div class="metric-grid" aria-label="最近七天摘要">
             <article class="metric"><span>平均睡眠</span><strong id="metric-sleep" class="primary-number">—</strong></article>
-            <article class="metric"><span>總工時</span><strong id="metric-work" class="primary-number">0 小時</strong></article>
+            <article class="metric"><span>總工時</span><strong id="metric-work" class="primary-number">0:00</strong></article>
             <article class="metric"><span>支出合計</span><strong id="metric-expense" class="primary-number">NT$ 0</strong></article>
             <article class="metric"><span>有記錄</span><strong id="metric-days" class="primary-number">0 天</strong></article>
           </div>
@@ -415,6 +438,15 @@
             <p class="helper">Mileage reminders and service thresholds are saved with each mileage obligation.</p>
           </article>
 
+          <article class="card data-card" aria-labelledby="accounts-manage-heading">
+            <h3 id="accounts-manage-heading">管理帳戶</h3>
+            <form id="account-form" class="stack-form" novalidate>
+              <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off"></label>
+              <button type="submit" class="button button-secondary button-full">新增帳戶</button>
+            </form>
+            <div id="account-manager" class="manager-list"></div>
+          </article>
+
           <article class="card data-card">
             <h3>BACKUP & EXPORT</h3>
             <p>JSON 能完整還原；CSV 包含每日、交易、義務、事件、帳戶、書單、排程與設定。</p>
@@ -450,7 +482,7 @@
           <span>WORK</span>
         </button>
         <button type="button" class="nav-item" data-page-target="projects">
-          <span>PROJECTS</span>
+          <span>PROJ</span>
         </button>
         <button type="button" class="nav-item" data-page-target="review">
           <span>REVIEW</span>

@@ -1,38 +1,95 @@
-/* TAKO：灰階控制台 */
+/* TAKO：銀底金屬控制台
+   唯一視覺基準＝同目錄 _design-reference.html（TURN 6 最新；TURN 5 的 5a 是
+   唯一完整頁面模型）。本檔所有數值取自該檔的實際渲染值。
+   SPEC.md 與基準衝突時以基準為準。
+
+   材質：00 GROUND／01 ICE／02 GLASS／03 DEBOSS／04 DEW／05 ACT
+   基準的分工：
+     ICE    — 主卡片、底部導覽列
+     GLASS  — 次要按鈕、躺在銀底上的小格
+     DEBOSS — 可填或可設定的東西（輸入框、設定值 chip、章魚）
+     DEW    — 狀態珠、進度條、作用中底線
+     ACT    — 主要動作按鈕（尺寸不決定材質，36px 的打卡鍵仍是 ACT）
+   卡片內部的「列」沒有材質，只用 --line 分隔。 */
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/ibm-plex-mono-500.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
-  --ground: #A4AAB0;
-  --card: #C6CBD0;
-  --recess: #949BA1;
-  --line: #7C838A;
-  --ink: #262D33;
-  --sub: #414951;
-  --label: #575F67;
-  --silver: linear-gradient(145deg,#4A5158 0%,#767E86 30%,#D3D8DC 50%,#3C434A 72%,#6C747C 100%);
-  --alarm: #A21C23;
-  --color-bg: var(--ground);
-  --color-bg-soft: var(--ground);
-  --color-surface: var(--card);
-  --color-surface-raised: var(--card);
-  --color-border: var(--line);
-  --color-text: var(--ink);
-  --color-text-muted: var(--sub);
-  --color-primary: var(--ink);
-  --color-primary-strong: #171C20;
-  --color-primary-ink: var(--card);
-  --color-info: var(--ink);
-  --color-warning: var(--sub);
-  --color-danger: var(--ink);
-  --color-danger-bg: var(--recess);
-  --shadow-card: 0 5px 0 rgba(38,45,51,.18);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --nav-height: 76px;
-  --space-field-control: 7px;
+
+  /* ── 00 GROUND ───────────────────────────────── */
+  --ground: linear-gradient(168deg, #AEB6BB 0%, #9CA5AC 46%, #8A939A 100%);
+  --ground-light: radial-gradient(125% 62% at 78% -8%,
+                    rgba(255,255,255,.6) 0%,
+                    rgba(255,255,255,.14) 44%,
+                    transparent 70%);
+  /* 漸層中段實色。只供不吃漸層的屬性使用（SVG fill），不作為底色 */
+  --ground-solid: #9CA5AC;
+
+  /* ── 材質 ─────────────────────────────────────── */
+  --m-ice: rgba(240,247,251,.47);
+  --m-glass: linear-gradient(163deg,
+               rgba(255,255,255,.34) 0%,
+               rgba(255,255,255,.12) 38%,
+               rgba(255,255,255,.2) 100%);
+  --m-deboss: rgba(46,56,64,.07);
+  --m-act: linear-gradient(180deg, #3A4147 0%, #2A3036 100%);
+
+  /* ── 04 DEW（唯一有飽和度的顏色）───────────────── */
+  --dew: #B4791C;
+  --dew-track: rgba(46,56,64,.16);
+
+  /* ── 文字（依堆疊情境，不可互換）────────────────── */
+  --t-ground-label: #2E353B;
+  --t-ground-body: #2A3036;
+  --t-ground-mono: #2E3439;          /* 銀底上的等寬字：字標、小格數值 */
+  --t-ice-label: #4A5259;
+  --t-ice-sub: #454D53;
+  --t-nav-idle: #3F464C;
+  --t-deboss-on-ice: #464E54;
+  --t-deboss-on-ground: #2E353B;
+  --t-on-act: #F2F5F6;
+  --ink: #16191B;                    /* 主要文字色。非材質層 */
+  --t-frozen: #5E666D;               /* 冷凍項目，ICE 面上 3.6:1 */
+
+  /* ── 線與陰影 ─────────────────────────────────── */
+  --line: rgba(46,56,64,.11);
+  --shadow-card: 0 2px 8px rgba(46,56,64,.1);
+
+  /* ── 圓角（取自基準的實際值）───────────────────── */
+  --radius: 12px;                    /* 卡片 */
+  --radius-sm: 10px;                 /* 小格、章魚 */
+  --radius-control: 9px;             /* 按鈕、輸入框 */
+  --radius-chip: 7px;                /* 28px 以下的 chip */
+  --radius-lg: 20px;                 /* 大容器 */
+  --radius-md: var(--radius);
+
+  /* ── 版面節奏 ─────────────────────────────────── */
+  --nav-height: 84px;
+  --block-gap: 17px;                 /* 頁面主要區塊之間 */
+  --card-gap: 15px;                  /* 卡片內部 */
+  --space-field-control: 8px;
   --space-field-group: 14px;
-  --space-card-heading: 16px;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  --space-card-heading: 15px;
+
+  /* ── 字體 ─────────────────────────────────────── */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+  font-family: var(--font-ui);
 }
 
 * {
@@ -49,15 +106,26 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ══ 00 GROUND — 銀底 ═══════════════════════════════
+   光源固定在右上。整個 App 只有 body 有這層。          */
 body {
   min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
+  background: var(--ground-light), var(--ground);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* 字重上限 500 */
+h1, h2, h3, h4, strong, b, th {
+  font-weight: 500;
 }
 
 button,
@@ -69,6 +137,22 @@ textarea {
   min-inline-size: 0;
   max-inline-size: 100%;
   font: inherit;
+  font-weight: 500;
+}
+
+/* 沒有任何欄位或按鈕吃得到瀏覽器預設面。面一律由材質層負責。
+   元素層權重最低，任何材質 class 都蓋得過去。 */
+input,
+select,
+textarea {
+  background-color: transparent;
+  color: var(--ink);
+}
+
+button {
+  border: 0;
+  background-color: transparent;
+  color: inherit;
 }
 
 button,
@@ -86,7 +170,7 @@ select:focus-visible,
 textarea:focus-visible,
 .file-button:focus-visible,
 a:focus-visible {
-  outline: 3px solid var(--color-info);
+  outline: 3px solid var(--ink);
   outline-offset: 3px;
 }
 
@@ -105,9 +189,9 @@ h1 {
 
 h2 {
   margin-bottom: 0;
-  font-size: clamp(1.8rem, 7vw, 2.35rem);
-  line-height: 1.1;
-  letter-spacing: -0.035em;
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: .01em;
 }
 
 h3 {
@@ -116,6 +200,127 @@ h3 {
   line-height: 1.35;
 }
 
+
+/* ══ 01 ICE「面」═══════════════════════════════════
+   主卡片、底部導覽列。內容從它下面滑過去，需要被糊掉。 */
+.ice,
+.card,
+.notice,
+.radar-list,
+.modal-panel,
+.frozen-section,
+.review-day,
+.metric {
+  background: var(--m-ice);
+  border: 1px solid rgba(255,255,255,.5);
+  border-top-color: rgba(255,255,255,.92);
+  border-radius: var(--radius);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,.55),
+    inset 0 -1px 0 rgba(46,56,64,.07),
+    var(--shadow-card);
+}
+
+/* ══ 02 GLASS「片」════════════════════════════════
+   次要按鈕、躺在底色上的小格。基準的 GLASS 沒有外投影，
+   只有下緣的 inset 切線。                              */
+.glass,
+.stat,
+.account-item,
+.transfer-summary,
+.statement-compare > div,
+.card .metric,
+.button-secondary,
+.button-quiet,
+.button-danger {
+  background: var(--m-glass);
+  border: 1px solid rgba(255,255,255,.34);
+  border-top: 1px solid #fff;
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(5px) saturate(1.2);
+  -webkit-backdrop-filter: blur(5px) saturate(1.2);
+  box-shadow: inset 0 -1px 0 rgba(38,48,56,.13);
+}
+
+/* ══ 03 DEBOSS「洞」═══════════════════════════════
+   可填或可設定的東西：輸入框、設定值 chip、章魚。
+   收合列與列表列不屬於這層 — 基準的卡內列沒有材質。   */
+.deboss,
+.field input,
+.field select,
+.field textarea,
+.record-input,
+.date-control,
+.money-input,
+.target-field,
+.brand-icon {
+  background: var(--m-deboss);
+  border: 0;
+  border-radius: var(--radius-control);
+  box-shadow:
+    inset 0  1px 2px rgba(38,48,56,.22),
+    inset 0 -1px 0   rgba(255,255,255,.5);
+}
+
+.deboss { color: var(--t-deboss-on-ground); }
+.ice .deboss,
+.card .deboss { color: var(--t-deboss-on-ice); }
+
+::placeholder { color: var(--t-deboss-on-ice); opacity: 1; }
+
+/* ══ 04 DEW「珠」══════════════════════════════════
+   狀態點、進度條、作用中底線。實色，無 inset 高光。   */
+.dew-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dew);
+}
+
+.dew-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dew-track);
+  box-shadow: inset 0 1px 2px rgba(38,48,56,.18);
+  overflow: hidden;
+}
+
+.dew-bar > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--dew);
+}
+
+/* ══ 05 ACT「動作」════════════════════════════════
+   主要動作按鈕。往前凸，與凹進去的 DEBOSS 物理相反。
+   尺寸不決定材質：基準的 36px 打卡鍵仍然是 ACT。      */
+.act,
+.button-primary,
+.shift-punch {
+  background: var(--m-act);
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--t-on-act);
+  font-weight: 500;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    0 2px 5px rgba(30,36,41,.26);
+}
+
+/* 卡片內部的列：沒有材質，只用分隔線 */
+.divide > * + * { border-top: 1px solid var(--line); }
+
+.sheet,
+.modal-panel { border-radius: var(--radius-lg); }
+
+
+/* ══ 版面 ═════════════════════════════════════════ */
+
 .skip-link {
   position: fixed;
   z-index: 2000;
@@ -123,10 +328,10 @@ h3 {
   left: 8px;
   padding: 10px 14px;
   transform: translateY(-150%);
-  border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-primary-ink);
-  font-weight: 700;
+  border-radius: var(--radius-control);
+  background: var(--m-act);
+  color: var(--t-on-act);
+  font-weight: 500;
 }
 
 .skip-link:focus {
@@ -135,59 +340,90 @@ h3 {
 
 .app-shell {
   width: 100%;
+  max-width: 760px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: env(safe-area-inset-top) 16px calc(var(--nav-height) + 28px + env(safe-area-inset-bottom));
+  padding: calc(16px + env(safe-area-inset-top)) 20px calc(var(--nav-height) + 28px + env(safe-area-inset-bottom));
 }
 
 .app-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 38px;
   align-items: center;
-  gap: 8px;
+  gap: 11px;
+  margin-bottom: var(--block-gap);
 }
 
 .brand-copy {
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 8px;
+  gap: 9px;
+}
+
+/* 字標＝純色等寬字，不填漸層。基準沒有 --silver 的用途。 */
+.brand-copy h1,
+.brand-wordmark {
+  margin: 0;
+  color: var(--t-ground-mono);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: .3em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .brand-copy .eyebrow {
   margin: 0;
+  color: var(--t-ground-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .1em;
+  line-height: 1;
+  text-transform: none;
 }
 
+/* 章魚：38px DEBOSS 凹刻框，內含 26px 圖 */
 .brand-icon {
   width: 38px;
   height: 38px;
-  border-radius: 8px;
-}
-
-.brand-mark {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border: 1px solid rgba(94, 230, 198, 0.45);
-  border-radius: 14px;
-  background: rgba(94, 230, 198, 0.1);
-  color: var(--color-primary);
-  font-weight: 800;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  opacity: .9;
 }
 
 .header-date {
   min-width: 0;
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
+  color: var(--t-ground-label);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   text-align: right;
   white-space: nowrap;
 }
 
 .eyebrow,
-.step-label {
-  margin-bottom: 2px;
+.step-label,
+.section-heading h3 {
+  margin: 0 0 2px;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* 直接躺在銀底上的標籤 */
+.page-heading .eyebrow,
+.money-summary .step-label,
+.radar .section-heading h3 {
+  color: var(--t-ground-label);
 }
 
 .page {
@@ -202,95 +438,150 @@ h3 {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  margin-bottom: var(--block-gap);
 }
 
 .page-heading > * {
   min-width: 0;
 }
 
+.page-heading .eyebrow {
+  margin-bottom: 6px;
+}
+
 .save-state,
 .helper {
-  font-size: 0.78rem;
+  color: var(--t-ice-sub);
+  font-size: 12.5px;
 }
 
-.quick-summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
+.page-heading .save-state {
+  color: var(--t-ground-label);
 }
 
-.quick-summary > div {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.quick-summary strong,
+/* ── 主數字（基準：mono 500、負字距、實色）────────── */
 .primary-number {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.quick-summary span,
-.metric span {
-  font-size: 0.76rem;
-}
-
-.quick-summary strong,
-.card-number,
-.metric strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+
+.primary-number-hero {
+  display: block;
+  margin: 3px 0 20px;
+  font-size: 32px;
+}
+
+/* 主數字右側的單位／註記，baseline 對齊 */
+.hero-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.hero-value > .primary-number {
+  font-size: 32px;
+}
+
+.hero-unit {
+  flex: 0 0 auto;
+  color: var(--t-ice-sub);
+  font-size: 12.5px;
+}
+
+.hero-unit-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  margin-bottom: 14px;
+  gap: var(--card-gap);
+  margin-bottom: var(--block-gap);
   padding: 18px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+}
+
+.card-accent {
+  border-color: rgba(255,255,255,.5);
+  border-top-color: rgba(255,255,255,.92);
 }
 
 .card-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: var(--space-card-heading);
 }
 
-.compact-heading {
-  margin-bottom: 10px;
+.card-heading > div {
+  min-width: 0;
+}
+
+.compact-heading,
+.card-heading .step-label {
+  margin-bottom: 0;
+}
+
+.step-note {
+  flex: 0 0 auto;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.card-number,
+.metric strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .card-number {
-  color: var(--color-primary);
+  color: var(--ink);
   font-size: 1.05rem;
   white-space: nowrap;
 }
 
+/* 狀態：沒有容器，只有珠與文字（基準 5a） */
 .status-pill {
   display: inline-flex;
-  min-height: 28px;
+  flex: 0 0 auto;
   align-items: center;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  color: var(--color-text-muted);
-  font-size: 0.76rem;
+  gap: 7px;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.status-pill.is-running {
-  border-color: rgba(94, 230, 198, 0.45);
-  background: rgba(94, 230, 198, 0.1);
-  color: var(--color-primary);
+.status-pill.is-running::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dew);
+  content: "";
 }
 
 .time-grid,
@@ -317,8 +608,15 @@ fieldset {
   min-inline-size: 0;
   max-inline-size: 100%;
   gap: var(--space-field-control);
-  font-size: 0.84rem;
-  font-weight: 600;
+}
+
+.field > span {
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .18em;
+  line-height: 1;
 }
 
 .field input,
@@ -331,43 +629,122 @@ fieldset {
   inline-size: 100%;
   min-inline-size: 0;
   max-inline-size: 100%;
-  min-height: 48px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: 1rem;
+  min-height: 44px;
+  padding: 0 13px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.field textarea {
+  padding: 10px 13px;
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
 .record-input:focus {
-  border-color: var(--color-info);
+  box-shadow:
+    inset 0 1px 2px rgba(38,48,56,.22),
+    inset 0 -1px 0 rgba(255,255,255,.5),
+    0 0 0 2px rgba(46,56,64,.28);
+}
+
+/* 金額輸入：DEBOSS 外框 46px，內含 $ 前綴與透明 input */
+.money-input {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px;
+}
+
+.money-input > .money-prefix {
+  flex: 0 0 auto;
+  color: var(--t-deboss-on-ice);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.money-input > input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.money-input > input:focus {
+  box-shadow: none;
+}
+
+.money-input:focus-within {
+  box-shadow:
+    inset 0 1px 2px rgba(38,48,56,.22),
+    inset 0 -1px 0 rgba(255,255,255,.5),
+    0 0 0 2px rgba(46,56,64,.28);
 }
 
 .input-action-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
 }
 
+/* ── 尺寸階層（基準 TURN 6）──────────────────────────
+   主要動作 46px ACT／次要動作 36px GLASS／chip 28px／輸入 44px。
+   觸控區用透明 padding 補到 44px，不是把按鈕畫大。      */
 .button {
   display: inline-flex;
+  position: relative;
   min-width: 44px;
-  min-height: 46px;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
-  padding: 10px 15px;
+  padding: 0 16px;
   max-width: 100%;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  font-weight: 750;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.2;
   overflow-wrap: anywhere;
   text-align: center;
   text-decoration: none;
   white-space: normal;
-  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 100ms ease;
+  transition: opacity 160ms ease, transform 100ms ease;
+}
+
+.button-primary {
+  min-height: 46px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+
+.button-secondary,
+.button-quiet,
+.button-danger {
+  color: var(--ink);
+}
+
+/* 命中區 36 + 4 + 4 = 44 */
+.button-secondary::before,
+.button-quiet::before,
+.button-danger::before {
+  position: absolute;
+  inset: -4px 0;
+  content: "";
 }
 
 .button:active {
@@ -380,6 +757,16 @@ fieldset {
 
 .now-button {
   min-width: 70px;
+}
+
+/* SCHEDULE 這類「刻字型」次要按鈕 */
+.button-mono {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  color: var(--t-ground-label);
+  padding: 0 14px;
 }
 
 .stack-form,
@@ -396,18 +783,48 @@ fieldset {
   margin: 0;
 }
 
-.record-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
+/* ══ 卡片內部的列：無材質，只用分隔線 ═══════════════ */
+.record-list,
+.session-list,
+.manager-list,
+.book-list,
+.task-list,
+.project-list,
+.project-status-list,
+.book-status-list,
+.review-list,
+.radar-list-inner {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.record-row {
+.record-row,
+.session-row,
+.manager-row,
+.book-item,
+.task-item.is-done {
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.record-list > :first-child,
+.session-list > :first-child,
+.manager-list > :first-child,
+.book-list > :first-child {
+  border-top: 0;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 0;
 }
 
 .record-row-header {
@@ -419,7 +836,7 @@ fieldset {
 }
 
 .record-row-header strong {
-  font-size: 0.92rem;
+  font-size: 14px;
 }
 
 .inline-fields {
@@ -430,29 +847,33 @@ fieldset {
 
 .record-input {
   min-height: 44px;
-  font-size: 0.9rem;
+  font-size: 15px;
 }
 
 .record-remove {
   min-height: 44px;
-  padding: 7px 10px;
-  border: 0;
+  padding: 0 4px;
   background: transparent;
-  font-weight: 700;
+  color: var(--t-ice-sub);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .empty-state {
-  padding: 24px 16px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-muted);
+  padding: 20px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--t-ice-sub);
+  font-size: 13.5px;
   text-align: center;
 }
 
 .empty-state strong {
   display: block;
   margin-bottom: 4px;
-  color: var(--color-text);
+  color: var(--ink);
 }
 
 .form-actions {
@@ -462,36 +883,43 @@ fieldset {
 }
 
 .project-list {
-  display: grid;
-  gap: 12px;
+  gap: 0;
 }
 
 .project-item {
   min-width: 0;
 }
 
+/* 收合列＝卡片內部的列，沒有材質（基準的 DEBOSS 只給可填的東西） */
 .project-summary,
 .task-summary {
+  display: grid;
   width: 100%;
   min-width: 0;
-  min-height: 48px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--recess);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  touch-action: manipulation;
-  transition: background-color 180ms ease, border-color 180ms ease;
-}
-
-.project-summary {
-  display: grid;
+  min-height: 46px;
   grid-template-columns: minmax(0, 1fr) 18px;
   gap: 10px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--t-ice-sub);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.project-list > :first-child > .project-summary,
+.task-list > :first-child > .task-summary {
+  border-top: 0;
+}
+
+.project-summary strong,
+.task-summary strong {
+  color: var(--ink);
+  font-size: 14px;
 }
 
 .project-summary strong {
@@ -511,13 +939,6 @@ fieldset {
   transition: transform 180ms ease;
 }
 
-.project-item.is-expanded .project-summary,
-.task-item.is-expanded .task-summary {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-  background: rgba(255,255,255,.14);
-}
-
 .project-item.is-expanded .project-summary > span,
 .task-item.is-expanded .task-chevron {
   transform: rotate(225deg);
@@ -529,13 +950,15 @@ fieldset {
   outline-offset: 2px;
 }
 
-.project-details {
+.project-details,
+.task-details {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   margin: 0;
-  border-top: 0;
-  border-top-right-radius: 0;
-  border-top-left-radius: 0;
+  padding: 0 0 14px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .project-card-header {
@@ -550,8 +973,8 @@ fieldset {
 
 .project-updated {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.74rem;
+  color: var(--t-ice-sub);
+  font-size: 12px;
 }
 
 .project-actions {
@@ -561,36 +984,40 @@ fieldset {
   gap: 12px;
 }
 
-.project-actions .button {
-  min-height: 44px;
-}
-
 .metric-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: var(--block-gap);
 }
 
 .metric {
   display: grid;
   min-width: 0;
   gap: 6px;
-  min-height: 96px;
+  min-height: 92px;
   align-content: center;
   padding: 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+}
+
+.metric span {
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  line-height: 1;
 }
 
 .metric strong {
-  font-size: 1.25rem;
-  line-height: 1.2;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.1;
   overflow-wrap: anywhere;
 }
 
 .review-list {
-  display: grid;
   gap: 10px;
 }
 
@@ -598,8 +1025,6 @@ fieldset {
   display: grid;
   gap: 12px;
   padding: 15px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
 }
 
 .review-day-header {
@@ -608,9 +1033,14 @@ fieldset {
   justify-content: space-between;
 }
 
+.review-day-header strong {
+  font-size: 14px;
+}
+
 .review-day-header span {
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
 }
 
 .review-values {
@@ -625,15 +1055,20 @@ fieldset {
 
 .review-values span {
   display: block;
-  color: var(--color-text-muted);
-  font-size: 0.72rem;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
 }
 
 .review-values strong {
   display: block;
   overflow: hidden;
-  margin-top: 2px;
-  font-size: 0.92rem;
+  margin-top: 3px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -645,10 +1080,8 @@ fieldset {
   flex-direction: column;
   justify-content: space-between;
   gap: 14px;
-  margin: 6px 0 14px;
-  padding: 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  margin: 0 0 var(--block-gap);
+  padding: 14px 18px;
 }
 
 .notice-actions {
@@ -666,28 +1099,25 @@ fieldset {
 
 .notice strong {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+  font-size: 14px;
 }
 
 .notice p {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
+  color: var(--t-ice-sub);
+  font-size: 13px;
 }
 
 .data-scope-list {
   margin: 8px 0 0;
   padding-left: 1.15rem;
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
+  color: var(--t-ice-sub);
+  font-size: 13px;
 }
 
 .data-scope-list li + li {
   margin-top: 4px;
-}
-
-.data-card + .data-card {
-  margin-top: 0;
 }
 
 .file-button {
@@ -704,10 +1134,11 @@ fieldset {
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 12px;
+  font-size: 13.5px;
 }
 
 .data-facts dt {
-  color: var(--color-text-muted);
+  color: var(--t-ice-label);
 }
 
 .data-facts dd {
@@ -716,10 +1147,11 @@ fieldset {
   overflow-wrap: anywhere;
 }
 
-.danger-zone {
-  border-color: rgba(255, 139, 148, 0.3);
+.danger-zone p {
+  color: var(--t-ice-sub);
 }
 
+/* ══ 底部導覽列（ICE）══════════════════════════════ */
 .bottom-nav {
   position: fixed;
   z-index: 100;
@@ -729,35 +1161,49 @@ fieldset {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   width: min(100%, 720px);
-  min-height: var(--nav-height);
   margin: 0 auto;
-  padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--color-border);
+  padding: 8px 6px calc(8px + max(18px, env(safe-area-inset-bottom)));
+  background: var(--m-ice);
+  border: 0;
+  border-top: 1px solid rgba(255,255,255,.92);
+  border-radius: 0;
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
 
 .nav-item {
   display: grid;
+  position: relative;
   min-width: 0;
-  min-height: 56px;
+  min-height: 50px;
   place-items: center;
   align-content: center;
-  gap: 3px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 0;
   background: transparent;
-  font-size: clamp(0.58rem, 2.5vw, 0.72rem);
-  font-weight: 700;
-  transition: color 160ms ease, background-color 160ms ease;
+  color: var(--t-nav-idle);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  transition: color 160ms ease;
 }
 
-.nav-item svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
+.nav-item.is-active {
+  background: transparent;
+  color: var(--ink);
+}
+
+.nav-item.is-active::after {
+  position: absolute;
+  right: 26%;
+  bottom: 2px;
+  left: 26%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--dew);
+  content: "";
 }
 
 .modal {
@@ -776,24 +1222,32 @@ fieldset {
 .modal-scrim {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.68);
+  background: rgba(24, 29, 33, 0.55);
 }
 
 .modal-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(100%, 480px);
   max-height: calc(100dvh - 40px);
+  gap: var(--card-gap);
   overflow-y: auto;
   padding: 22px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.55),
+    0 24px 60px rgba(24, 29, 33, .38);
   animation: modal-in 200ms ease-out;
 }
 
 .modal-panel > p:not(.eyebrow) {
-  margin: 10px 0 20px;
-  color: var(--color-text-muted);
+  margin: 0;
+  color: var(--t-ice-sub);
+  font-size: 14px;
+}
+
+.modal-panel h2 {
+  font-size: 20px;
 }
 
 .modal-actions {
@@ -811,10 +1265,15 @@ fieldset {
   max-width: 460px;
   margin: auto;
   padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-card);
-  font-weight: 650;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--m-act);
+  color: var(--t-on-act);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    0 2px 5px rgba(30,36,41,.26);
+  font-size: 14px;
+  font-weight: 500;
   text-align: center;
 }
 
@@ -843,48 +1302,8 @@ fieldset {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@media (min-width: 520px) {
-  .notice {
-    align-items: center;
-    flex-direction: row;
-  }
 
-  .notice-actions .button {
-    flex: none;
-  }
-
-  .app-shell {
-    padding-right: 24px;
-    padding-left: 24px;
-  }
-
-  .time-grid,
-  .two-column {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .modal {
-    place-items: center;
-  }
-}
-
-@media (min-width: 760px) {
-  body {
-    padding: 24px 0;
-  }
-
-  .app-shell {
-    min-height: calc(100dvh - 48px);
-    border: 1px solid rgba(43, 64, 90, 0.75);
-    border-radius: 30px;
-  }
-
-  .bottom-nav {
-    bottom: 24px;
-    border: 1px solid var(--color-border);
-    border-radius: 0 0 30px 30px;
-  }
-}
+/* ══ WORK ═════════════════════════════════════════ */
 
 .heading-actions {
   display: flex;
@@ -894,27 +1313,144 @@ fieldset {
   gap: 8px;
 }
 
-.income-summary {
-  gap: 4px;
-  flex-wrap: wrap;
+/* 打卡：併進主數字列右側，36px，材質仍是 ACT */
+.shift-punch {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
+/* 目標：卡片標題列右側的 26px DEBOSS chip */
 .target-field {
-  display: flex;
+  display: inline-flex;
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 26px;
   align-items: center;
   gap: 6px;
-  color: var(--label);
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+  padding: 0 10px;
+  border-radius: var(--radius-chip);
+  box-shadow:
+    inset 0 1px 2px rgba(38,48,56,.2),
+    inset 0 -1px 0 rgba(255,255,255,.5);
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 命中區 26 + 9 + 9 = 44 */
+.target-field::before {
+  position: absolute;
+  inset: -9px 0;
+  content: "";
 }
 
 .target-field input {
-  width: min(118px, 42vw);
-  min-height: 44px;
-  padding: 6px 8px;
-  font-size: .82rem;
+  width: 68px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.target-field input:focus {
+  box-shadow: none;
+}
+
+/* 三格小格：躺在銀底上，GLASS */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: var(--block-gap);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 5px;
+  padding: 11px 12px;
+}
+
+.stat > span {
+  color: var(--t-ground-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  line-height: 1;
+}
+
+.stat > strong {
+  color: var(--t-ground-mono);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* 今日工作段卡 */
+.sessions-card {
+  gap: 0;
+  padding: 14px 18px 6px;
+}
+
+.sessions-card .card-heading {
+  margin-bottom: 4px;
+}
+
+.session-times {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.session-time {
+  width: auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 6px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.session-dash {
+  flex: 0 0 auto;
+  color: var(--t-ice-sub);
+  font-size: 14px;
+}
+
+.session-duration {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.income-summary {
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .schedule-grid {
@@ -932,305 +1468,168 @@ fieldset {
   inline-size: 100%;
 }
 
-#work-revenue-field {
-  margin-top: 14px;
-}
-
 .schedule-row > div {
   display: grid;
-  gap: 2px;
+  gap: 3px;
+}
+
+.schedule-row strong {
+  font-size: 14px;
 }
 
 .schedule-row span,
 .statement-compare span {
-  color: var(--sub);
-  font-size: .75rem;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .monthly-close-grid {
-  margin-bottom: 16px;
+  margin-bottom: var(--block-gap);
 }
 
 .statement-compare {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  margin-top: 12px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--line);
+  gap: 8px;
 }
 
 .statement-compare > div {
   display: grid;
-  gap: 4px;
-  padding: 12px;
-  background: var(--recess);
+  gap: 5px;
+  padding: 11px 12px;
 }
 
 .statement-compare strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 430px) {
-  .heading-actions {
-    align-items: flex-end;
-    flex-direction: column;
-  }
 
-  .schedule-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .schedule-grid .field:first-child {
-    grid-column: 1 / -1;
-  }
-
-  #work-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .target-field input {
-    width: min(180px, 100%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-html,
-body {
-  background: var(--ground);
-  color: var(--ink);
-}
-
-body {
-  background-image: none;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
-}
-
-.app-shell {
-  max-width: 760px;
-}
-
-.app-header {
-  padding: 14px 2px 6px;
-}
-
-.brand-copy h1,
-.primary-number {
-  background: var(--silver);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-.brand-copy h1 {
-  font-size: 16px;
-  font-weight: 300;
-  letter-spacing: .26em;
-  white-space: nowrap;
-}
-
-.brand-copy .eyebrow {
-  color: var(--label);
-  font-size: 9px;
-}
-
-.brand-icon {
-  filter: grayscale(1) contrast(1.2);
-}
-
-.page-heading {
-  min-height: 58px;
-  padding: 7px 2px 10px;
-}
-
-.page-heading h2 {
-  font-size: clamp(1.55rem, 7vw, 2rem);
-  letter-spacing: .02em;
-}
-
-.eyebrow,
-.step-label,
-.section-heading h3 {
-  color: var(--label);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
-
-.card,
-.metric,
-.review-day {
-  border-color: var(--line);
-  background: var(--card);
-  box-shadow: var(--shadow-card);
-}
-
-.card-accent {
-  border-color: var(--ink);
-}
-
-.field,
-.helper,
-.save-state,
-.quick-summary span,
-.metric span {
-  color: var(--sub);
-}
-
-.field input,
-.field select,
-.record-input {
-  border-color: var(--line);
-  background: rgba(255,255,255,.18);
-  color: var(--ink);
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-.file-button:focus-visible,
-a:focus-visible {
-  outline-color: var(--ink);
-}
-
-.button-primary {
-  background: var(--ink);
-  color: var(--card);
-}
-
-.button-primary:hover {
-  background: #171C20;
-}
-
-.button-secondary,
-.button-quiet,
-.button-danger {
-  border-color: var(--line);
-  background: rgba(255,255,255,.12);
-  color: var(--ink);
-}
-
-.record-remove {
-  color: var(--sub);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.bottom-nav {
-  border-color: var(--line);
-  background: rgba(198,203,208,.96);
-  box-shadow: 0 -8px 24px rgba(38,45,51,.16);
-  backdrop-filter: blur(14px);
-}
-
-.nav-item {
-  position: relative;
-  color: var(--label);
-  letter-spacing: .04em;
-}
-
-.nav-item.is-active {
-  background: transparent;
-  color: var(--ink);
-}
-
-.nav-item.is-active::after {
-  position: absolute;
-  right: 12px;
-  bottom: 3px;
-  left: 12px;
-  height: 2px;
-  background: var(--silver);
-  content: "";
-}
-
-.quick-summary > div,
-.record-row {
-  border-color: var(--line);
-  background: rgba(198,203,208,.55);
-}
+/* ══ MONEY ════════════════════════════════════════ */
 
 .section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
 }
 
 .section-heading h3 {
   margin: 0;
 }
 
+.quick-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.quick-add-grid > * {
+  min-width: 0;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+/* ══ 到期雷達 ══════════════════════════════════════
+   整條雷達是一張 ICE 卡片，列之間只用 --line 分隔。
+   「需要你動手」靠排序，不用顏色。                    */
 .radar {
-  margin-bottom: 16px;
+  margin-bottom: var(--block-gap);
+}
+
+.radar .section-heading {
+  margin-bottom: 8px;
 }
 
 .radar-list {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 18px;
+}
+
+.radar-list:empty {
+  display: none;
 }
 
 .radar-item {
   display: flex;
-  min-height: 58px;
+  position: relative;
+  min-height: 56px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
+  padding: 10px 0;
+}
+
+.radar-list > .radar-item + .radar-item {
+  border-top: 1px solid var(--line);
 }
 
 .radar-item div {
   display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.radar-item strong {
+  font-size: 14px;
 }
 
 .radar-item span {
-  color: var(--sub);
-  font-size: .76rem;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
 }
 
-.radar-item.is-overdue,
-.radar-item.is-today {
-  border-color: var(--alarm);
-  box-shadow: inset 4px 0 0 var(--alarm);
-}
+/* 要動手的（逾期、今日到期、該保養）— 排在最上層 */
+.radar-item.is-overdue { order: -3; }
+.radar-item.is-today,
+.radar-item.is-service-due { order: -2; }
 
 .radar-item.is-overdue strong,
-.radar-item.is-overdue span,
-.radar-item.is-today span {
-  color: var(--alarm);
+.radar-item.is-today strong,
+.radar-item.is-service-due strong {
+  font-weight: 500;
 }
 
-.radar-item.is-soon strong::before,
-.radar-item.is-service-due strong::before {
+.radar-item.is-overdue span,
+.radar-item.is-today span {
+  color: var(--ink);
+}
+
+/* 逼近中（即將到期）— 琥珀珠 */
+.radar-item.is-soon { order: 0; }
+
+.radar-item.is-soon strong::before {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   margin-right: 7px;
   border-radius: 50%;
-  background: var(--alarm);
+  background: var(--dew);
   content: "";
 }
 
+/* 資料缺口（更新里程）— 排最後，灰字，無標記 */
 .radar-item.is-update-mileage {
+  order: 2;
   min-height: 44px;
-  background: var(--recess);
-  box-shadow: none;
+}
+
+.radar-item.is-update-mileage strong {
+  color: var(--t-ice-sub);
+  font-weight: 400;
+}
+
+/* Auto-paid：純文字，不加底色 */
+.auto-tag {
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .06em;
 }
 
 .account-balances {
@@ -1240,73 +1639,44 @@ a:focus-visible {
 }
 
 .account-item {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.1);
+  padding: 11px 12px;
 }
 
 .account-item > span,
 .account-item small {
-  color: var(--sub);
-  font-size: .68rem;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  line-height: 1;
 }
 
 .account-item strong {
   overflow: hidden;
-  font-size: .9rem;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
   text-overflow: ellipsis;
 }
 
-.account-item input {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  font-size: 16px;
-}
-
-.manager-panel {
-  margin-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.manager-panel > summary {
-  min-height: 48px;
-  cursor: pointer;
-  color: var(--sub);
-  font-size: .82rem;
-  font-weight: 700;
-  line-height: 48px;
-}
-
-.compact-form {
-  padding: 4px 0 14px;
-}
-
 .manager-list {
-  display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
 .manager-row {
-  display: grid;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.08);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .manager-row.is-archived {
-  background: var(--recess);
-  opacity: .78;
+  color: var(--t-ice-sub);
 }
 
 .manager-row-meta {
@@ -1314,19 +1684,15 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
 .money-summary {
-  margin: 28px 0 16px;
-}
-
-.primary-number-hero {
-  display: block;
-  margin: 3px 0 20px;
-  font-size: clamp(2.2rem, 11vw, 4rem);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
+  margin: 0 0 var(--block-gap);
 }
 
 .spending-breakdown {
@@ -1342,13 +1708,19 @@ a:focus-visible {
   height: auto;
 }
 
+/* --ground 是漸層，SVG fill 不吃漸層，中心孔改用中段實色 */
+.chart-wrap svg > circle {
+  fill: var(--ground-solid);
+}
+
 .chart-empty {
   display: grid;
   min-height: 110px;
   place-items: center;
   border: 1px dashed var(--line);
-  color: var(--sub);
-  font-size: .78rem;
+  border-radius: var(--radius-sm);
+  color: var(--t-ground-label);
+  font-size: 13px;
 }
 
 .category-ranking {
@@ -1361,7 +1733,8 @@ a:focus-visible {
   grid-template-columns: 8px minmax(0,1fr) auto auto;
   gap: 7px;
   align-items: baseline;
-  font-size: .78rem;
+  color: var(--t-ground-body);
+  font-size: 13px;
 }
 
 .category-ranking span {
@@ -1376,8 +1749,15 @@ a:focus-visible {
   background: var(--rank-color);
 }
 
+.category-ranking strong {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
 .category-ranking small {
-  color: var(--sub);
+  color: var(--t-ground-label);
+  font-family: var(--font-mono);
 }
 
 .transaction-day + .transaction-day {
@@ -1385,10 +1765,11 @@ a:focus-visible {
 }
 
 .transaction-date {
-  margin: 0 0 6px;
-  color: var(--label);
+  margin: 0 0 4px;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -1399,12 +1780,12 @@ a:focus-visible {
 
 .transaction-row summary {
   display: flex;
-  min-height: 50px;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
-  font-variant-numeric: tabular-nums;
+  font-size: 14px;
 }
 
 .transaction-row summary > span {
@@ -1414,76 +1795,51 @@ a:focus-visible {
 
 .transaction-row summary > strong {
   flex: 0 0 auto;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .transaction-editor {
   display: grid;
   gap: 10px;
-  padding: 10px 0 14px;
+  padding: 4px 0 14px;
 }
 
-.notice-warning,
-.notice-info {
-  border-color: var(--line);
-  background: var(--card);
-}
 
-.modal-panel {
-  border-color: var(--line);
-  background: var(--card);
-}
-
-.toast {
-  border-color: var(--line);
-  background: var(--ink);
-  color: var(--card);
-}
-
-@media (max-width: 389px) {
-  .account-balances {
-    grid-template-columns: 1fr;
-  }
-
-  .spending-breakdown {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-wrap {
-    max-width: 150px;
-    margin: auto;
-  }
-}
+/* ══ PROJECTS ═════════════════════════════════════ */
 
 .content-section,
 .frozen-section {
-  margin-bottom: 24px;
+  margin-bottom: var(--block-gap);
 }
 
 .obligation-form {
-  margin-top: 16px;
-  padding-top: 16px;
+  padding-top: 15px;
   border-top: 1px solid var(--line);
 }
 
 .obligation-form h4 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 14px;
 }
 
 .transfer-summary {
   display: grid;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--recess);
+  gap: 5px;
+  padding: 11px 12px;
 }
 
 .transfer-summary > span,
 .transfer-summary small {
-  color: var(--sub);
-  font-size: .74rem;
+  color: var(--t-ice-label);
+  font-size: 11.5px;
+}
+
+.transfer-summary strong {
+  font-size: 13.5px;
 }
 
 .mileage-fields {
@@ -1493,9 +1849,19 @@ a:focus-visible {
   max-inline-size: 100%;
   gap: var(--space-field-group);
   margin: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  padding: 15px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.mileage-fields legend {
+  padding: 0;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
 }
 
 input[type="time"] {
@@ -1512,31 +1878,28 @@ input[type="time"] {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   align-items: center;
   grid-template-columns: minmax(0, 1fr) 20px;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.18);
+  padding: 0 13px;
   color: var(--ink);
 }
 
 .date-control:focus-within {
-  border-color: var(--color-info);
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
 
 .date-control.is-disabled {
-  opacity: .55;
+  color: var(--t-deboss-on-ice);
 }
 
 .date-control-value {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 1rem;
+  font-family: var(--font-mono);
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   line-height: 1.5;
@@ -1544,7 +1907,7 @@ input[type="time"] {
 }
 
 .date-control.is-empty .date-control-value {
-  color: var(--sub);
+  color: var(--t-deboss-on-ice);
 }
 
 .date-control-icon {
@@ -1579,6 +1942,7 @@ input[type="time"] {
   border: 0;
   border-radius: inherit;
   background: transparent;
+  box-shadow: none;
   cursor: pointer;
   opacity: 0;
   -webkit-appearance: none;
@@ -1610,20 +1974,9 @@ input[type="time"] {
   opacity: 0;
 }
 
-.mileage-fields legend {
-  padding: 0 6px;
-  color: var(--label);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
 .task-list,
 .book-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 0;
 }
 
 .task-item {
@@ -1631,11 +1984,7 @@ input[type="time"] {
 }
 
 .task-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 18px;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 12px;
+  padding: 8px 0;
 }
 
 .task-summary-copy,
@@ -1657,8 +2006,10 @@ input[type="time"] {
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
-  color: var(--sub);
-  font-size: .74rem;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1677,17 +2028,6 @@ input[type="time"] {
   text-align: right;
 }
 
-.task-details {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-top: 0;
-  border-bottom-right-radius: var(--radius-md);
-  border-bottom-left-radius: var(--radius-md);
-  background: rgba(255,255,255,.1);
-}
-
 .task-details-meta {
   display: flex;
   min-width: 0;
@@ -1697,12 +2037,15 @@ input[type="time"] {
 
 .task-detail-name {
   overflow-wrap: anywhere;
+  font-size: 14px;
 }
 
 .task-details-meta span,
 .task-main span {
-  color: var(--sub);
-  font-size: .74rem;
+  color: var(--t-ice-sub);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1723,124 +2066,177 @@ input[type="time"] {
 
 .task-actions-secondary .button {
   min-width: 0;
-  min-height: 44px;
-  padding-right: 6px;
-  padding-left: 6px;
-  font-size: .74rem;
+  padding: 0 6px;
+  font-size: 12.5px;
 }
 
 .task-item.is-done {
-  display: grid;
   grid-template-columns: minmax(0,1fr) auto;
-  gap: 10px;
   align-items: center;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--recess);
-  opacity: .82;
+  color: var(--t-ice-sub);
 }
 
+.task-item.is-done strong {
+  color: var(--t-ice-sub);
+  font-size: 14px;
+}
+
+/* 收合群組：卡片內部，無材質，用分隔線與間距 */
 .recess-group {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--recess);
+  padding: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  box-shadow: none;
 }
 
 .recess-group > summary {
   min-height: 44px;
+  color: var(--t-ice-sub);
   cursor: pointer;
-  color: var(--sub);
-  font-size: .78rem;
-  font-weight: 700;
-  letter-spacing: .08em;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .12em;
   line-height: 44px;
   text-transform: uppercase;
 }
 
-.project-status-list,
-.book-status-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.project-status-group .project-summary {
-  background: var(--card);
-}
-
 .no-date-group {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-md);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .no-date-group h4 {
   margin: 0;
-  color: var(--label);
-  font-size: .72rem;
-  letter-spacing: .1em;
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .18em;
   text-transform: uppercase;
 }
 
 .compact-empty {
   padding: 14px;
-  font-size: .78rem;
+  font-size: 13px;
 }
 
 .book-item {
-  display: grid;
   grid-template-columns: minmax(0,1fr) 130px auto;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255,255,255,.08);
+  align-items: center;
 }
 
 .book-current-section {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .book-current-section h4 {
   margin: 0;
-  color: var(--label);
+  color: var(--t-ice-label);
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .16em;
+  font-weight: 500;
+  letter-spacing: .18em;
 }
 
 .book-item > span {
   display: none;
 }
 
-.book-item.is-current {
-  border-width: 2px;
-  background: var(--card);
-  box-shadow: inset 4px 0 0 var(--ink);
+/* 在讀＝進行中的狀態，用琥珀珠，不加框 */
+.book-item.is-current > .record-input:first-child {
+  position: relative;
 }
 
+.book-item.is-current::before {
+  align-self: center;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dew);
+  content: "";
+}
+
+.book-item.is-current {
+  grid-template-columns: 9px minmax(0,1fr) 130px auto;
+  gap: 8px;
+}
+
+/* 冷凍項目：唯一允許低於 4.5:1 的元素 */
 .frozen-section {
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: var(--recess);
-  opacity: .72;
+  padding: 14px 18px;
+}
+
+.frozen-section .task-summary-copy > strong,
+.frozen-section .task-details-meta,
+.frozen {
+  color: var(--t-frozen);
+}
+
+.frozen-section .section-heading h3 {
+  color: var(--t-ice-label);
+}
+
+
+/* ══ 響應 ═════════════════════════════════════════ */
+
+@media (min-width: 520px) {
+  .notice {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .notice-actions .button {
+    flex: none;
+  }
+
+  .time-grid,
+  .two-column {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .modal {
+    place-items: center;
+  }
+}
+
+@media (min-width: 760px) {
+  body {
+    padding: 24px 0;
+  }
+
+  .app-shell {
+    min-height: calc(100dvh - 48px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 70px rgba(38,45,51,.22);
+  }
+
+  .bottom-nav {
+    bottom: 24px;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
 }
 
 @media (max-width: 430px) {
+  .heading-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .schedule-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .schedule-grid .field:first-child {
+    grid-column: 1 / -1;
+  }
+
   #page-projects input,
   #page-projects select,
   #page-projects textarea {
     font-size: 16px;
-  }
-
-  #schedule-section {
-    padding-right: 12px;
-    padding-left: 12px;
   }
 
   #schedule-section .schedule-grid {
@@ -1863,8 +2259,13 @@ input[type="time"] {
     font-size: 16px;
   }
 
-  .book-item {
+  .book-item,
+  .book-item.is-current {
     grid-template-columns: 1fr;
+  }
+
+  .book-item.is-current::before {
+    display: none;
   }
 
   .task-actual {
@@ -1881,10 +2282,33 @@ input[type="time"] {
   }
 }
 
-@media (min-width: 760px) {
+@media (max-width: 389px) {
   .app-shell {
-    border-color: var(--line);
-    background: var(--ground);
-    box-shadow: 0 24px 70px rgba(38,45,51,.22);
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .account-balances {
+    grid-template-columns: 1fr;
+  }
+
+  .spending-breakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-wrap {
+    max-width: 150px;
+    margin: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

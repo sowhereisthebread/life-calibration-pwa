@@ -47,8 +47,9 @@
 3. 在選單向下滑，點 **加入主畫面**。
 4. 名稱保留「TAKO」，點右上角 **加入**。
 5. 回到主畫面，從新出現的 App 圖示開啟。
-6. 確認畫面沒有 Safari 網址列，並依序點過 MONEY、WORK、PROJECTS、REVIEW、DATA 五個分頁。
-7. 之後務必從主畫面圖示記錄，不要從 Safari 分頁記錄。
+6. 確認畫面沒有 Safari 網址列，並依序點過 MONEY、WORK、PROJ、REVIEW、DATA 五個分頁（導覽列第三格顯示 `PROJ`）。
+7. 確認頁面上的數字與英文標籤是等寬字（IBM Plex Mono，自帶於 `fonts/`）。若顯示成系統預設字，代表字型檔沒被 Service Worker 快取到，重新整理一次再看。
+8. 之後務必從主畫面圖示記錄，不要從 Safari 分頁記錄。
 
 ## 之後更新版本
 

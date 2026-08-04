@@ -1,16 +1,19 @@
-const CACHE_NAME = "life-calibration-v0.4.0";
+const CACHE_NAME = "life-calibration-v0.4.1";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./data-core.js",
   "./data-store.js",
-  "./app.js?v=0.4.0",
+  "./app.js?v=0.4.1",
   "./manifest.json",
   "./icons/icon-192.png?v=0.3.4",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon-180.png",
-  "./icons/brand-mark.png"
+  "./icons/brand-mark.png",
+  // 自帶等寬字：離線可用是產品邊界，不依賴 Google Fonts CDN
+  "./fonts/ibm-plex-mono-400.woff2",
+  "./fonts/ibm-plex-mono-500.woff2"
 ];
 
 self.addEventListener("install", event => {

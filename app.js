@@ -41,7 +41,8 @@
 
   function queryElements() {
     [
-      "today-date", "autosave-status", "today-work-total", "work-month-revenue", "revenue-target", "work-revenue", "sleep-bedtime", "sleep-wake",
+      "today-date", "autosave-status", "today-work-total", "work-month-revenue", "work-revenue-percent", "work-revenue-bar",
+      "work-session-count", "revenue-target", "work-revenue", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-item", "transaction-title-field", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
@@ -176,10 +177,21 @@
     const sleepMinutes = RuntimeCore.durationBetweenTimes(day.sleep.bedtime, day.sleep.wakeTime);
     const totalWork = RuntimeCore.workMinutes(day.workSessions);
     const monthKey = todayKey.slice(0, 7);
+    const monthRevenue = RuntimeCore.monthWorkRevenue(state, monthKey);
+    const target = Math.max(0, Number(state.settings?.monthlyIncomeTarget ?? 60000) || 0);
     elements["sleep-total"].textContent = RuntimeCore.formatMinutes(sleepMinutes);
     elements["today-work-total"].textContent = RuntimeCore.formatMinutes(totalWork);
-    elements["work-month-revenue"].textContent = formatCurrency(RuntimeCore.monthWorkRevenue(state, monthKey));
+    elements["work-month-revenue"].textContent = formatCurrency(monthRevenue);
     elements["revenue-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
+
+    // 目標達成率：只驅動百分比文字與進度條寬度，不影響任何資料
+    const ratio = target > 0 ? Math.max(0, Math.min(1, monthRevenue / target)) : 0;
+    if (elements["work-revenue-percent"]) {
+      elements["work-revenue-percent"].textContent = `${Math.round(ratio * 100)}%`;
+    }
+    if (elements["work-revenue-bar"]) {
+      elements["work-revenue-bar"].style.width = `${(ratio * 100).toFixed(1)}%`;
+    }
   }
 
   function renderSchedule(forceOpen = false) {
@@ -199,10 +211,13 @@
     const openSession = day.workSessions.find(session => session.start && !session.end);
     elements["work-status"].textContent = openSession ? `工作中・${openSession.start}` : (day.workSessions.length ? "今日已打卡" : "尚未上班");
     elements["work-status"].classList.toggle("is-running", Boolean(openSession));
-    elements["punch-button"].textContent = openSession ? "下班打卡" : "上班打卡";
+    elements["punch-button"].textContent = openSession ? "下班" : "上班";
+    if (elements["work-session-count"]) {
+      elements["work-session-count"].textContent = `${day.workSessions.length} 段`;
+    }
 
     if (!day.workSessions.length) {
-      elements["work-sessions"].innerHTML = '<div class="empty-state"><strong>還沒有工作段</strong>按「上班打卡」就會開始第一段。</div>';
+      elements["work-sessions"].innerHTML = '<div class="empty-state"><strong>還沒有工作段</strong>按「上班」就會開始第一段。</div>';
       return;
     }
 

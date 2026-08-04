@@ -1,0 +1,11 @@
+IBM Plex Mono
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+
+Licensed under the SIL Open Font License, Version 1.1.
+Full licence text: https://openfontlicense.org/
+Upstream project:  https://github.com/IBM/plex
+
+本目錄的 ibm-plex-mono-400.woff2 與 ibm-plex-mono-500.woff2 是 latin 子集，
+取自 Google Fonts 為 IBM Plex Mono v20 產生的 woff2（fonts.gstatic.com）。
+自帶進 repo 的原因：TAKO 是離線可用的 PWA，字型不得依賴 CDN。
+兩檔已列入 sw.js 的 APP_SHELL 快取清單。

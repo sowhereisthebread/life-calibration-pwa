@@ -9,8 +9,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0B0C0D",
-  "theme_color": "#A4AAB0",
+  "background_color": "#9CA5AC",
+  "theme_color": "#9CA5AC",
   "categories": ["productivity", "lifestyle"],
   "icons": [
     {
