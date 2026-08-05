@@ -51,14 +51,50 @@
 7. 確認頁面上的數字與英文標籤是等寬字（IBM Plex Mono，自帶於 `fonts/`）。若顯示成系統預設字，代表字型檔沒被 Service Worker 快取到，重新整理一次再看。
 8. 之後務必從主畫面圖示記錄，不要從 Safari 分頁記錄。
 
+## 兩個版本號，各自跳各自的
+
+這個 repo 有兩個版本號，**用途不同、跳號時機不同，不要同步**。
+
+### 功能版本號（現為 `0.4.0`）
+
+- 位置：`index.html` 頁首的 `.brand-copy .eyebrow`，只有這一處。
+- 時機：**功能變更時才跳**。新增或改變使用者做得到的事、資料 schema 變動、產品行為改變。
+- 這是有意義的事件，看得到跳號就代表 App 本身不一樣了。純視覺、純重構、純文件不跳。
+- `test.html` 對它做**字面比對**（`test.html:680` 斷言頁首必須是 `0.4.0`），跳號時要一併改測試 —— 那正是「這是一件大事」的提醒。
+
+### 資產版本號（現為 `0.4.2`）
+
+三處必須**完全相等**：
+
+| # | 檔案 | 位置 |
+|---|---|---|
+| 1 | `sw.js` | `CACHE_NAME = "life-calibration-v0.4.2"` 的尾碼 |
+| 2 | `index.html` | `<script src="./app.js?v=0.4.2">` |
+| 3 | `sw.js` | `APP_SHELL` 內的 `"./app.js?v=0.4.2"` |
+
+- 時機：**每次改動 `style.css`／任何 `.js`／`fonts/` 就跳**，不論改動多小。
+- 理由：Service Worker 靠 `CACHE_NAME` 決定要不要重建快取。不跳號的話，已經裝在手機上的 PWA 會繼續吃舊快取，改了也看不到。
+- `test.html:698-709` 只斷言三者**互相一致**，不寫死數值 —— 跳號不會弄壞測試，寫錯一處才會。斷言原文：
+
+  ```js
+  if (indexAppVersion !== cacheVersion || cacheVersion !== workerAppVersion) {
+    throw new Error(`資產版本不一致：index.html ${indexAppVersion}／CACHE_NAME ${cacheVersion}／sw.js app.js ${workerAppVersion}`);
+  }
+  ```
+
+- 改完跑一次 `test.html` 就能確認三處沒有漏改。
+
+兩個號碼可以長期不一致（現在就是 `0.4.0` 對 `0.4.2`），那不是錯誤，是設計。
+
 ## 之後更新版本
 
 1. 在 GitHub Desktop 確認目前選取的 repo 是 `life-calibration`，不是上一層知識庫工作區。
 2. 檢查變更清單沒有 JSON／CSV 備份或任何個人資料。
-3. 填寫 Summary，按 **Commit to master**。
-4. 按 **Push origin**。
-5. 等待 GitHub Pages workflow 完成，並在 **Actions** 確認成功；若失敗，先依實際錯誤排查。
-6. iPhone 從主畫面重新開啟 App；若仍看到舊版，完全關閉 App 後再開一次。更新前先匯出 JSON，並把備份放在 repo 外。
+3. 依上一節跳版本號：改過 CSS／JS／字型就跳資產版本號三處，改過功能才跳頁首的功能版本號。跑一次 `test.html` 確認三處一致。
+4. 填寫 Summary，按 **Commit to master**。
+5. 按 **Push origin**。
+6. 等待 GitHub Pages workflow 完成，並在 **Actions** 確認成功；若失敗，先依實際錯誤排查。
+7. iPhone 從主畫面重新開啟 App；若仍看到舊版，完全關閉 App 後再開一次。更新前先匯出 JSON，並把備份放在 repo 外。
 
 ## 本專案的部署設定說明
 
