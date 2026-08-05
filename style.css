@@ -65,16 +65,17 @@
   --t-on-act: #F2F5F6;
   --ink: #16191B;                    /* 主要文字色。非材質層 */
   --t-nav-active: #16191B;           /* 導覽列作用中分頁。與 --ink 同值但職責不同 */
-  --t-frozen: #5E666D;               /* 冷凍項目，最暗 ICE 合成底上實測 3.30:1 */
+  --t-frozen: #5E666D;               /* 冷凍項目，最暗 ICE 合成底上實測 3.38:1 */
 
   /* ── 圖表色階：圓餅圖分段與 Item 排名點 ─────────────
-     不是材質層，是資料編碼；躺在裸銀底上。最淺一階對排名區
-     實測底色 #97A0A7 為 3.05:1，相鄰兩階等比 1.20:1。      */
-  --chart-1: #1B1E21;
-  --chart-2: #282D30;
-  --chart-3: #33393E;
-  --chart-4: #3E454B;
-  --chart-5: #485157;
+     不是材質層，是資料編碼。SPENT 是 ICE 卡片，最暗合成底
+     實測 #C1C9CF：最淺一階 3.09:1，相鄰兩階等比 1.34:1。
+     最淺一階同時是 OTHER 與排名第六名以後的色點。          */
+  --chart-1: #1B1E20;
+  --chart-2: #303437;
+  --chart-3: #43484B;
+  --chart-4: #555B5F;
+  --chart-5: #676E73;
 
   /* ── 線與陰影 ─────────────────────────────────── */
   --line: rgba(46,56,64,.11);
@@ -431,7 +432,6 @@ h3 {
 /* 直接躺在銀底上的標籤。.content-section 沒有 card class，
    它的標題與收合列不在 ICE 面上，不能用 ICE 情境的 token。 */
 .page-heading .eyebrow,
-.money-summary .step-label,
 .radar .section-heading h3,
 .content-section .section-heading h3 {
   color: var(--t-ground-label);
@@ -1759,8 +1759,14 @@ input[type="date"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* SPENT 是獨立區段，跟雷達與 RECENT 一樣是 ICE 卡片。
+   gap 歸零，維持原本由 margin 決定的節奏，不因換材質改版面。 */
 .money-summary {
-  margin: 0 0 var(--block-gap);
+  gap: 0;
+}
+
+.money-summary .step-label {
+  color: var(--t-ice-label);
 }
 
 .spending-breakdown {
@@ -1776,10 +1782,8 @@ input[type="date"] {
   height: auto;
 }
 
-/* --ground 是漸層，SVG fill 不吃漸層，中心孔改用中段實色 */
-.chart-wrap svg > circle {
-  fill: var(--ground-solid);
-}
+/* 中心孔與分段之間的間隙都是負空間：SVG 不畫任何東西，
+   露出的就是卡片自己的 ICE 背景。不填色，不多一層。 */
 
 .chart-empty {
   display: grid;
@@ -1787,7 +1791,7 @@ input[type="date"] {
   place-items: center;
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
-  color: var(--t-ground-label);
+  color: var(--t-ice-label);
   font-size: 13px;
 }
 
@@ -1801,7 +1805,7 @@ input[type="date"] {
   grid-template-columns: 8px minmax(0,1fr) auto auto;
   gap: 7px;
   align-items: baseline;
-  color: var(--t-ground-body);
+  color: var(--t-ice-sub);
   font-size: 13px;
 }
 
@@ -1818,13 +1822,14 @@ input[type="date"] {
 }
 
 .category-ranking strong {
+  color: var(--ink);
   font-family: var(--font-mono);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
 .category-ranking small {
-  color: var(--t-ground-label);
+  color: var(--t-ice-label);
   font-family: var(--font-mono);
 }
 

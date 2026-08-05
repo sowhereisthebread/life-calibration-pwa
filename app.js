@@ -410,6 +410,11 @@
     return [1, 2, 3, 4, 5].map(step => root.getPropertyValue(`--chart-${step}`).trim());
   }
 
+  // 分段之間的髮絲間隙，單位是 pathLength（圓周＝100）。
+  // SVG 以 150px 渲染時 1 個 pathLength 單位 ≈ 3.6 CSS px，0.44 ≈ 1.6px。
+  // 間隙是負空間：SVG 不畫東西，露出的就是卡片自己的 ICE 背景。
+  const SEGMENT_GAP = 0.44;
+
   function renderSpending() {
     const monthKey = todayKey.slice(0, 7);
     const total = RuntimeCore.monthExpense(state, monthKey);
@@ -417,20 +422,28 @@
     elements["month-spent"].textContent = formatCurrency(total);
     // 色階由 :root 的 --chart-1…--chart-5 定義，不在這裡寫死色碼。
     const shades = chartShades();
+    const tailShade = shades[shades.length - 1];   // 最淺一階＝OTHER 與第六名以後
     if (!ranking.length) {
       elements["spending-chart"].innerHTML = '<div class="chart-empty">Nothing logged yet.</div>';
       elements["category-ranking"].innerHTML = "";
       return;
     }
+    // 圖只畫前五名，第六名以後併成 OTHER，讓分段面積加總等於上方的支出總額。
+    // 純顯示層加總：不新增欄位，也不動 categoryRanking 的回傳結構。
+    const tailPercent = ranking.slice(5).reduce((sum, item) => sum + item.percent, 0);
+    const segments = ranking.slice(0, 5).map((item, index) => ({ percent: item.percent, color: shades[index] }));
+    if (tailPercent > 0) segments.push({ percent: tailPercent, color: tailShade });
+
     let offset = 0;
-    const circles = ranking.slice(0, 5).map((item, index) => {
-      const percent = item.percent;
-      const circle = `<circle cx="60" cy="60" r="46" pathLength="100" fill="none" stroke="${shades[index]}" stroke-width="20" stroke-dasharray="${percent} ${100 - percent}" stroke-dashoffset="${-offset}" />`;
-      offset += percent;
+    const gap = segments.length > 1 ? SEGMENT_GAP : 0;
+    const circles = segments.map(segment => {
+      const drawn = Math.max(0.3, segment.percent - gap);
+      const circle = `<circle cx="60" cy="60" r="46" pathLength="100" fill="none" stroke="${segment.color}" stroke-width="20" stroke-dasharray="${drawn} ${100 - drawn}" stroke-dashoffset="${-(offset + gap / 2)}" />`;
+      offset += segment.percent;
       return circle;
     }).join("");
-    elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="Spending by category this month"><g transform="rotate(-90 60 60)">${circles}</g><circle cx="60" cy="60" r="30" fill="var(--ground)" /></svg>`;
-    elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${shades[index % shades.length]}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
+    elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="Spending by category this month"><g transform="rotate(-90 60 60)">${circles}</g></svg>`;
+    elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${index < shades.length ? shades[index] : tailShade}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
   }
 
   function renderMoney() {
