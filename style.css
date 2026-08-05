@@ -64,6 +64,7 @@
   --t-deboss-on-ground: #2E353B;
   --t-on-act: #F2F5F6;
   --ink: #16191B;                    /* 主要文字色。非材質層 */
+  --t-nav-active: #16191B;           /* 導覽列作用中分頁。與 --ink 同值但職責不同 */
   --t-frozen: #5E666D;               /* 冷凍項目，ICE 面上 3.6:1 */
 
   /* ── 線與陰影 ─────────────────────────────────── */
@@ -632,9 +633,19 @@ fieldset {
   min-height: 44px;
   padding: 0 13px;
   color: var(--ink);
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 400;
+}
+
+/* --font-mono 只承載英數字。文字欄位與下拉選單會裝進使用者手填的中文
+   （項目、專案名、書名、備註、帳戶名），一律用 --font-ui。
+   只有數字、時間、日期三種欄位維持等寬：它們不可能出現中文，且需要對齊。 */
+input[type="number"],
+input[type="time"],
+input[type="date"] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .field textarea {
@@ -818,13 +829,39 @@ fieldset {
   border-top: 0;
 }
 
+/* 工作段列＝唯讀兩欄（時間區間／時長）＋展開編輯的入口。
+   基準 5a 的列是唯讀的，兩個 time input 不再預設展開。 */
 .session-row {
-  display: flex;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto 18px;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  min-height: 42px;
+  min-height: 46px;
   padding: 6px 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.session-row:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.session-row[aria-expanded="true"] .task-chevron {
+  transform: rotate(225deg);
+}
+
+/* 展開後的編輯區：卡片內部的列，沒有材質 */
+.session-details {
+  display: grid;
+  gap: 10px;
+  padding: 2px 0 14px;
 }
 
 .record-row-header {
@@ -1192,7 +1229,7 @@ fieldset {
 
 .nav-item.is-active {
   background: transparent;
-  color: var(--ink);
+  color: var(--t-nav-active);
 }
 
 .nav-item.is-active::after {
@@ -1395,12 +1432,14 @@ fieldset {
 }
 
 .stat > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--t-ground-mono);
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.15;
 }
 
 /* 今日工作段卡 */
@@ -1416,21 +1455,22 @@ fieldset {
 .session-times {
   display: flex;
   min-width: 0;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
 }
 
 .session-time {
-  width: auto;
-  min-width: 0;
-  min-height: 36px;
-  padding: 0 6px;
-  background: transparent;
-  box-shadow: none;
+  flex: 0 0 auto;
   color: var(--ink);
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.session-time.is-open {
+  color: var(--t-ice-sub);
 }
 
 .session-dash {
@@ -1626,10 +1666,12 @@ fieldset {
 
 /* Auto-paid：純文字，不加底色 */
 .auto-tag {
+  margin-left: 8px;
   color: var(--t-ice-label);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: .06em;
+  white-space: nowrap;
 }
 
 .account-balances {
@@ -1646,7 +1688,14 @@ fieldset {
   padding: 11px 12px;
 }
 
-.account-item > span,
+/* 帳戶名是使用者可改的內容（預設值就是中文），不套 mono */
+.account-item > span {
+  color: var(--t-ice-label);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
 .account-item small {
   color: var(--t-ice-label);
   font-family: var(--font-mono);
@@ -2017,9 +2066,12 @@ input[type="time"] {
   grid-template-columns: auto minmax(0, 1fr);
 }
 
+/* 備註是使用者手填內容，可能是中文，不套 mono */
 .task-note {
   min-width: 0;
   overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2279,6 +2331,16 @@ input[type="time"] {
   .modal-panel {
     max-height: calc(100dvh - 24px);
     padding: 16px;
+  }
+}
+
+/* 兩欄的 .inline-fields 在窄螢幕會壓縮到放不下時間欄位：
+   原始 16px 等寬字加左右 13px padding 需要 159px，而每欄寬 =（視窗寬 − 84）÷ 2，
+   要 402px 以上才夠。402px 以下一律改單欄，讓欄位佔滿整行，
+   字級與 padding 維持常規值，不為了塞進去而縮小輸入框。 */
+@media (max-width: 401px) {
+  .inline-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -38,11 +38,12 @@
   let mileageReturnFocus = null;
   let expandedProjectId = null;
   let expandedTaskKey = null;
+  let expandedSessionId = null;
 
   function queryElements() {
     [
       "today-date", "autosave-status", "today-work-total", "work-month-revenue", "work-revenue-percent", "work-revenue-bar",
-      "work-session-count", "revenue-target", "work-revenue", "sleep-bedtime", "sleep-wake",
+      "work-session-count", "revenue-target", "work-revenue", "stat-hourly", "stat-week", "stat-month", "sleep-bedtime", "sleep-wake",
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-item", "transaction-title-field", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
@@ -69,13 +70,13 @@
     return state.days[todayKey] || RuntimeCore.createEmptyDay();
   }
 
-  function refreshState(message = "已自動儲存") {
+  function refreshState(message = "Saved") {
     state = dataStore.readState();
     showSaveState(message);
     updateBackupReminder();
   }
 
-  function runDataChange(action, message = "已自動儲存") {
+  function runDataChange(action, message = "Saved") {
     try {
       action();
       refreshState(message);
@@ -92,7 +93,7 @@
     elements["autosave-status"].textContent = message;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      elements["autosave-status"].textContent = "輸入即存";
+      elements["autosave-status"].textContent = "Autosave on";
     }, 1800);
   }
 
@@ -109,26 +110,28 @@
     })[character]);
   }
 
+  // 不走 Intl 的 currency 樣式：同一份程式在不同語系環境下會輸出 NT$／$／TWD 三種形態，
+  // 靜態初值就永遠對不齊。符號固定 $，千分位自行插入，整數四捨五入。
   function formatCurrency(value) {
-    return new Intl.NumberFormat("zh-TW", {
-      style: "currency",
-      currency: "TWD",
-      maximumFractionDigits: 0
-    }).format(Number(value) || 0);
+    const rounded = Math.round(Number(value) || 0);
+    const digits = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return `${rounded < 0 ? "-" : ""}$${digits}`;
   }
 
+  // 日期一律 8/4 TUE：月/日用 en-US 的 numeric，星期另外取 short 再轉大寫。
+  // 兩個 formatter 是必要的 — 同一個 formatter 給 weekday 會排成「Tue, 8/4」。
   function formatDisplayDate(key, includeWeekday = true) {
-    return new Intl.DateTimeFormat("zh-TW", {
-      month: "numeric",
-      day: "numeric",
-      ...(includeWeekday ? { weekday: "short" } : {})
-    }).format(RuntimeCore.dateFromKey(key));
+    const date = RuntimeCore.dateFromKey(key);
+    const monthDay = new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric" }).format(date);
+    if (!includeWeekday) return monthDay;
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date).toUpperCase();
+    return `${monthDay} ${weekday}`;
   }
 
   function formatUpdated(value) {
-    if (!value) return "尚未更新";
+    if (!value) return "Never";
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "尚未更新";
+    if (Number.isNaN(date.getTime())) return "Never";
     return new Intl.DateTimeFormat("zh-TW", {
       month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false
     }).format(date);
@@ -172,6 +175,40 @@
     renderSchedule();
   }
 
+  // 週一起算的一週範圍（週一 → 週日）。
+  function weekRange(dateKey) {
+    const monday = RuntimeCore.dateFromKey(dateKey);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return [RuntimeCore.localDateKey(monday), RuntimeCore.localDateKey(sunday)];
+  }
+
+  function workMinutesBetween(fromKey, toKey) {
+    return Object.entries(state.days).reduce((total, [dayKey, day]) =>
+      dayKey >= fromKey && dayKey <= toKey ? total + RuntimeCore.workMinutes(day.workSessions) : total, 0);
+  }
+
+  function workMinutesInMonth(monthKey) {
+    return Object.entries(state.days).reduce((total, [dayKey, day]) =>
+      dayKey.startsWith(monthKey) ? total + RuntimeCore.workMinutes(day.workSessions) : total, 0);
+  }
+
+  // 時薪＝當日營收 ÷ 當日「完整」工作段總時數。本週＝週一起算，本月＝自然月。
+  // 進行中（沒有結束時間）的工作段一律不計入 — RuntimeCore.workMinutes() 本來就會略過。
+  // 三格全是純衍生：只讀既有欄位做加總與除法，不新增欄位、不寫入任何資料。
+  function renderWorkStats() {
+    const day = readToday();
+    const todayMinutes = RuntimeCore.workMinutes(day.workSessions);
+    const revenue = RuntimeCore.normalizeWorkRevenue(day.workRevenue);
+    const [weekStart, weekEnd] = weekRange(todayKey);
+    elements["stat-hourly"].textContent = revenue !== null && todayMinutes > 0
+      ? formatCurrency(revenue / (todayMinutes / 60))
+      : "—";
+    elements["stat-week"].textContent = RuntimeCore.formatMinutes(workMinutesBetween(weekStart, weekEnd));
+    elements["stat-month"].textContent = RuntimeCore.formatMinutes(workMinutesInMonth(todayKey.slice(0, 7)));
+  }
+
   function renderTodaySummary() {
     const day = readToday();
     const sleepMinutes = RuntimeCore.durationBetweenTimes(day.sleep.bedtime, day.sleep.wakeTime);
@@ -192,48 +229,73 @@
     if (elements["work-revenue-bar"]) {
       elements["work-revenue-bar"].style.width = `${(ratio * 100).toFixed(1)}%`;
     }
+    renderWorkStats();
   }
 
   function renderSchedule(forceOpen = false) {
-    const weekdayLabel = ["", "週一", "週二", "週三", "週四", "週五", "週六", "週日"];
+    const weekdayLabel = ["", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
     const entries = [...(state.schedule || [])].sort((a, b) => a.weekday - b.weekday || String(a.start).localeCompare(String(b.start)));
     const open = forceOpen || entries.length > 0 || elements["toggle-schedule"].getAttribute("aria-expanded") === "true";
     elements["schedule-section"].hidden = !open;
     elements["toggle-schedule"].setAttribute("aria-expanded", String(open));
     elements["schedule-list"].innerHTML = entries.length ? entries.map(item => `
       <article class="record-row schedule-row">
-        <div><strong>${escapeHtml(item.name || "固定時段")}</strong><span>${escapeHtml(weekdayLabel[item.weekday] || "")} · ${escapeHtml(item.start || "—")}–${escapeHtml(item.end || "—")}</span></div>
-      </article>`).join("") : '<div class="empty-state compact-empty">尚未設定固定時段。</div>';
+        <div><strong>${escapeHtml(item.name || "UNNAMED")}</strong><span>${escapeHtml(weekdayLabel[item.weekday] || "")} · ${escapeHtml(item.start || "—")}–${escapeHtml(item.end || "—")}</span></div>
+      </article>`).join("") : '<div class="empty-state compact-empty">Nothing scheduled.</div>';
+  }
+
+  // 工作段列的唯讀兩欄：時間區間與時長。未完成的工作段保留並標示 OPEN。
+  function sessionTimesMarkup(session) {
+    return `<span class="session-time">${escapeHtml(session.start || "—")}</span>`
+      + `<span class="session-dash" aria-hidden="true">—</span>`
+      + (session.end ? `<span class="session-time">${escapeHtml(session.end)}</span>` : "");
+  }
+
+  function sessionDuration(session) {
+    return session.end
+      ? RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(session.start, session.end))
+      : "OPEN";
+  }
+
+  // 只補摘要列的顯示，不整段重繪 — 重繪會讓正在輸入的時間欄位失焦。
+  function updateSessionRow(sessionId, session) {
+    const row = elements["work-sessions"].querySelector(`.session-row[data-session-id="${sessionId}"]`);
+    if (!row || !session) return;
+    row.querySelector(".session-duration").textContent = sessionDuration(session);
+    row.querySelector(".session-times").innerHTML = sessionTimesMarkup(session);
   }
 
   function renderWorkSessions() {
     const day = readToday();
     const openSession = day.workSessions.find(session => session.start && !session.end);
-    elements["work-status"].textContent = openSession ? `工作中・${openSession.start}` : (day.workSessions.length ? "今日已打卡" : "尚未上班");
+    elements["work-status"].textContent = openSession ? `ON SHIFT · ${openSession.start}` : "";
     elements["work-status"].classList.toggle("is-running", Boolean(openSession));
-    elements["punch-button"].textContent = openSession ? "下班" : "上班";
+    elements["punch-button"].textContent = openSession ? "OUT" : "IN";
     if (elements["work-session-count"]) {
-      elements["work-session-count"].textContent = `${day.workSessions.length} 段`;
+      elements["work-session-count"].textContent = String(day.workSessions.length);
     }
 
     if (!day.workSessions.length) {
-      elements["work-sessions"].innerHTML = '<div class="empty-state"><strong>還沒有工作段</strong>按「上班」就會開始第一段。</div>';
+      elements["work-sessions"].innerHTML = '<div class="empty-state"><strong>No sessions yet.</strong>Tap IN to start the first one.</div>';
       return;
     }
 
-    elements["work-sessions"].innerHTML = day.workSessions.map((session, index) => {
-      const duration = session.end ? RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(session.start, session.end)) : "未完成，不計工時";
+    elements["work-sessions"].innerHTML = day.workSessions.map(session => {
+      const expanded = expandedSessionId === session.id;
+      const detailId = `session-details-${session.id}`;
       return `
-        <div class="record-row" data-session-id="${escapeHtml(session.id)}">
-          <div class="record-row-header">
-            <strong>工作段 ${index + 1}・${escapeHtml(duration)}</strong>
-            <button type="button" class="record-remove" data-remove-session="${escapeHtml(session.id)}">移除此段</button>
-          </div>
+        <button type="button" class="session-row" data-session-id="${escapeHtml(session.id)}" data-toggle-session="${escapeHtml(session.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+          <span class="session-times">${sessionTimesMarkup(session)}</span>
+          <strong class="session-duration">${escapeHtml(sessionDuration(session))}</strong>
+          <span class="task-chevron" aria-hidden="true"></span>
+        </button>
+        ${expanded ? `<div id="${escapeHtml(detailId)}" class="session-details" data-session-id="${escapeHtml(session.id)}">
           <div class="inline-fields">
-            <label class="field"><span>上班</span><input class="record-input" type="time" value="${escapeHtml(session.start || "")}" data-session-field="start"></label>
-            <label class="field"><span>下班</span><input class="record-input" type="time" value="${escapeHtml(session.end || "")}" data-session-field="end"></label>
+            <label class="field"><span>IN</span><input class="record-input" type="time" value="${escapeHtml(session.start || "")}" data-session-field="start"></label>
+            <label class="field"><span>OUT</span><input class="record-input" type="time" value="${escapeHtml(session.end || "")}" data-session-field="end"></label>
           </div>
-        </div>`;
+          <button type="button" class="record-remove" data-remove-session="${escapeHtml(session.id)}">Remove</button>
+        </div>` : ""}`;
     }).join("");
   }
 
@@ -248,12 +310,14 @@
       return result;
     }, {});
     const typeLabel = { expense: "Expense", income: "Income", transfer: "Transfer" };
+    // Auto-paid 標記：交易上的 eventId 指到狀態為 auto-paid 的事件就標。純衍生，不新增欄位。
+    const autoPaidEventIds = new Set(state.events.filter(event => event.status === "auto-paid").map(event => event.id));
     elements["transaction-list"].innerHTML = Object.entries(groups).map(([dayKey, items]) => `
       <section class="transaction-day" aria-label="${escapeHtml(dayKey)}">
         <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
         ${items.map(transaction => `
           <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
-            <summary><span>${escapeHtml(transaction.type === "expense" ? (transaction.category || "Other") : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
+            <summary><span>${escapeHtml(transaction.type === "expense" ? (transaction.category || "Other") : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
             <div class="transaction-editor">
               <div class="inline-fields">
                 <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
@@ -301,9 +365,15 @@
       return;
     }
     const label = { overdue: "Overdue", today: "Due today", soon: "Due soon", "service-due": "Service due", "update-mileage": "Update mileage" };
+    // 相對天數：架構.md 第二章要求「逾期 N 天」。diff 由 radarItems() 依既有的到期日算出，純衍生。
+    const relativeLabel = item => {
+      if (item.kind === "overdue") return `Overdue ${Math.abs(item.diff)}d`;
+      if (item.kind === "soon") return `Due in ${item.diff}d`;
+      return label[item.kind];
+    };
     const markup = items.map(item => `
       <article class="radar-item is-${escapeHtml(item.kind)}">
-        <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${label[item.kind]}${item.event?.dueDate ? ` · ${escapeHtml(item.event.dueDate)}` : ""}</span></div>
+        <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${escapeHtml(relativeLabel(item))}${item.event?.dueDate ? ` · ${escapeHtml(formatDisplayDate(item.event.dueDate))}` : ""}</span></div>
         ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
       </article>`).join("");
     elements["money-radar-list"].innerHTML = markup;
@@ -340,7 +410,7 @@
       offset += percent;
       return circle;
     }).join("");
-    elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="本月支出分類圓餅圖"><g transform="rotate(-90 60 60)">${circles}</g><circle cx="60" cy="60" r="30" fill="var(--ground)" /></svg>`;
+    elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="Spending by category this month"><g transform="rotate(-90 60 60)">${circles}</g><circle cx="60" cy="60" r="30" fill="var(--ground)" /></svg>`;
     elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${shades[index % shades.length]}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
   }
 
@@ -361,18 +431,18 @@
       return `
         <article class="project-item ${expanded ? "is-expanded" : ""}" data-project-id="${escapeHtml(project.id)}">
           <button type="button" class="project-summary" data-toggle-project="${escapeHtml(project.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailsId)}">
-            <strong>${escapeHtml(project.name || "未命名專案")}</strong><span aria-hidden="true"></span>
+            <strong>${escapeHtml(project.name || "UNNAMED")}</strong><span aria-hidden="true"></span>
           </button>
           ${expanded ? `<div id="${escapeHtml(detailsId)}" class="card project-details">
             <div class="project-card-header">
-              <label class="field"><span>名稱</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
-              <label class="field"><span>狀態</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>進行中</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>暫停</option></select></label>
+              <label class="field"><span>NAME</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
+              <label class="field"><span>STATUS</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>Active</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>Paused</option></select></label>
             </div>
-            <label class="field"><span>下一步</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" data-project-field="nextStep"></label>
-            <p class="project-updated">最後更新：${escapeHtml(formatUpdated(project.updatedAt))}</p>
+            <label class="field"><span>NEXT STEP</span><input class="record-input" type="text" value="${escapeHtml(project.nextStep || "")}" data-project-field="nextStep"></label>
+            <p class="project-updated">Updated ${escapeHtml(formatUpdated(project.updatedAt))}</p>
             <div class="project-actions">
               <button type="button" class="button button-primary" data-close-project="${escapeHtml(project.id)}">Save & close</button>
-              <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">刪除專案</button>
+              <button type="button" class="record-remove" data-remove-project="${escapeHtml(project.id)}">Delete project</button>
             </div>
           </div>` : ""}
         </article>`;
@@ -385,13 +455,13 @@
         <div class="project-status-list">${items.map(projectMarkup).join("") || '<div class="empty-state compact-empty">Nothing here.</div>'}</div>
       </details>`;
     elements["project-list"].innerHTML = `
-      ${active.map(projectMarkup).join("") || '<div class="empty-state compact-empty"><strong>還沒有進行中專案</strong>新增後，只留下一個清楚的下一步。</div>'}
+      ${active.map(projectMarkup).join("") || '<div class="empty-state compact-empty"><strong>No active projects.</strong>Add one and keep a single clear next step.</div>'}
       ${collapsedGroup("paused", "PAUSED", paused)}`;
   }
 
   function taskMarkup(event, obligation) {
     const expanded = expandedTaskKey === event.id;
-    const dueLabel = event.dueDate ? `Due ${event.dueDate}` : "";
+    const dueLabel = event.dueDate ? `Due ${formatDisplayDate(event.dueDate)}` : "";
     const note = obligation.note || "";
     const detailId = `task-details-${event.id}`;
     const cycleLabel = { none: "None", once: "Once", monthly: "Monthly", yearly: "Yearly", after_days: "After N days", mileage: "By mileage" }[obligation.cycle.type] || "None";
@@ -477,18 +547,25 @@
     elements["metric-sleep"].textContent = RuntimeCore.formatMinutes(summary.averageSleep);
     elements["metric-work"].textContent = RuntimeCore.formatMinutes(summary.totalWork);
     elements["metric-expense"].textContent = formatCurrency(summary.totalExpense);
-    elements["metric-days"].textContent = `${summary.recordedDays} 天`;
+    elements["metric-days"].textContent = String(summary.recordedDays);
 
-    elements["review-list"].innerHTML = summary.rows.map(row => `
+    elements["review-list"].innerHTML = summary.rows.map(row => {
+      // 與 WORK 三格同一算式：當日營收 ÷ 當日「完整」工作段總時數。
+      // row.work 來自 workMinutes()，本來就略過沒有結束時間的工作段。
+      const revenue = RuntimeCore.normalizeWorkRevenue(state.days[row.date]?.workRevenue);
+      const hourly = revenue !== null && row.work > 0 ? formatCurrency(revenue / (row.work / 60)) : "—";
+      return `
       <article class="review-day">
-        <div class="review-day-header"><strong>${escapeHtml(formatDisplayDate(row.date))}</strong><span>${RuntimeCore.hasDayRecord(state.days[row.date]) ? "有記錄" : "尚無記錄"}</span></div>
+        <div class="review-day-header"><strong>${escapeHtml(formatDisplayDate(row.date))}</strong><span>${RuntimeCore.hasDayRecord(state.days[row.date]) ? "LOGGED" : "EMPTY"}</span></div>
         <div class="review-values">
-          <div><span>睡眠</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.sleep))}</strong></div>
-          <div><span>工時</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.work))}</strong></div>
-          <div><span>收支淨額</span><strong>${escapeHtml(formatCurrency(row.net))}</strong></div>
-          <div><span>恢復效果</span><strong>${row.recovery ? `${escapeHtml(row.recovery)} / 5` : "—"}</strong></div>
+          <div><span>SLEEP</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.sleep))}</strong></div>
+          <div><span>WORK</span><strong>${escapeHtml(RuntimeCore.formatMinutes(row.work))}</strong></div>
+          <div><span>HOURLY</span><strong>${escapeHtml(hourly)}</strong></div>
+          <div><span>NET</span><strong>${escapeHtml(formatCurrency(row.net))}</strong></div>
+          <div><span>RECOVERY</span><strong>${row.recovery ? `${escapeHtml(row.recovery)} / 5` : "—"}</strong></div>
         </div>
-      </article>`).join("");
+      </article>`;
+    }).join("");
 
     const monthKey = todayKey.slice(0, 7);
     const income = RuntimeCore.monthIncome(state, monthKey);
@@ -504,7 +581,7 @@
   }
 
   function renderDataPage() {
-    const protocolLabel = location.protocol === "file:" ? `直接雙擊（${location.href.split("?")[0]}）` : location.origin;
+    const protocolLabel = location.protocol === "file:" ? `Local file (${location.href.split("?")[0]})` : location.origin;
     elements["current-origin"].textContent = protocolLabel;
     elements["last-export"].textContent = state.meta.lastExportAt ? `Last export: ${formatUpdated(state.meta.lastExportAt)}` : "No export yet";
     elements["settings-radar-days"].value = String(state.settings?.radarDays ?? 7);
@@ -545,18 +622,18 @@
     const filename = RuntimeCore.exportFilename("json");
     downloadFile(dataStore.exportJson({ markExported: track }), filename, "application/json;charset=utf-8");
     if (track) {
-      refreshState("備份時間已記錄");
+      refreshState("Backup logged");
       renderDataPage();
-      showToast("完整 JSON 已匯出");
+      showToast("JSON exported");
     }
   }
 
   function downloadCsvExport() {
     downloadFile(`\uFEFF${dataStore.exportCsv()}`, RuntimeCore.exportFilename("csv"), "text/csv;charset=utf-8");
-    showToast("完整 CSV 已匯出");
+    showToast("CSV exported");
   }
 
-  function openConfirmation({ title, message, firstLabel = "第一次確認", finalLabel = "再次確認", action, trigger }) {
+  function openConfirmation({ title, message, firstLabel = "CONFIRM", finalLabel = "CONFIRM", action, trigger }) {
     modalAction = action;
     modalStep = 1;
     modalReturnFocus = trigger || document.activeElement;
@@ -578,9 +655,9 @@
   function confirmModalStep() {
     if (modalStep === 1) {
       modalStep = 2;
-      elements["modal-title"].textContent = "最後一次確認";
+      elements["modal-title"].textContent = "FINAL CONFIRM";
       elements["modal-message"].textContent = "這個動作會改變目前資料。確認後將立即執行。";
-      elements["modal-confirm"].textContent = elements["modal-confirm"].dataset.finalLabel || "確認執行";
+      elements["modal-confirm"].textContent = elements["modal-confirm"].dataset.finalLabel || "CONFIRM";
       return;
     }
     const action = modalAction;
@@ -717,15 +794,15 @@
       button.addEventListener("click", () => setPage(button.dataset.goPage));
     });
     elements["skip-backup-reminder"]?.addEventListener("click", () => {
-      runDataChange(() => dataStore.snoozeBackupReminder(todayKey), "今日已略過備份提醒");
-      showToast("今天不再提醒，明天會再次顯示");
+      runDataChange(() => dataStore.snoozeBackupReminder(todayKey), "Reminder skipped");
+      showToast("Hidden for today. It returns tomorrow.");
     });
     document.querySelectorAll("[data-now-target]").forEach(button => {
       button.addEventListener("click", () => {
         const target = document.getElementById(button.dataset.nowTarget);
         target.value = localTimeValue();
         target.dispatchEvent(new Event("input", { bubbles: true }));
-        showToast("已填入現在時間");
+        showToast("Filled with the current time");
       });
     });
 
@@ -760,7 +837,7 @@
       event.preventDefault();
       const name = elements["schedule-name"].value.trim();
       if (!name) {
-        showToast("請輸入時段名稱");
+        showToast("Enter a name");
         elements["schedule-name"].focus();
         return;
       }
@@ -780,10 +857,10 @@
       const openSession = [...day.workSessions].reverse().find(session => session.start && !session.end);
       if (openSession) {
         runDataChange(() => dataStore.updateWorkSession(todayKey, openSession.id, { end: localTimeValue() }));
-        showToast("已完成下班打卡");
+        showToast("Clocked out");
       } else {
         runDataChange(() => dataStore.addWorkSession(todayKey, { id: RuntimeCore.uid("work"), start: localTimeValue(), end: "" }));
-        showToast("已完成上班打卡");
+        showToast("Clocked in");
       }
       renderTodaySummary();
       renderWorkSessions();
@@ -798,22 +875,29 @@
       runDataChange(() => dataStore.updateWorkSession(todayKey, session.id, { [field]: event.target.value }));
       const updatedSession = readToday().workSessions.find(item => item.id === row.dataset.sessionId);
       renderTodaySummary();
-      row.querySelector(".record-row-header strong").textContent = updatedSession?.end ? `工作段・${RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(updatedSession.start, updatedSession.end))}` : "工作段・未完成，不計工時";
+      updateSessionRow(row.dataset.sessionId, updatedSession);
     });
 
     elements["work-sessions"].addEventListener("click", event => {
+      const toggle = event.target.closest("[data-toggle-session]");
+      if (toggle) {
+        expandedSessionId = expandedSessionId === toggle.dataset.toggleSession ? null : toggle.dataset.toggleSession;
+        renderWorkSessions();
+        return;
+      }
       const button = event.target.closest("[data-remove-session]");
       if (!button) return;
       openConfirmation({
-        title: "移除這段工作？",
+        title: "REMOVE SESSION",
         message: "這段上下班時間會從今天刪除。",
-        finalLabel: "確認移除",
+        finalLabel: "REMOVE",
         trigger: button,
         action: () => {
           runDataChange(() => dataStore.deleteWorkSession(todayKey, button.dataset.removeSession));
+          expandedSessionId = null;
           renderTodaySummary();
           renderWorkSessions();
-          showToast("工作段已移除");
+          showToast("Session removed");
         }
       });
     });
@@ -868,9 +952,9 @@
       const button = event.target.closest("[data-remove-transaction]");
       if (!button) return;
       openConfirmation({
-        title: "刪除這筆收支？",
+        title: "DELETE TRANSACTION",
         message: "這筆資料會從今天的收支中移除。",
-        finalLabel: "確認刪除",
+        finalLabel: "DELETE",
         trigger: button,
         action: () => {
           const row = button.closest("[data-day-key]");
@@ -933,7 +1017,7 @@
       const now = new Date().toISOString();
       runDataChange(() => dataStore.addProject({
         id: RuntimeCore.uid("project"),
-        name: elements["project-name"].value.trim() || "未命名專案",
+        name: elements["project-name"].value.trim() || "UNNAMED",
         status: "active",
         nextStep: elements["project-next-step"].value.trim(),
         updatedAt: now
@@ -941,7 +1025,7 @@
       elements["project-form"].reset();
       toggleProjectForm(false);
       renderProjects();
-      showToast("專案已新增");
+      showToast("Project added");
     });
 
     elements["project-list"].addEventListener("input", event => {
@@ -952,7 +1036,7 @@
       if (!project) return;
       runDataChange(() => dataStore.updateProject(project.id, { [field]: event.target.value }));
       const updatedProject = state.projects.find(item => item.id === card.dataset.projectId);
-      card.querySelector(".project-updated").textContent = `最後更新：${formatUpdated(updatedProject?.updatedAt)}`;
+      card.querySelector(".project-updated").textContent = `Updated ${formatUpdated(updatedProject?.updatedAt)}`;
     });
     elements["project-list"].addEventListener("change", () => renderProjects());
     elements["project-list"].addEventListener("click", event => {
@@ -973,15 +1057,15 @@
       if (!button) return;
       const project = state.projects.find(item => item.id === button.dataset.removeProject);
       openConfirmation({
-        title: "刪除這個專案？",
-        message: `「${project?.name || "未命名專案"}」及它的下一步會被刪除。`,
-        finalLabel: "確認刪除專案",
+        title: "DELETE PROJECT",
+        message: `「${project?.name || "UNNAMED"}」及它的下一步會被刪除。`,
+        finalLabel: "DELETE",
         trigger: button,
         action: () => {
           runDataChange(() => dataStore.deleteProject(button.dataset.removeProject));
           expandedProjectId = null;
           renderProjects();
-          showToast("專案已刪除");
+          showToast("Project deleted");
         }
       });
     });
@@ -1038,7 +1122,7 @@
       };
       const amount = elements["obligation-amount"].value === "" ? null : Math.max(0, Number(elements["obligation-amount"].value) || 0);
       const obligation = {
-        name: elements["obligation-name"].value.trim() || "未命名待辦",
+        name: elements["obligation-name"].value.trim() || "UNNAMED",
         cycle,
         amount,
         handling: elements["obligation-handling"].value,
@@ -1106,9 +1190,9 @@
       if (removeBook) {
         const book = state.books.find(item => item.id === removeBook.dataset.removeBook);
         openConfirmation({
-          title: "刪除這本書？",
-          message: `「${book?.name || "未命名"}」會從書單移除。`,
-          finalLabel: "確認刪除書籍",
+          title: "DELETE BOOK",
+          message: `「${book?.name || "UNNAMED"}」會從書單移除。`,
+          finalLabel: "DELETE",
           trigger: removeBook,
           action: () => {
             runDataChange(() => dataStore.deleteBook(removeBook.dataset.removeBook));
@@ -1202,15 +1286,15 @@
           return;
         }
         openConfirmation({
-          title: "以匯入檔取代全部資料？",
+          title: "REPLACE ALL DATA",
           message: "確認後會先自動下載目前資料的備份，再以選取的 JSON 完整取代。",
-          finalLabel: "備份並取代",
+          finalLabel: "CONFIRM",
           trigger: elements["import-json"],
           action: () => {
             downloadJsonBackup({ track: false });
-            if (runDataChange(() => dataStore.importState(parsed), "匯入資料已儲存")) {
+            if (runDataChange(() => dataStore.importState(parsed), "Saved")) {
               renderAll();
-              showToast("JSON 已匯入並完整取代");
+              showToast("JSON imported and replaced everything");
             }
           }
         });
@@ -1224,18 +1308,18 @@
 
     elements["clear-data"].addEventListener("click", event => {
       openConfirmation({
-        title: "清除全部資料？",
+        title: "CLEAR ALL DATA",
         message: "今天、專案與回顧資料都會從目前瀏覽器清除。建議先匯出 JSON。",
-        finalLabel: "確認清除全部",
+        finalLabel: "CONFIRM",
         trigger: event.currentTarget,
         action: () => {
-          if (!runDataChange(() => dataStore.clear(), "已清除")) return;
+          if (!runDataChange(() => dataStore.clear(), "Cleared")) return;
           elements["transaction-type"].value = "expense";
           elements["transaction-amount"].value = "";
           elements["transaction-item"].value = "";
           elements["transaction-note"].value = "";
           renderAll();
-          showToast("全部資料已清除");
+          showToast("All data cleared");
         }
       });
     });
@@ -1263,9 +1347,7 @@
 
   function init() {
     queryElements();
-    elements["today-date"].textContent = new Intl.DateTimeFormat("zh-TW", {
-      month: "numeric", day: "numeric", weekday: "short"
-    }).format(new Date());
+    elements["today-date"].textContent = formatDisplayDate(todayKey);
     elements["transaction-item"].value = "";
     runDataChange(() => dataStore.touchOpened());
     bindDateControls();

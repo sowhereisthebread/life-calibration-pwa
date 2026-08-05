@@ -20,7 +20,7 @@
     <script src="./app.js?v=0.4.1" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#main-content">跳到主要內容</a>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
 
     <div id="app" class="app-shell">
       <header class="app-header">
@@ -28,18 +28,18 @@
           <h1>TAKO</h1>
           <p class="eyebrow">0.4.0</p>
         </div>
-        <div id="today-date" class="header-date" aria-label="今天日期"></div>
+        <div id="today-date" class="header-date" aria-label="Today's date"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
       </header>
 
       <aside id="backup-reminder" class="notice notice-warning" hidden>
         <div>
-          <strong>記得備份本機資料</strong>
-          <p>瀏覽器可能清理網站資料，建議現在匯出一份 JSON。</p>
+          <strong>Back up your local data</strong>
+          <p>Browsers can clear site data. Export a JSON copy now.</p>
         </div>
         <div class="notice-actions">
-          <button id="skip-backup-reminder" type="button" class="button button-quiet">本次略過</button>
-          <button type="button" class="button button-quiet" data-go-page="data">前往資料頁</button>
+          <button id="skip-backup-reminder" type="button" class="button button-quiet">Skip today</button>
+          <button type="button" class="button button-quiet" data-go-page="data">Go to DATA</button>
         </div>
       </aside>
 
@@ -104,7 +104,7 @@
                   <span>Title (optional)</span>
                   <input id="transaction-note" type="text" autocomplete="off">
                 </label>
-                <button type="submit" class="button button-primary button-full">新增</button>
+                <button type="submit" class="button button-primary button-full">Add</button>
               </form>
             </article>
           </div>
@@ -113,8 +113,8 @@
             <div id="account-balances" class="account-balances"></div>
           </section>
           <section class="money-summary" aria-labelledby="spent-heading">
-            <p class="step-label">本月支出</p>
-            <strong id="month-spent" class="primary-number primary-number-hero">NT$ 0</strong>
+            <p id="spent-heading" class="step-label">SPENT</p>
+            <strong id="month-spent" class="primary-number primary-number-hero">$0</strong>
             <div class="spending-breakdown">
               <div id="spending-chart" class="chart-wrap"></div>
               <div id="category-ranking" class="category-ranking"></div>
@@ -135,7 +135,7 @@
               <h2 id="work-page-heading">WORK</h2>
             </div>
             <div class="heading-actions">
-              <span id="autosave-status" class="save-state" aria-live="polite">輸入即存</span>
+              <span id="autosave-status" class="save-state" aria-live="polite">Autosave on</span>
               <button id="toggle-schedule" type="button" class="button button-secondary button-mono" aria-expanded="false" aria-controls="schedule-section">SCHEDULE</button>
             </div>
           </div>
@@ -143,35 +143,35 @@
           <article id="work-card" class="card" aria-labelledby="work-heading">
             <div class="card-heading">
               <h3 id="work-heading" class="step-label">01 · SHIFT</h3>
-              <span id="work-status" class="status-pill">尚未上班</span>
+              <span id="work-status" class="status-pill"></span>
             </div>
             <div class="hero-row">
               <div class="hero-value">
                 <strong id="today-work-total" class="primary-number">0:00</strong>
-                <span class="hero-unit">今天累計</span>
+                <span class="hero-unit">TODAY</span>
               </div>
-              <button id="punch-button" type="button" class="button shift-punch">上班</button>
+              <button id="punch-button" type="button" class="button shift-punch">IN</button>
             </div>
             <label id="work-revenue-field" class="field">
-              <span>今日營收</span>
+              <span>REVENUE</span>
               <span class="money-input">
                 <span class="money-prefix" aria-hidden="true">$</span>
-                <input id="work-revenue" type="number" min="0" step="1" inputmode="decimal" placeholder="輸入金額">
+                <input id="work-revenue" type="number" min="0" step="1" inputmode="decimal" placeholder="Amount">
               </span>
             </label>
           </article>
 
           <article id="work-summary" class="card" aria-labelledby="work-revenue-label">
             <div class="card-heading">
-              <h3 id="work-revenue-label" class="step-label">本月營收</h3>
-              <label class="target-field">目標
-                <span class="visually-hidden">本月營收目標</span>
+              <h3 id="work-revenue-label" class="step-label">MONTH REVENUE</h3>
+              <label class="target-field">GOAL
+                <span class="visually-hidden">Monthly revenue goal</span>
                 <input id="revenue-target" type="number" min="0" step="1000" inputmode="decimal">
               </label>
             </div>
             <div class="hero-row">
               <div class="hero-value">
-                <strong id="work-month-revenue" class="primary-number">NT$ 0</strong>
+                <strong id="work-month-revenue" class="primary-number">$0</strong>
                 <span id="work-revenue-percent" class="hero-unit hero-unit-mono">0%</span>
               </div>
             </div>
@@ -180,16 +180,16 @@
             </div>
           </article>
 
-          <div class="stat-row" aria-label="工作統計">
-            <div class="stat"><span>時薪</span><strong id="stat-hourly">—</strong></div>
-            <div class="stat"><span>本週</span><strong id="stat-week">—</strong></div>
-            <div class="stat"><span>本月</span><strong id="stat-month">—</strong></div>
+          <div class="stat-row" aria-label="Work stats">
+            <div class="stat"><span>HOURLY</span><strong id="stat-hourly">—</strong></div>
+            <div class="stat"><span>WEEK</span><strong id="stat-week">—</strong></div>
+            <div class="stat"><span>MONTH</span><strong id="stat-month">—</strong></div>
           </div>
 
           <article class="card sessions-card" aria-labelledby="work-sessions-label">
             <div class="card-heading">
-              <h3 id="work-sessions-label" class="step-label">今日工作段</h3>
-              <span id="work-session-count" class="step-note">0 段</span>
+              <h3 id="work-sessions-label" class="step-label">SESSIONS</h3>
+              <span id="work-session-count" class="step-note">0</span>
             </div>
             <div id="work-sessions" class="session-list" aria-live="polite"></div>
           </article>
@@ -197,23 +197,23 @@
           <article id="sleep-card" class="card" aria-labelledby="sleep-section-label">
             <div class="card-heading">
               <div>
-                <p id="sleep-section-label" class="step-label">02・睡眠</p>
+                <p id="sleep-section-label" class="step-label">02 · SLEEP</p>
               </div>
               <strong id="sleep-total" class="card-number">—</strong>
             </div>
             <div class="time-grid">
               <label class="field">
-                <span>就寢時間</span>
+                <span>BEDTIME</span>
                 <span class="input-action-row">
                   <input id="sleep-bedtime" type="time" autocomplete="off">
-                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-bedtime">現在</button>
+                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-bedtime">NOW</button>
                 </span>
               </label>
               <label class="field">
-                <span>起床時間</span>
+                <span>WAKE</span>
                 <span class="input-action-row">
                   <input id="sleep-wake" type="time" autocomplete="off">
-                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-wake">現在</button>
+                  <button type="button" class="button button-quiet now-button" data-now-target="sleep-wake">NOW</button>
                 </span>
               </label>
             </div>
@@ -222,28 +222,26 @@
           <article class="card" aria-labelledby="recovery-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">03・恢復</p>
-                <h3 id="recovery-heading">什麼讓你恢復一點？</h3>
+                <p class="step-label">03 · RECOVERY</p>
+                <h3 id="recovery-heading">What helped you recover?</h3>
               </div>
             </div>
             <div class="field-stack">
               <label class="field">
-                <span>做了什麼</span>
+                <span>WHAT YOU DID</span>
                 <input id="recovery-activity" type="text" autocomplete="off">
               </label>
               <label class="field">
-                <span>效果</span>
+                <span>EFFECT</span>
                 <select id="recovery-effect">
-                  <option value="">尚未評分</option>
-                  <option value="1">1・幾乎沒幫助</option>
-                  <option value="2">2・有一點</option>
-                  <option value="3">3・普通</option>
-                  <option value="4">4・有幫助</option>
-                  <option value="5">5・很有幫助</option>
+                  <option value="">Not rated</option>
+                  <option value="5">Great</option>
+                  <option value="3">Good</option>
+                  <option value="1">God damn</option>
                 </select>
               </label>
               <label class="field visually-labeled">
-                <span>一句話備註</span>
+                <span>NOTE</span>
                 <input id="daily-note" type="text" autocomplete="off">
               </label>
             </div>
@@ -252,13 +250,12 @@
           <section id="schedule-section" class="card" aria-labelledby="schedule-heading" hidden>
             <div class="card-heading compact-heading">
               <div>
-                <p class="step-label">SCHEDULE</p>
-                <h3 id="schedule-heading">固定時段</h3>
+                <p id="schedule-heading" class="step-label">SCHEDULE</p>
               </div>
             </div>
             <form id="schedule-form" class="stack-form" novalidate>
               <div class="schedule-grid">
-                <label class="field"><span>Weekday</span><select id="schedule-weekday"><option value="1">週一</option><option value="2">週二</option><option value="3">週三</option><option value="4">週四</option><option value="5">週五</option><option value="6">週六</option><option value="7">週日</option></select></label>
+                <label class="field"><span>Weekday</span><select id="schedule-weekday"><option value="1">Mon</option><option value="2">Tue</option><option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option><option value="7">Sun</option></select></label>
                 <label class="field"><span>Start</span><input id="schedule-start" type="time"></label>
                 <label class="field"><span>End</span><input id="schedule-end" type="time"></label>
               </div>
@@ -275,22 +272,22 @@
               <p class="eyebrow">Commitments & next steps</p>
               <h2 id="projects-heading">PROJECTS</h2>
             </div>
-            <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">新增專案</button>
+            <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">New project</button>
           </div>
 
           <form id="project-form" class="card stack-form" hidden novalidate>
-            <h3>新增一個專案</h3>
+            <h3>New project</h3>
             <label class="field">
-              <span>專案名稱</span>
+              <span>NAME</span>
               <input id="project-name" type="text" autocomplete="off">
             </label>
             <label class="field">
-              <span>下一步</span>
+              <span>NEXT STEP</span>
               <input id="project-next-step" type="text" autocomplete="off">
             </label>
             <div class="form-actions">
-              <button type="button" id="cancel-project" class="button button-quiet">取消</button>
-              <button type="submit" class="button button-primary">加入專案</button>
+              <button type="button" id="cancel-project" class="button button-quiet">Cancel</button>
+              <button type="submit" class="button button-primary">Add project</button>
             </div>
           </form>
 
@@ -309,7 +306,7 @@
             <form id="quick-task-form" class="input-action-row" novalidate>
               <label class="visually-hidden" for="quick-task-name">Name</label>
               <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
-              <button type="submit" class="button button-primary">新增</button>
+              <button type="submit" class="button button-primary">Add</button>
             </form>
             <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
               <div class="section-heading compact-heading"><h4 id="obligation-form-title">Task details</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet">Close</button></div>
@@ -368,7 +365,7 @@
 
           <section class="card" aria-labelledby="books-heading">
             <div class="section-heading"><h3 id="books-heading">BOOKS</h3></div>
-            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">新增</button></form>
+            <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">Add</button></form>
             <div id="book-list" class="book-list"></div>
           </section>
 
@@ -386,25 +383,25 @@
             </div>
           </div>
 
-          <div class="metric-grid" aria-label="最近七天摘要">
-            <article class="metric"><span>平均睡眠</span><strong id="metric-sleep" class="primary-number">—</strong></article>
-            <article class="metric"><span>總工時</span><strong id="metric-work" class="primary-number">0:00</strong></article>
-            <article class="metric"><span>支出合計</span><strong id="metric-expense" class="primary-number">NT$ 0</strong></article>
-            <article class="metric"><span>有記錄</span><strong id="metric-days" class="primary-number">0 天</strong></article>
+          <div class="metric-grid" aria-label="Last seven days">
+            <article class="metric"><span>AVG SLEEP</span><strong id="metric-sleep" class="primary-number">—</strong></article>
+            <article class="metric"><span>TOTAL WORK</span><strong id="metric-work" class="primary-number">0:00</strong></article>
+            <article class="metric"><span>EXPENSES</span><strong id="metric-expense" class="primary-number">$0</strong></article>
+            <article class="metric"><span>DAYS LOGGED</span><strong id="metric-days" class="primary-number">0</strong></article>
           </div>
           <div id="review-list" class="review-list"></div>
 
           <section class="card" aria-labelledby="monthly-close-heading">
             <div class="section-heading"><h3 id="monthly-close-heading">MONTHLY CLOSE</h3></div>
             <div class="metric-grid monthly-close-grid">
-              <article class="metric"><span>Income</span><strong id="review-month-income" class="primary-number">NT$ 0</strong></article>
-              <article class="metric"><span>Expense</span><strong id="review-month-expense" class="primary-number">NT$ 0</strong></article>
-              <article class="metric"><span>Net</span><strong id="review-month-net" class="primary-number">NT$ 0</strong></article>
+              <article class="metric"><span>Income</span><strong id="review-month-income" class="primary-number">$0</strong></article>
+              <article class="metric"><span>Expense</span><strong id="review-month-expense" class="primary-number">$0</strong></article>
+              <article class="metric"><span>Net</span><strong id="review-month-net" class="primary-number">$0</strong></article>
             </div>
             <label class="field"><span>Credit card statement</span><input id="statement-amount" type="number" min="0" step="1" inputmode="decimal"></label>
             <div class="statement-compare">
-              <div><span>Recorded last month</span><strong id="statement-recorded">NT$ 0</strong></div>
-              <div><span>Gap</span><strong id="statement-gap">NT$ 0</strong></div>
+              <div><span>Recorded last month</span><strong id="statement-recorded">$0</strong></div>
+              <div><span>Gap</span><strong id="statement-gap">$0</strong></div>
             </div>
           </section>
         </section>
@@ -439,17 +436,17 @@
           </article>
 
           <article class="card data-card" aria-labelledby="accounts-manage-heading">
-            <h3 id="accounts-manage-heading">管理帳戶</h3>
+            <h3 id="accounts-manage-heading">MANAGE ACCOUNTS</h3>
             <form id="account-form" class="stack-form" novalidate>
               <label class="field"><span>Name</span><input id="account-name" type="text" autocomplete="off"></label>
-              <button type="submit" class="button button-secondary button-full">新增帳戶</button>
+              <button type="submit" class="button button-secondary button-full">Add account</button>
             </form>
             <div id="account-manager" class="manager-list"></div>
           </article>
 
           <article class="card data-card">
             <h3>BACKUP & EXPORT</h3>
-            <p>JSON 能完整還原；CSV 包含每日、交易、義務、事件、帳戶、書單、排程與設定。</p>
+            <p>JSON restores everything. CSV covers days, transactions, obligations, events, accounts, books, schedule and settings.</p>
             <button id="export-json" type="button" class="button button-primary button-full">Export JSON</button>
             <button id="export-csv" type="button" class="button button-secondary button-full">Export CSV</button>
             <label class="button button-quiet button-full file-button" for="import-json">Import JSON</label>
@@ -458,23 +455,23 @@
           </article>
 
           <article class="card data-card">
-            <h3>目前資料位置</h3>
+            <h3>WHERE YOUR DATA LIVES</h3>
             <dl class="data-facts">
-              <div><dt>網址</dt><dd id="current-origin"></dd></div>
-              <div><dt>儲存方式</dt><dd>這個瀏覽器的本機空間</dd></div>
-              <div><dt>同步</dt><dd>不會跨裝置同步</dd></div>
+              <div><dt>Origin</dt><dd id="current-origin"></dd></div>
+              <div><dt>Storage</dt><dd>This browser's local storage</dd></div>
+              <div><dt>Sync</dt><dd>No cross-device sync</dd></div>
             </dl>
           </article>
 
           <article class="card danger-zone">
             <h3>CLEAR ALL DATA</h3>
-            <p>只會清除目前這個網址與瀏覽器內的人生主控表資料。</p>
+            <p>Clears TAKO data for this origin and browser only.</p>
             <button id="clear-data" type="button" class="button button-danger button-full">Clear all</button>
           </article>
         </section>
       </main>
 
-      <nav class="bottom-nav" aria-label="主要分頁">
+      <nav class="bottom-nav" aria-label="Primary pages">
         <button type="button" class="nav-item is-active" data-page-target="money" aria-current="page">
           <span>MONEY</span>
         </button>
@@ -496,12 +493,12 @@
     <div id="confirm-modal" class="modal" hidden>
       <div class="modal-scrim" data-modal-cancel></div>
       <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
-        <p class="eyebrow">需要確認</p>
-        <h2 id="modal-title">確認操作</h2>
+        <p class="eyebrow">CONFIRM</p>
+        <h2 id="modal-title">CONFIRM</h2>
         <p id="modal-message"></p>
         <div class="modal-actions">
-          <button type="button" class="button button-quiet" data-modal-cancel>取消</button>
-          <button id="modal-confirm" type="button" class="button button-danger">繼續</button>
+          <button type="button" class="button button-quiet" data-modal-cancel>CANCEL</button>
+          <button id="modal-confirm" type="button" class="button button-danger">CONFIRM</button>
         </div>
       </section>
     </div>
