@@ -555,8 +555,9 @@
 
   function renderReview() {
     const summary = RuntimeCore.summarizeReview(state, todayKey);
+    // AVG SLEEP 是日均，維持 h:mm；TOTAL WORK 是七天合計，屬跨日合計，用小數時數。
     elements["metric-sleep"].textContent = RuntimeCore.formatMinutes(summary.averageSleep);
-    elements["metric-work"].textContent = RuntimeCore.formatMinutes(summary.totalWork);
+    elements["metric-work"].textContent = decimalHours(summary.totalWork);
     elements["metric-expense"].textContent = formatCurrency(summary.totalExpense);
     elements["metric-days"].textContent = String(summary.recordedDays);
 
