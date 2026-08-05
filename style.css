@@ -2336,9 +2336,10 @@ input[type="time"] {
 
 /* 兩欄的 .inline-fields 在窄螢幕會壓縮到放不下時間欄位：
    原始 16px 等寬字加左右 13px padding 需要 159px，而每欄寬 =（視窗寬 − 84）÷ 2，
-   要 402px 以上才夠。402px 以下一律改單欄，讓欄位佔滿整行，
+   要 403px 以上才夠（402px 時每欄 158px，還差 1px，正好是 iPhone 16 Pro 的寬度）。
+   402px 以下一律改單欄，讓欄位佔滿整行，
    字級與 padding 維持常規值，不為了塞進去而縮小輸入框。 */
-@media (max-width: 401px) {
+@media (max-width: 402px) {
   .inline-fields {
     grid-template-columns: minmax(0, 1fr);
   }

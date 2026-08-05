@@ -189,6 +189,11 @@
       dayKey >= fromKey && dayKey <= toKey ? total + RuntimeCore.workMinutes(day.workSessions) : total, 0);
   }
 
+  // 跨日合計專用：小數一位加 h。單日與單段時長不用這個，維持 h:mm。
+  function decimalHours(minutes) {
+    return `${(Math.max(0, Number(minutes) || 0) / 60).toFixed(1)}h`;
+  }
+
   function workMinutesInMonth(monthKey) {
     return Object.entries(state.days).reduce((total, [dayKey, day]) =>
       dayKey.startsWith(monthKey) ? total + RuntimeCore.workMinutes(day.workSessions) : total, 0);
@@ -205,8 +210,9 @@
     elements["stat-hourly"].textContent = revenue !== null && todayMinutes > 0
       ? formatCurrency(revenue / (todayMinutes / 60))
       : "—";
-    elements["stat-week"].textContent = RuntimeCore.formatMinutes(workMinutesBetween(weekStart, weekEnd));
-    elements["stat-month"].textContent = RuntimeCore.formatMinutes(workMinutesInMonth(todayKey.slice(0, 7)));
+    // 跨日的合計用小數時數（基準 5a 的 22.5h／96h）；單日與單段時長維持 h:mm。
+    elements["stat-week"].textContent = decimalHours(workMinutesBetween(weekStart, weekEnd));
+    elements["stat-month"].textContent = decimalHours(workMinutesInMonth(todayKey.slice(0, 7)));
   }
 
   function renderTodaySummary() {
@@ -251,10 +257,15 @@
       + (session.end ? `<span class="session-time">${escapeHtml(session.end)}</span>` : "");
   }
 
+  // 未完成的工作段顯示「即時累計 + OPEN」（基準 5a 的 13:00 — 進行中 0:54 就是這個位置）。
+  // 累計是 start 到現在的純衍生值，只在重新渲染時更新，不寫入任何資料。
+  // 注意：TODAY 主數字仍然只計完整段（架構.md 第二章），這裡不影響它。
   function sessionDuration(session) {
-    return session.end
-      ? RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(session.start, session.end))
-      : "OPEN";
+    if (session.end) {
+      return RuntimeCore.formatMinutes(RuntimeCore.durationBetweenTimes(session.start, session.end));
+    }
+    const elapsed = RuntimeCore.durationBetweenTimes(session.start, localTimeValue());
+    return elapsed === null ? "OPEN" : `${RuntimeCore.formatMinutes(elapsed)} OPEN`;
   }
 
   // 只補摘要列的顯示，不整段重繪 — 重繪會讓正在輸入的時間欄位失焦。
