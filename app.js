@@ -422,17 +422,20 @@
     elements["month-spent"].textContent = formatCurrency(total);
     // 色階由 :root 的 --chart-1…--chart-5 定義，不在這裡寫死色碼。
     const shades = chartShades();
-    const tailShade = shades[shades.length - 1];   // 最淺一階＝OTHER 與第六名以後
+    const tailShade = shades[shades.length - 1];   // 最淺一階＝OTHER 那一段
     if (!ranking.length) {
       elements["spending-chart"].innerHTML = '<div class="chart-empty">Nothing logged yet.</div>';
       elements["category-ranking"].innerHTML = "";
       return;
     }
-    // 圖只畫前五名，第六名以後併成 OTHER，讓分段面積加總等於上方的支出總額。
+    // 五個色階要對到五段：類別數 ≤ 5 就全部個別顯示；超過就前四名各一段、
+    // 第五名以後併成 OTHER，讓每個排名色點都對得到唯一一段。
     // 純顯示層加總：不新增欄位，也不動 categoryRanking 的回傳結構。
-    const tailPercent = ranking.slice(5).reduce((sum, item) => sum + item.percent, 0);
-    const segments = ranking.slice(0, 5).map((item, index) => ({ percent: item.percent, color: shades[index] }));
-    if (tailPercent > 0) segments.push({ percent: tailPercent, color: tailShade });
+    const hasOther = ranking.length > shades.length;
+    const individual = hasOther ? shades.length - 1 : ranking.length;
+    const segments = ranking.slice(0, individual).map((item, index) => ({ percent: item.percent, color: shades[index] }));
+    const tailPercent = ranking.slice(individual).reduce((sum, item) => sum + item.percent, 0);
+    if (hasOther && tailPercent > 0) segments.push({ percent: tailPercent, color: tailShade });
 
     let offset = 0;
     const gap = segments.length > 1 ? SEGMENT_GAP : 0;
@@ -443,7 +446,9 @@
       return circle;
     }).join("");
     elements["spending-chart"].innerHTML = `<svg viewBox="0 0 120 120" role="img" aria-label="Spending by category this month"><g transform="rotate(-90 60 60)">${circles}</g></svg>`;
-    elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${index < shades.length ? shades[index] : tailShade}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
+    // 有 OTHER 時，第五名以後的色點一律用 OTHER 那一段的色
+    const dotShade = index => (hasOther && index >= individual) ? tailShade : shades[index];
+    elements["category-ranking"].innerHTML = ranking.map((item, index) => `<div><i style="--rank-color:${dotShade(index)}"></i><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(formatCurrency(item.amount))}</strong><small>${item.percent.toFixed(0)}%</small></div>`).join("");
   }
 
   function renderMoney() {
