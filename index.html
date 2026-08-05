@@ -363,15 +363,17 @@
             <details id="task-done-group" class="recess-group"><summary>Done</summary><div id="task-done" class="task-list"></div></details>
           </section>
 
+          <section class="frozen-section" aria-labelledby="frozen-heading">
+            <details id="frozen-group" class="recess-group frozen-group">
+              <summary id="frozen-heading">FROZEN<span id="frozen-count" class="group-count"></span></summary>
+              <div id="frozen-list" class="task-list"></div>
+            </details>
+          </section>
+
           <section class="card" aria-labelledby="books-heading">
             <div class="section-heading"><h3 id="books-heading">BOOKS</h3></div>
             <form id="book-form" class="input-action-row" novalidate><label class="visually-hidden" for="book-name">Book name</label><input id="book-name" class="record-input" type="text" autocomplete="off"><button type="submit" class="button button-primary">Add</button></form>
             <div id="book-list" class="book-list"></div>
-          </section>
-
-          <section class="frozen-section" aria-labelledby="frozen-heading">
-            <div class="section-heading"><h3 id="frozen-heading">FROZEN</h3></div>
-            <div id="frozen-list" class="task-list"></div>
           </section>
         </section>
 

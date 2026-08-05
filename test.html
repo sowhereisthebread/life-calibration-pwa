@@ -590,6 +590,39 @@
           equal(store.deleteBook(book.id), false);
         });
 
+        test("自動義務不進雷達，AUTO 標記只出現在交易列", () => {
+          const store = createMemoryStore();
+          const today = "2026-08-01";
+          store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 390, handling: "auto", completionMode: "expense", paymentMethod: "card" }, today);
+          store.addObligation({ name: "房租", cycle: { type: "monthly", day: 1 }, amount: 12000, handling: "manual", completionMode: "expense", paymentMethod: "bank" }, today);
+          store.runAutoPayments(today);
+
+          const state = store.readState();
+          const radar = Core.radarItems(state, today).map(item => item.obligation.name);
+          if (radar.includes("訂閱")) throw new Error("自動處理的義務進了雷達");
+          if (!radar.includes("房租")) throw new Error("自行處理的義務不在雷達");
+
+          const autoObligation = state.obligations.find(item => item.name === "訂閱");
+          const autoEvent = state.events.find(event => event.obligationId === autoObligation.id && event.status === "auto-paid");
+          if (!autoEvent) throw new Error("自動義務未轉 Auto-paid");
+          const generated = Core.allTransactions(state).find(item => item.id === autoEvent.transactionId);
+          if (!generated) throw new Error("Auto-paid 未生成交易");
+          equal(generated.type, "expense");
+          equal(generated.paymentMethod, "card");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?v=0.4.0", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const start = app.indexOf("function renderRadar");
+          if (start < 0) throw new Error("找不到 renderRadar");
+          const rest = app.slice(start + 20);
+          const end = rest.indexOf("\n  function ");
+          const radarSource = app.slice(start, start + 20 + (end < 0 ? rest.length : end));
+          if (radarSource.includes("auto-tag")) throw new Error("renderRadar 的 markup 內出現 auto-tag");
+          if (!app.includes("auto-tag")) throw new Error("交易列缺少 auto-tag 標記");
+        });
+
         test("manifest 主題色為 #9CA5AC", () => {
           const request = new XMLHttpRequest();
           request.open("GET", "./manifest.json", false);
@@ -645,7 +678,6 @@
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
           if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.4.0") throw new Error("頁首版本不是 0.4.0（基準無 v 前綴）");
-          if (documentCopy.querySelector('script[src="./app.js?v=0.4.1"]') === null) throw new Error("app.js 未使用 v0.4.1 查詢字串");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 
@@ -662,7 +694,19 @@
           const workerRequest = new XMLHttpRequest();
           workerRequest.open("GET", "./sw.js?v=0.4.0", false);
           workerRequest.send();
-          if (!workerRequest.responseText.includes('life-calibration-v0.4.1') || !workerRequest.responseText.includes('./app.js?v=0.4.1')) throw new Error("Service Worker 版本未同步");
+          const worker = workerRequest.responseText;
+          // 資產版本不寫死：三處必須互相一致，跳號時不會再壞一次。
+          // 頁首版本號另外做字面比對 —— 它是功能版本，跳號是有意義的事件。
+          const indexAppVersion = documentCopy.querySelector('script[src^="./app.js?v="]')
+            ?.getAttribute("src").split("?v=")[1];
+          const cacheVersion = worker.match(/CACHE_NAME\s*=\s*"life-calibration-v([^"]+)"/)?.[1];
+          const workerAppVersion = worker.match(/"\.\/app\.js\?v=([^"]+)"/)?.[1];
+          if (!indexAppVersion) throw new Error("index.html 找不到 app.js 的 ?v= 查詢字串");
+          if (!cacheVersion) throw new Error("sw.js 找不到 CACHE_NAME 的版本尾碼");
+          if (!workerAppVersion) throw new Error("sw.js 的 APP_SHELL 找不到 app.js 的 ?v= 查詢字串");
+          if (indexAppVersion !== cacheVersion || cacheVersion !== workerAppVersion) {
+            throw new Error(`資產版本不一致：index.html ${indexAppVersion}／CACHE_NAME ${cacheVersion}／sw.js app.js ${workerAppVersion}`);
+          }
         });
 
         test("PROJECTS 與 TASKS 使用精簡摘要及條件式金流欄位", () => {

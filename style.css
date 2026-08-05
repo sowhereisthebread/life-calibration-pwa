@@ -57,7 +57,7 @@
   --t-ground-label: #2E353B;
   --t-ground-body: #2A3036;
   --t-ground-mono: #2E3439;          /* 銀底上的等寬字：字標、小格數值 */
-  --t-ice-label: #4A5259;
+  --t-ice-label: #474F55;            /* 最暗 ICE 合成底 #BBC3C9 上實測 4.67:1 */
   --t-ice-sub: #454D53;
   --t-nav-idle: #3F464C;
   --t-deboss-on-ice: #464E54;
@@ -65,7 +65,16 @@
   --t-on-act: #F2F5F6;
   --ink: #16191B;                    /* 主要文字色。非材質層 */
   --t-nav-active: #16191B;           /* 導覽列作用中分頁。與 --ink 同值但職責不同 */
-  --t-frozen: #5E666D;               /* 冷凍項目，ICE 面上 3.6:1 */
+  --t-frozen: #5E666D;               /* 冷凍項目，最暗 ICE 合成底上實測 3.30:1 */
+
+  /* ── 圖表色階：圓餅圖分段與 Item 排名點 ─────────────
+     不是材質層，是資料編碼；躺在裸銀底上。最淺一階對排名區
+     實測底色 #97A0A7 為 3.05:1，相鄰兩階等比 1.20:1。      */
+  --chart-1: #1B1E21;
+  --chart-2: #282D30;
+  --chart-3: #33393E;
+  --chart-4: #3E454B;
+  --chart-5: #485157;
 
   /* ── 線與陰影 ─────────────────────────────────── */
   --line: rgba(46,56,64,.11);
@@ -210,8 +219,7 @@ h3 {
 .radar-list,
 .modal-panel,
 .frozen-section,
-.review-day,
-.metric {
+.review-day {
   background: var(--m-ice);
   border: 1px solid rgba(255,255,255,.5);
   border-top-color: rgba(255,255,255,.92);
@@ -232,7 +240,7 @@ h3 {
 .account-item,
 .transfer-summary,
 .statement-compare > div,
-.card .metric,
+.metric,
 .button-secondary,
 .button-quiet,
 .button-danger {
@@ -420,11 +428,17 @@ h3 {
   text-transform: uppercase;
 }
 
-/* 直接躺在銀底上的標籤 */
+/* 直接躺在銀底上的標籤。.content-section 沒有 card class，
+   它的標題與收合列不在 ICE 面上，不能用 ICE 情境的 token。 */
 .page-heading .eyebrow,
 .money-summary .step-label,
-.radar .section-heading h3 {
+.radar .section-heading h3,
+.content-section .section-heading h3 {
   color: var(--t-ground-label);
+}
+
+.content-section .recess-group > summary {
+  color: var(--t-ground-body);
 }
 
 .page {
@@ -813,7 +827,6 @@ input[type="date"] {
 .record-row,
 .session-row,
 .manager-row,
-.book-item,
 .task-item.is-done {
   display: grid;
   gap: 10px;
@@ -1037,13 +1050,19 @@ input[type="date"] {
   padding: 14px;
 }
 
+/* 小格是 GLASS。躺在裸銀底上時標籤走裸底 token；
+   躺在 ICE 卡片裡時（MONTHLY CLOSE）走 ICE token。 */
 .metric span {
-  color: var(--t-ice-label);
+  color: var(--t-ground-label);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
   letter-spacing: .12em;
   line-height: 1;
+}
+
+.card .metric span {
+  color: var(--t-ice-label);
 }
 
 .metric strong {
@@ -2153,9 +2172,13 @@ input[type="time"] {
   text-transform: uppercase;
 }
 
+/* 無日期待辦：獨立在後、不混排。虛線框只是線，不是材質 —
+   不加背景色，否則卡片內就多出一層。 */
 .no-date-group {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .no-date-group h4 {
@@ -2173,9 +2196,15 @@ input[type="time"] {
   font-size: 13px;
 }
 
+/* 書單項目＝摘要／展開，與待辦同一模式。
+   收合時只有書名與狀態，展開後才有名稱編輯、狀態切換與 Delete。 */
 .book-item {
-  grid-template-columns: minmax(0,1fr) 130px auto;
-  align-items: center;
+  min-width: 0;
+}
+
+.book-current-section > .book-item:first-of-type > .book-summary,
+.book-status-list > .book-item:first-child > .book-summary {
+  border-top: 0;
 }
 
 .book-current-section {
@@ -2192,27 +2221,17 @@ input[type="time"] {
   letter-spacing: .18em;
 }
 
-.book-item > span {
-  display: none;
-}
-
-/* 在讀＝進行中的狀態，用琥珀珠，不加框 */
-.book-item.is-current > .record-input:first-child {
-  position: relative;
-}
-
-.book-item.is-current::before {
-  align-self: center;
+/* 在讀＝進行中的狀態，用琥珀珠，不加框。
+   與雷達「即將到期」同一寫法：掛在書名的 ::before，
+   不佔 grid 欄位，所以任何寬度都在。 */
+.book-item.is-current .book-summary strong::before {
+  display: inline-block;
   width: 9px;
   height: 9px;
+  margin-right: 7px;
   border-radius: 50%;
   background: var(--dew);
   content: "";
-}
-
-.book-item.is-current {
-  grid-template-columns: 9px minmax(0,1fr) 130px auto;
-  gap: 8px;
 }
 
 /* 冷凍項目：唯一允許低於 4.5:1 的元素 */
@@ -2226,8 +2245,29 @@ input[type="time"] {
   color: var(--t-frozen);
 }
 
-.frozen-section .section-heading h3 {
+/* 標題與展開控制屬導覽元素，維持 4.5:1，不沿用 --t-frozen */
+.frozen-section .section-heading h3,
+.frozen-group > summary {
   color: var(--t-ice-label);
+}
+
+.frozen-group {
+  border-top: 0;
+}
+
+.frozen-group > summary {
+  min-height: 0;
+  font-size: 10px;
+  letter-spacing: .2em;
+  line-height: 1.6;
+}
+
+.frozen-group[open] > summary {
+  margin-bottom: 4px;
+}
+
+.frozen-group .group-count {
+  color: var(--t-ice-sub);
 }
 
 
@@ -2309,15 +2349,6 @@ input[type="time"] {
     padding-right: 5px;
     padding-left: 5px;
     font-size: 16px;
-  }
-
-  .book-item,
-  .book-item.is-current {
-    grid-template-columns: 1fr;
-  }
-
-  .book-item.is-current::before {
-    display: none;
   }
 
   .task-actual {

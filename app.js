@@ -38,6 +38,7 @@
   let mileageReturnFocus = null;
   let expandedProjectId = null;
   let expandedTaskKey = null;
+  let expandedBookId = null;
   let expandedSessionId = null;
 
   function queryElements() {
@@ -57,7 +58,7 @@
       "obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month", "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
       "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
       "obligation-last-mileage", "obligation-current-mileage", "obligation-mileage-updated", "obligation-reminder-days", "obligation-threshold",
-      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list",
+      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
       "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
       "metric-days", "review-list", "review-month-income", "review-month-expense", "review-month-net", "statement-amount", "statement-recorded", "statement-gap",
       "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
@@ -403,12 +404,19 @@
       </article>`).join("");
   }
 
+  // 圓餅圖與 Item 排名的五階資料色。讀 CSS 變數，色票只有一份來源。
+  function chartShades() {
+    const root = getComputedStyle(document.documentElement);
+    return [1, 2, 3, 4, 5].map(step => root.getPropertyValue(`--chart-${step}`).trim());
+  }
+
   function renderSpending() {
     const monthKey = todayKey.slice(0, 7);
     const total = RuntimeCore.monthExpense(state, monthKey);
     const ranking = RuntimeCore.categoryRanking(state, monthKey);
     elements["month-spent"].textContent = formatCurrency(total);
-    const shades = ["#262D33", "#414951", "#575F67", "#7C838A", "#949BA1"];
+    // 色階由 :root 的 --chart-1…--chart-5 定義，不在這裡寫死色碼。
+    const shades = chartShades();
     if (!ranking.length) {
       elements["spending-chart"].innerHTML = '<div class="chart-empty">Nothing logged yet.</div>';
       elements["category-ranking"].innerHTML = "";
@@ -528,24 +536,36 @@
 
     const frozen = state.obligations.filter(item => item.status === "frozen");
     elements["frozen-list"].innerHTML = frozen.length ? frozen.map(frozenTaskMarkup).join("") : '<div class="empty-state compact-empty">Nothing frozen.</div>';
+    elements["frozen-count"].textContent = frozen.length ? ` · ${frozen.length}` : "";
     renderBooks();
   }
 
   function renderBooks() {
     const statusLabel = { current: "This month", queued: "Queued", frozen: "Frozen" };
     const openSections = new Set([...elements["book-list"].querySelectorAll("details[open][data-book-section]")].map(group => group.dataset.bookSection));
-    const bookMarkup = book => `
-      <article class="book-item ${book.status === "current" ? "is-current" : ""}" data-book-id="${escapeHtml(book.id)}">
-        <input class="record-input" type="text" value="${escapeHtml(book.name)}" data-book-field="name" aria-label="Book name">
-        <select class="record-input" data-book-field="status" aria-label="Book status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option></select>
-        <button type="button" class="record-remove" data-remove-book="${escapeHtml(book.id)}">Delete</button>
-        <span>${statusLabel[book.status] || "Queued"}</span>
+    // 與待辦同一模式：收合時只有書名與狀態，展開後才有編輯與 Delete。
+    const bookMarkup = book => {
+      const expanded = expandedBookId === book.id;
+      const detailId = `book-details-${book.id}`;
+      return `
+      <article class="book-item ${book.status === "current" ? "is-current" : ""} ${expanded ? "is-expanded" : ""}" data-book-id="${escapeHtml(book.id)}">
+        <button type="button" class="task-summary book-summary" data-toggle-book="${escapeHtml(book.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+          <span class="task-summary-copy"><strong title="${escapeHtml(book.name)}">${escapeHtml(book.name)}</strong><span class="task-summary-meta"><span>${escapeHtml(statusLabel[book.status] || "Queued")}</span></span></span>
+          <span class="task-chevron" aria-hidden="true"></span>
+        </button>
+        ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details book-details">
+          <label class="field"><span>Name</span><input class="record-input" type="text" value="${escapeHtml(book.name)}" data-book-field="name"></label>
+          <label class="field"><span>Status</span><select class="record-input" data-book-field="status"><option value="current" ${book.status === "current" ? "selected" : ""}>This month</option><option value="queued" ${book.status === "queued" ? "selected" : ""}>Queued</option><option value="frozen" ${book.status === "frozen" ? "selected" : ""}>Frozen</option></select></label>
+          <div class="task-actions-secondary"><button type="button" class="button button-quiet" data-remove-book="${escapeHtml(book.id)}">Delete</button></div>
+        </div>` : ""}
       </article>`;
+    };
     const current = state.books.filter(book => book.status === "current");
     const collapsedGroup = (status, label) => {
       const items = state.books.filter(book => book.status === status);
       if (!items.length) return "";
-      return `<details class="recess-group book-status-group" data-book-section="${status}" ${openSections.has(status) ? "open" : ""}><summary>${label} · ${items.length}</summary><div class="book-status-list">${items.map(bookMarkup).join("")}</div></details>`;
+      const holdsExpanded = items.some(book => book.id === expandedBookId);
+      return `<details class="recess-group book-status-group" data-book-section="${status}" ${openSections.has(status) || holdsExpanded ? "open" : ""}><summary>${label} · ${items.length}</summary><div class="book-status-list">${items.map(bookMarkup).join("")}</div></details>`;
     };
     elements["book-list"].innerHTML = state.books.length ? `
       ${current.length ? `<section class="book-current-section"><h4>THIS MONTH</h4>${current.map(bookMarkup).join("")}</section>` : ""}
@@ -1186,6 +1206,7 @@
     });
     projectsPage.addEventListener("click", event => {
       const toggleTask = event.target.closest("[data-toggle-task]");
+      const toggleBook = event.target.closest("[data-toggle-book]");
       const complete = event.target.closest("[data-complete-event]");
       const edit = event.target.closest("[data-edit-obligation]");
       const mileage = event.target.closest("[data-update-mileage]");
@@ -1199,6 +1220,11 @@
         renderCommitments();
         return;
       }
+      if (toggleBook) {
+        expandedBookId = expandedBookId === toggleBook.dataset.toggleBook ? null : toggleBook.dataset.toggleBook;
+        renderBooks();
+        return;
+      }
       if (removeBook) {
         const book = state.books.find(item => item.id === removeBook.dataset.removeBook);
         openConfirmation({
@@ -1208,6 +1234,7 @@
           trigger: removeBook,
           action: () => {
             runDataChange(() => dataStore.deleteBook(removeBook.dataset.removeBook));
+            expandedBookId = null;
             renderBooks();
             showToast("Book deleted");
           }
