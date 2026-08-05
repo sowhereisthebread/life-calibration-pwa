@@ -590,11 +590,11 @@
           equal(store.deleteBook(book.id), false);
         });
 
-        test("manifest 主題色為 #A4AAB0", () => {
+        test("manifest 主題色為 #9CA5AC", () => {
           const request = new XMLHttpRequest();
           request.open("GET", "./manifest.json", false);
           request.send();
-          equal(JSON.parse(request.responseText).theme_color, "#A4AAB0");
+          equal(JSON.parse(request.responseText).theme_color, "#9CA5AC");
         });
         test("快速記帳 UI 僅保留 Item 並鎖定 viewport 縮放", () => {
           const request = new XMLHttpRequest();
@@ -610,7 +610,24 @@
           ["month-spent", "work-month-revenue", "metric-sleep", "review-month-net"].forEach(id => {
             if (!documentCopy.getElementById(id)?.classList.contains("primary-number")) throw new Error(`${id} 未使用共用主數字 class`);
           });
-          if (documentCopy.querySelector("[placeholder]")) throw new Error("仍存在輸入框 placeholder");
+          const isHiddenNode = node => node.hasAttribute("hidden")
+            || node.getAttribute("aria-hidden") === "true"
+            || node.classList.contains("visually-hidden");
+          const visibleLabelText = node => {
+            if (!node || isHiddenNode(node)) return "";
+            const clone = node.cloneNode(true);
+            clone.querySelectorAll("input, select, textarea, [hidden], [aria-hidden=\"true\"], .visually-hidden").forEach(part => part.remove());
+            return clone.textContent.replace(/\s+/g, " ").trim();
+          };
+          Array.from(documentCopy.querySelectorAll("[placeholder]")).forEach(field => {
+            const sources = [field.closest("label")];
+            if (field.id) sources.push(documentCopy.querySelector(`label[for="${field.id}"]`));
+            (field.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)
+              .forEach(id => sources.push(documentCopy.getElementById(id)));
+            if (!sources.some(source => visibleLabelText(source))) {
+              throw new Error(`placeholder 欄位缺少可見標籤：${field.id || field.name || field.getAttribute("placeholder")}`);
+            }
+          });
           if (documentCopy.getElementById("account-starting") || documentCopy.body.textContent.includes("Starting balance")) throw new Error("仍存在 Starting balance 介面");
           if (!documentCopy.getElementById("work-revenue")) throw new Error("缺少今日營業額欄位");
           if (documentCopy.body.textContent.includes("昨晚睡得如何？")) throw new Error("仍存在睡眠主觀提問");
@@ -627,8 +644,8 @@
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (!documentCopy.body.textContent.includes("v0.4.0")) throw new Error("頁首版本不是 v0.4.0");
-          if (documentCopy.querySelector('script[src="./app.js?v=0.4.0"]') === null) throw new Error("app.js 未使用 v0.4.0 查詢字串");
+          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.4.0") throw new Error("頁首版本不是 0.4.0（基準無 v 前綴）");
+          if (documentCopy.querySelector('script[src="./app.js?v=0.4.1"]') === null) throw new Error("app.js 未使用 v0.4.1 查詢字串");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 
@@ -645,7 +662,7 @@
           const workerRequest = new XMLHttpRequest();
           workerRequest.open("GET", "./sw.js?v=0.4.0", false);
           workerRequest.send();
-          if (!workerRequest.responseText.includes('life-calibration-v0.4.0') || !workerRequest.responseText.includes('./app.js?v=0.4.0')) throw new Error("Service Worker 版本未同步");
+          if (!workerRequest.responseText.includes('life-calibration-v0.4.1') || !workerRequest.responseText.includes('./app.js?v=0.4.1')) throw new Error("Service Worker 版本未同步");
         });
 
         test("PROJECTS 與 TASKS 使用精簡摘要及條件式金流欄位", () => {
