@@ -5,7 +5,7 @@
 
 ## 0. 接手前要知道的三件事
 
-1. **視覺層的唯一依據是 `_design-reference.html`**（本目錄下）。它是 Design 端的實際渲染成品。`SPEC.md` 是它的文字化，`TAKO_架構.md` 第五章是產品正典的視覺條款。三者衝突時的順位：**`_design-reference.html` ＞ `SPEC.md` ＞ `TAKO_架構.md` 第五章**。
+1. **視覺層的唯一依據是 `_design-reference.html`**。它是 Design 端的實際渲染成品。`TAKO_架構.md` 第五章是產品正典的視覺條款。兩者衝突時的順位：**`_design-reference.html` ＞ `TAKO_架構.md` 第五章**（原 `SPEC.md` 已於 2026-08-06 併入架構.md 第五章並封存至 `_archive/SPEC.md`）。
 2. **基準檔內有六輪探索，TURN 6 在檔首、最新。** TURN 5 的 `5a`（390×844 的 WORK 頁）是唯一的完整頁面模型，元件與材質的對應以它為準。TURN 4 曾寫「所有卡片用 GLASS」，已被 TURN 5 推翻（主卡片是 ICE）。TURN 2／1 是近黑底探索，已否決，不得引用。
 3. **`test.html` 目前 69／72，三項未通過，這不是程式缺陷** — 三項都是測試在斷言改版前的值。詳見第 4 節，需 Tako 裁決。
 

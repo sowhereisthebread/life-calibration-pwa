@@ -28,10 +28,10 @@ TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記�
 
 ## 視覺層
 
-唯一視覺基準是 [_design-reference.html](_design-reference.html)（Design 端的實際渲染成品，TURN 6 最新、TURN 5 的 `5a` 是唯一完整頁面模型）。
-[SPEC.md](SPEC.md) 是它的文字規格，描述施工後的實際狀況：色彩 token、六層材質與元件對應、尺寸階層、字體、中英文規則、以及基準有但尚未實作的項目。
+唯一視覺基準是 `_design-reference.html`（Design 端的實際渲染成品，TURN 6 最新、TURN 5 的 `5a` 是唯一完整頁面模型）。**它已移出本工作目錄**，取得方式見 [HANDOFF.md](HANDOFF.md) 第 0 節。
+文字條款在外層知識庫的 `TAKO/TAKO_架構.md` 第五章：色彩 token、六層材質、尺寸階層、字體、語言規則。
 
-動 `style.css` 或版面前先讀這兩份。三者衝突時的順位：**`_design-reference.html` ＞ `SPEC.md` ＞ `TAKO_架構.md` 第五章**。
+動 `style.css` 或版面前先讀這兩份。兩者衝突時的順位：**`_design-reference.html` ＞ `TAKO_架構.md` 第五章**。基準勝出時要回寫架構檔，不是讓兩邊各自為政。
 
 等寬字 IBM Plex Mono 已自帶於 [fonts/](fonts/)（latin 子集 400／500，SIL OFL 1.1），列入 `sw.js` 快取，不依賴 CDN。
 
