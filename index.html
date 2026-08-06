@@ -2,7 +2,7 @@
 <html lang="zh-Hant-TW">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#9CA5AC">
     <meta name="description" content="手機優先、資料留在本機的人生記錄工具。">
     <meta name="mobile-web-app-capable" content="yes">
@@ -17,7 +17,7 @@
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
     <link rel="preload" href="./fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-    <script src="./app.js?v=0.4.2" defer></script>
+    <script src="./app.js?v=0.4.3" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -26,7 +26,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">0.4.0</p>
+          <p class="eyebrow">0.5.0</p>
         </div>
         <div id="today-date" class="header-date" aria-label="Today's date"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -51,10 +51,6 @@
               <h2 id="money-page-heading">MONEY</h2>
             </div>
           </div>
-          <section id="money-radar" class="radar" aria-labelledby="money-radar-heading" hidden>
-            <div class="section-heading"><h3 id="money-radar-heading">RADAR</h3></div>
-            <div id="money-radar-list" class="radar-list"></div>
-          </section>
           <div id="money-content">
             <article id="money-card" class="card" aria-labelledby="money-heading">
               <div class="card-heading">
@@ -143,7 +139,7 @@
           <article id="work-card" class="card" aria-labelledby="work-heading">
             <div class="card-heading">
               <h3 id="work-heading" class="step-label">01 · SHIFT</h3>
-              <span id="work-status" class="status-pill"></span>
+              <span id="work-status" class="status-indicator"></span>
             </div>
             <div class="hero-row">
               <div class="hero-value">
@@ -166,7 +162,7 @@
               <h3 id="work-revenue-label" class="step-label">MONTH REVENUE</h3>
               <label class="target-field">GOAL
                 <span class="visually-hidden">Monthly revenue goal</span>
-                <input id="revenue-target" type="number" min="0" step="1000" inputmode="decimal">
+                <input id="revenue-target" type="text" inputmode="numeric" autocomplete="off">
               </label>
             </div>
             <div class="hero-row">

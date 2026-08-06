@@ -37,6 +37,9 @@
                     rgba(255,255,255,.6) 0%,
                     rgba(255,255,255,.14) 44%,
                     transparent 70%);
+  /* 漸層中段實色。給不吃漸層的地方用：canvas 保底色（見 html 規則）。
+     與 theme-color 及 manifest 的 background_color 同值，三者要一起改。 */
+  --ground-solid: #9CA5AC;
   /* ── 材質 ─────────────────────────────────────── */
   --m-ice: rgba(240,247,251,.47);
   --m-glass: linear-gradient(163deg,
@@ -108,14 +111,24 @@
   display: none !important;
 }
 
+/* canvas 保底色。**不要拿掉，也不要換成漸層。**
+   iPhone 主畫面 PWA 的狀態列白底就是這裡沒有實色造成的：
+   `--ground` 是漸層（background-image），而 body 的背景又是
+   `background-attachment: fixed`，畫布視口以外的區域（狀態列那一條、
+   overscroll 橡皮筋區）沒有任何東西可畫，就露出瀏覽器預設的白。
+   根元素給一個不透明 background-color，那些區域才有底。
+   v0.4.0（5488954）當時是 `html, body { background: var(--ground) }`
+   且 `--ground` 是實色 #A4AAB0，所以沒這個問題；64f8b2a 把底色改成漸層、
+   又只掛在 body 上，白底就回來了。 */
 html {
   min-width: 0;
   min-height: 100%;
+  background-color: var(--ground-solid);
   scroll-behavior: smooth;
 }
 
 /* ══ 00 GROUND — 銀底 ═══════════════════════════════
-   光源固定在右上。整個 App 只有 body 有這層。          */
+   光源固定在右上。漸層本身只有 body 有這層，html 只負責保底實色。 */
 body {
   min-width: 0;
   min-height: 100vh;
@@ -574,8 +587,9 @@ h3 {
   white-space: nowrap;
 }
 
-/* 狀態：沒有容器，只有珠與文字（基準 5a） */
-.status-pill {
+/* 狀態指示：沒有容器，只有珠與文字（基準 5a）。
+   架構.md 第五章「狀態指示不是 chip」—— 所以不叫 pill 也不叫 chip。 */
+.status-indicator {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -588,7 +602,7 @@ h3 {
   white-space: nowrap;
 }
 
-.status-pill.is-running::before {
+.status-indicator.is-running::before {
   width: 9px;
   height: 9px;
   border-radius: 50%;
@@ -649,6 +663,37 @@ fieldset {
   font-weight: 400;
 }
 
+/* iOS 的原生 select 由系統決定高度、內距與基線，CSS 蓋不過去 —— 這是 Quick Add
+   四欄在實機上失去網格的根因（本機 Chrome 與 headless 都量不到那個值）。
+   關掉原生外觀，盒模型就完全交還 CSS；箭頭自己畫在右側並預留 padding，
+   文字不會被箭頭擠壓。點下去仍然是系統原生下拉，行為與 12／24 小時等
+   裝置設定一律不變 —— 這是換外觀，不是自製控制項。
+   箭頭色寫死 #474F55（＝--t-ice-label）：data URI 讀不到 CSS 變數。
+
+   範圍只限 MONEY Quick Add（Tako 2026-08-06 裁決）。`.quick-add-grid` 只出現在
+   `#transaction-form` 內的四個列容器，PROJECTS／WORK／DATA 的下拉維持原生外觀不動。
+   其他頁若日後也出現實機異常，再另案處理，不要順手把這條放寬成全站。 */
+.quick-add-grid select {
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23474F55' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  background-size: 10px 6px;
+  text-overflow: ellipsis;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 四欄要形成一致的高度與上下邊界，就不能只給 min-height —— iOS 的 select
+   會撐到自己的內在高度。鎖死實高 44px，input 與 select 才會等高，
+   兩個 .field 的標籤也才會落在同一條基線上（標籤 10px ＋ gap 8px ＋ 控制項 44px）。
+   同樣只限 Quick Add 的四欄。textarea 不納入：它本來就要能長高。
+   金額欄的 .money-input 是 span 包層，不吃這條，維持 46px。 */
+.quick-add-grid .field > input,
+.quick-add-grid .field > select {
+  height: 44px;
+}
+
 /* --font-mono 只承載英數字。文字欄位與下拉選單會裝進使用者手填的中文
    （項目、專案名、書名、備註、帳戶名），一律用 --font-ui。
    只有數字、時間、日期三種欄位維持等寬：它們不可能出現中文，且需要對齊。 */
@@ -657,6 +702,29 @@ input[type="time"],
 input[type="date"] {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* iOS 的 input[type="time"] 內在寬度由系統決定（字體、系統字級與控制項內距都不受
+   CSS 完全支配），390px 兩欄並排時會撐破容器 —— 本機 headless 量到「不溢出」
+   是量不到那個值，不是沒問題（見 HANDOFF 第 6 節）。
+   關掉原生外觀，並讓內部的時間值區塊可以縮到 0，寬度才真正由 grid 欄寬決定。
+   只動尺寸：12／24 小時仍完全跟隨裝置設定，也沒有自製時間控制項。
+
+   範圍只限工作段展開層（Tako 2026-08-06 裁決）。睡眠兩欄與課表兩欄目前沒有實機
+   回報異常，本輪不動 —— 有實機證據才改，不靠推論擴大範圍。
+   日後那四欄若也回報溢出，再把選擇器擴出去，根因與解法相同。 */
+.session-details input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.session-details input[type="time"]::-webkit-date-and-time-value {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  text-align: start;
 }
 
 .field textarea {
@@ -867,11 +935,12 @@ input[type="date"] {
   transform: rotate(225deg);
 }
 
-/* 展開後的編輯區：卡片內部的列，沒有材質 */
+/* 展開後的編輯區：卡片內部的列，沒有材質。
+   密度收緊（gap 10→8、下緣 14→10、上緣 2→0），但控制項一律維持 44px 命中區。 */
 .session-details {
   display: grid;
-  gap: 10px;
-  padding: 2px 0 14px;
+  gap: 8px;
+  padding: 0 0 10px;
 }
 
 .record-row-header {
@@ -897,13 +966,17 @@ input[type="date"] {
   font-size: 15px;
 }
 
+/* Remove 是次要動作，不該佔滿整列寬。收成內容寬並靠左，
+   min-height 仍是 44px —— 視覺變小，命中區沒變。 */
 .record-remove {
+  justify-self: start;
   min-height: 44px;
-  padding: 0 4px;
+  padding: 0 4px 0 0;
   background: transparent;
   color: var(--t-ice-sub);
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
   text-decoration: underline;
   text-underline-offset: 3px;
 }

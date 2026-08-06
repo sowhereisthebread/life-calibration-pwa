@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-06（批次 C）
+更新：2026-08-06（視覺改版總覆驗後的缺陷修正）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,9 +59,10 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號 `0.4.0`**（`index.html` 頁首）、**資產版本號 `0.4.2`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處必須相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 73／73 全綠。**
-- 視覺改版與其後的批次 A／A-補／B／C **尚未部署，也尚未經 iPhone 實機驗收**。
+- **功能版本號 `0.5.0`**（`index.html` 頁首）、**資產版本號 `0.4.3`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處必須相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 75／75 全綠。**
+- 視覺改版與批次 A／A-補／B／C **已部署**，線上 commit `23f398c`（Pages build 2026-08-05T23:30:59Z 成功，線上檔案已與該 commit 逐位元組比對相同）。**但該版尚未經 iPhone 實機驗收。**
+- 本輪缺陷修正完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收** —— 已部署的 `23f398c` 與本輪修正會在那一次一併驗。
 
 ### 驗收怎麼做的
 
@@ -91,14 +92,9 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - **實測依據**：同一顆 Chrome 對 `zh-TW`／`en-GB`／`en-US` 量到的欄位內在寬度完全相同，代表 `lang` 沒有改變欄位格式；換一個地區設定不同的 Chrome 實例，同一份 HTML 就渲染出 `下午 01:00`。
 - **後果**：裝置設為 12 小時制時，該欄位會顯示中文的 `上午`／`下午`，形成「含中文卻套 `--font-mono`」，與偏離一的等寬字規則牴觸。
 - **已知並接受**。解法在裝置端（把系統時間設為 24 小時制）。程式端要根治的唯一可靠做法是自製時間控制項取代原生 `input[type="time"]`，屬於較大的改動。
+- 2026-08-06 為修 iOS 溢出，對 **`.session-details` 內的** `input[type="time"]` 加了 `appearance: none` 與 `::-webkit-date-and-time-value` 的尺寸規則。**那只動寬高，不動格式** —— 12／24 小時仍完全由裝置決定，本條偏離不受影響，也沒有因此變成自製控制項。睡眠兩欄與課表兩欄不在該規則範圍內，維持原生外觀。
 
-### 偏離三：營收目標是可編輯欄位，沒有千分位
-
-- **基準**：靜態文字 `目標 60,000`（含千分位）。
-- **現行**：`#revenue-target` 是 `<input type="number">`，顯示 `60000`。
-- **為什麼**：這個值必須可調（架構.md 第一章的靈活原則），而 `<input type="number">` 不支援千分位顯示。兩者只能擇一。
-
-### 偏離四：破壞性動作不使用 ACT
+### 偏離三：破壞性動作不使用 ACT
 
 - **基準**：`5a` 的 WORK 頁只有一顆 ACT，沒有給破壞性動作的模型。
 - **現行**：`05 ACT` 只給頁面的正向主要動作（MONEY 的 `Add`、DATA 的 `Export JSON`）。刪除、清除維持 GLASS（`.button-danger`，見 `style.css:241` 起的 GLASS 選擇器群）並置於 danger zone。
@@ -132,16 +128,14 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 | # | 項目 | 狀態 | 為什麼還沒動 |
 |---|---|---|---|
-| 1 | **iPhone 實機驗收** | 未驗證 | 視覺改版與 A／A-補／B／C 全部沒上過真機 |
+| 1 | **iPhone 實機驗收** | 未驗證 | 已部署的 `23f398c` 與本輪修正都還沒上過真機。本輪三項 iOS 修正（Quick Add 對齊、工作段展開層、主畫面 PWA 狀態列白底）**只能由實機判定通過與否**；`test.html` 對狀態列那一項只做結構檢查，不代表視覺已通過 |
 | 2 | **`backdrop-filter` 疊多層 + `background-attachment: fixed` 的捲動效能** | 未驗證 | 桌面 headless 正常，真手機（尤其舊機）可能掉幀。這是本次視覺最主要的效能風險 |
 | 3 | **Service Worker 的字型快取** | 未驗證 | 兩個 woff2 已列入 `APP_SHELL`，但沒做離線斷網實測 |
-| 4 | **PWA 更新路徑** | 未驗證 | `CACHE_NAME` 已升到 `0.4.2`，舊 client 應會在下次啟動時換快取，未實測 |
-| 5 | **工作段展開層在 iOS Safari 上溢出，且尺寸過大** | 已決定連同整體 UI 一併改，暫不單獨修 | 見下方「已知缺陷」 |
-| 6 | **chip 28px 階** | 未做 | 基準是 GLASS 未選／DEBOSS 已選；現行只有營收目標一個 26px DEBOSS chip，付款方式仍是 44px DEBOSS `<select>`。基準沒有付款方式 chip 的對應物 |
-| 7 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`、PROJECTS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構，基準沒有這些頁面的模型。留給 PROJECTS／REVIEW／DATA 三頁重排時一併做 |
-| 8 | **PROJECTS / REVIEW / DATA 三頁的資訊架構** | 未設計 | 材質已依判準套用，版面本身未經設計。基準只有 WORK 頁的完整模型 |
-| 9 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
-| 10 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
+| 4 | **PWA 更新路徑** | 未驗證 | `CACHE_NAME` 已升到 `0.4.3`，舊 client 應會在下次啟動時換快取，未實測 |
+| 5 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`、PROJECTS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構，基準沒有這些頁面的模型。留給 PROJECTS／REVIEW／DATA 三頁重排時一併做 |
+| 6 | **PROJECTS / REVIEW / DATA 三頁的資訊架構** | 未設計 | 材質已依判準套用，版面本身未經設計。基準只有 WORK 頁的完整模型 |
+| 7 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
+| 8 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
 
 ---
 
@@ -159,9 +153,33 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - 收合列做成 DEBOSS 會與內含的輸入框疊成四層。解法是卡內列不給材質，只用 `--line` 分隔。
 - 單點量測對比值會產生「過關但不成立」的數字。`--t-ice-label` 曾以 `#4A5259` 寫入，卡片頂端合格、RECENT 卡最下方只有 4.45:1。一律取最暗合成背景。
 
+### chip 28px 階：已結案，不再列為待辦（Tako 2026-08-06 裁決）
+
+架構.md 第五章的「chip 26–28px」是**尺寸範圍**，不是要求 26px 與 28px 各要有一個實例。現行 `.target-field` 的 26px 已經落在範圍內，尺寸階層本身沒有缺口。
+
+**不要為了補齊名目而**：把 `.target-field` 無必要地改成 28px、把 `#settings-radar-days` 的 44px 輸入欄壓成 chip、或新增沒有真實用途的 class 或元件（那會變成第二個 `.card-accent`）。
+
+未來若出現確實需要 28px 的真實元件，再依當時需求重新建立任務。**下一輪不要把這一項當成未完成的缺口重開。**
+
+### 基準檔的 `support.js` 404：已查驗結案（2026-08-06）
+
+**結論：沒有任何現行畫面、狀態、事件或互動依賴它。不補檔，不做替代程式，本項關閉。**
+
+查驗方式與證據：
+
+- 全檔搜尋，`support.js` 只有一處引用：`_design-reference.html:6` 的 `<script src="./support.js">`。
+- 基準檔沒有任何互動：`onclick` 0 處、`addEventListener` 0 處。
+- 另一個 `<script>` 是 `type="text/x-dc"`，瀏覽器不執行未知 MIME，它只是設計工具的 props 宣告。
+- 以缺載狀態實跑渲染（本機 HTTP server + headless Chrome，`support.js` 回 404）：816 個元素正常渲染、`body` 背景 `rgb(222,222,219)`＝`#DEDEDB`、文字色 `rgb(26,28,27)`＝`#1A1C1B`，即 `<helmet>` 內的 `<style>` 照常生效；**零 exception**。
+
+下一輪不要再查這一項。
+
 ---
 
-## 6. 已知缺陷，記錄不修
+## 6. iOS 原生控制項缺陷與命名殘留
+
+本節記兩件事：**已修但還沒經實機確認的 iOS 缺陷**，以及刻意保留的命名殘留。
+「已修」在這裡一律等於「本機改完了」，不等於通過 —— 原生控制項的通過標準只有實機。
 
 ### 工作段展開層在 iOS Safari 上溢出，且尺寸過大
 
@@ -171,9 +189,50 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 **c. 這是方法論層級的限制，不是這一個欄位的問題**：凡是涉及原生控制項（`input[type="time"]`、`input[type="date"]`、`select`）的寬度與高度，本機數字只能當**參考值**，不能當通過標準。這類元件一律要實機確認。
 
-**處置**：Tako 已決定此處連同工作段展開層的整體 UI 一併改，不單獨修。
+**處置**：2026-08-06 已修，**但尚未經實機確認**。做法是關掉 `.session-details input[type="time"]` 的原生外觀，並把 `::-webkit-date-and-time-value` 的寬度放開到可縮至 0，寬度才真正由 grid 欄寬決定；同時把展開層密度收緊（gap 10→8、下緣 14→10、上緣 2→0），`Remove` 改成內容寬靠左，控制項一律維持 44px 命中區。
+
+**範圍刻意收窄**：睡眠兩欄與課表兩欄的 `input[type="time"]` 根因相同，但**沒有實機回報異常，本輪不動**（Tako 2026-08-06 裁決：有實機證據才改）。日後那四欄若也回報溢出，把選擇器擴出去即可，解法一樣。
+
+**c 那條限制依然成立**：這次的修正在本機一樣量不出真值，**通過與否必須由 iPhone 實機判定**，不得以本機數字結案。
+
+### iPhone 主畫面 PWA 頂部狀態列白底
+
+**實機回報**：App 頂部保留一整條白色狀態列背景（時間／訊號／電量那一條），v0.4.0 當時是滿版銀灰、沒有白色切割帶。
+
+**根因不是單一原因，是 `64f8b2a` 一次改了三件事疊起來的**：
+
+| # | 基線 `5488954` | 視覺改版後 |
+|---|---|---|
+| 1 | `html, body { background: var(--ground) }` —— **根元素自己有底** | 只有 `body` 有，`html` 完全沒有背景 |
+| 2 | `--ground: #A4AAB0` —— **實色** | `--ground: linear-gradient(...)` —— 漸層，屬 `background-image` |
+| 3 | 無 | `body` 加了 `background-attachment: fixed` |
+
+漸層是 `background-image`，填不滿畫布視口以外的區域；`background-attachment: fixed` 又把繪製區釘在視口上。root 沒有任何不透明 `background-color` 可以墊底，狀態列那一條就露出瀏覽器預設的白。基線因為根元素掛的是實色，不管視口怎麼算都有底。
+
+**雪上加霜**：`f75669f` 把 `--ground-solid: #9CA5AC` 當成「已無用途」刪掉了 —— 那正是這裡需要的實色。
+
+**處置**（2026-08-06，**尚未經實機確認**）：
+
+1. `index.html` 的 viewport 加 `viewport-fit=cover`。沒有它，iOS 的 `env(safe-area-inset-*)` 一律回傳 0，`.app-shell` 與底部導覽那些 safe-area padding 全是空轉，webview 也不會延伸到狀態列下方。`maximum-scale=1, user-scalable=no` 一併保留，防自動放大沒有鬆掉。
+2. 復原 `--ground-solid: #9CA5AC`，並在 `html` 上掛 `background-color: var(--ground-solid)` 當 canvas 保底。漸層仍然只在 `body`。
+3. `.app-shell` 與 `.bottom-nav` 的 safe-area 規則**一行未改** —— 它們本來就寫對了，只是因為缺 `viewport-fit=cover` 而從來沒有生效過。
+
+`--ground-solid`、`theme-color`、manifest 的 `background_color` 三者同值 `#9CA5AC`，測試會斷言它們一致，改一個就要三個一起改。
+
+**沒有做的事**：沒有寫死 44／47px、沒有人造灰條、沒有隱藏狀態列、沒有把頁首內容往下推。
+
+### Quick Add 四欄在 iOS 失去網格
+
+**實機回報**：`Type`、`Amount`、`Item`、`Paid with` 四欄失去整齊網格，原生 `select`／`number` 的高度、內距與基線和本機 Chrome 不一致。
+
+**根因**：全站沒有任何一條規則對 `select` 下 `appearance: none`（改前唯一一處 `appearance: none` 是 `.date-control` 內的隱藏 date input）。沒關掉原生外觀，iOS 的 `select` 高度、內距與基線就由系統決定，`min-height: 44px` 與 `padding` 都蓋不過去。
+
+**處置**：2026-08-06 已修，**但尚未經實機確認**。關掉 select 的原生外觀改由 CSS 控制盒模型，箭頭自己畫並預留 `padding-right: 34px`（文字不被箭頭擠壓），input 與 select 一律鎖 `height: 44px` 實高而不只是 `min-height`。字級維持 16px，防自動放大要求沒有犧牲。金額欄的 `.money-input` 是 span 包層，不吃這條，仍是 46px。
+
+**範圍刻意收窄**：選擇器是 `.quick-add-grid select` 與 `.quick-add-grid .field > input, .quick-add-grid .field > select`，**只作用於 MONEY Quick Add**（Tako 2026-08-06 裁決）。`.quick-add-grid` 只出現在 `#transaction-form` 的四個列容器；PROJECTS、WORK、DATA 的下拉維持原生外觀，本輪一律不動。改動這條前先確認是不是真的要動到其他頁。
 
 ### 名實不符的殘留命名
 
-- `.status-pill`（`style.css:578`、`index.html:146`、`app.js:403`）已經不是 pill —— 沒有容器，只有一顆 9px 琥珀珠加等寬小字。未改名，以免動到 `app.js` 的 `classList.toggle("is-running")`。
-- `.card-accent`（`style.css:535`）在 HTML 中已無元素套用，CSS 規則保留為無作用的中性值，未清掉。
+- `.status-pill` 已於 2026-08-06 改名為 `.status-indicator`（`style.css`、`index.html`、`app.js` 三處引用全數更新，全 repo 程式碼零殘留）。它沒有容器，只有一顆 9px 琥珀珠加等寬小字，架構.md 第五章又明訂「狀態指示不是 chip」，所以不叫 pill 也不叫 chip。`classList.toggle("is-running")` 的行為與視覺都未改動。
+  封存的 `_archive/SPEC.md` 仍有舊名，那是封存檔，不是現行入口，刻意不動。
+- `.card-accent`（`style.css`）在 HTML 中已無元素套用，CSS 規則保留為無作用的中性值，未清掉。

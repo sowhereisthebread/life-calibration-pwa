@@ -48,7 +48,7 @@
       "sleep-total", "work-status", "punch-button", "work-sessions", "transaction-form", "transaction-type",
       "transaction-amount", "transaction-item", "transaction-title-field", "transaction-note", "transaction-payment-method", "transaction-income-source",
       "transaction-income-account", "transaction-from-account", "transaction-to-account", "expense-fields", "income-fields", "transfer-fields",
-      "transaction-list", "money-radar", "money-radar-list", "account-balances",
+      "transaction-list", "account-balances",
       "account-form", "account-name", "account-manager",
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
@@ -117,6 +117,19 @@
     const rounded = Math.round(Number(value) || 0);
     const digits = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     return `${rounded < 0 ? "-" : ""}$${digits}`;
+  }
+
+  // 營收目標的千分位：input[type="number"] 顯示不出 60,000（基準是含千分位的），
+  // 改用 type="text" + inputmode="numeric" 自行格式化。這兩個函式只處理顯示字串，
+  // 存進 monthlyIncomeTarget 的仍然是非負整數，資料欄位不變。
+  function parseTargetInput(text) {
+    const digits = String(text ?? "").replace(/[^\d]/g, "");   // 逗號、空白、全形與任何雜訊一律剝掉
+    if (!digits) return 0;                                      // 空值與純非法輸入一律歸 0（＝沒有目標）
+    return Math.min(Number(digits), Number.MAX_SAFE_INTEGER);
+  }
+
+  function formatThousands(value) {
+    return String(Math.max(0, Math.round(Number(value) || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
   // 日期一律 8/4 TUE：月/日用 en-US 的 numeric，星期另外取 short 再轉大寫。
@@ -226,7 +239,10 @@
     elements["sleep-total"].textContent = RuntimeCore.formatMinutes(sleepMinutes);
     elements["today-work-total"].textContent = RuntimeCore.formatMinutes(totalWork);
     elements["work-month-revenue"].textContent = formatCurrency(monthRevenue);
-    elements["revenue-target"].value = String(state.settings?.monthlyIncomeTarget ?? 60000);
+    // 使用者正在這一格打字時不覆蓋，否則重排字串會把游標推到尾端。
+    if (document.activeElement !== elements["revenue-target"]) {
+      elements["revenue-target"].value = formatThousands(state.settings?.monthlyIncomeTarget ?? 60000);
+    }
 
     // 目標達成率：只驅動百分比文字與進度條寬度，不影響任何資料
     const ratio = target > 0 ? Math.max(0, Math.min(1, monthRevenue / target)) : 0;
@@ -367,12 +383,12 @@
     }
   }
 
+  // 到期雷達只出現在 PROJECTS。MONEY 不顯示任何待辦到期雷達（Tako 2026-08-06 裁決）。
+  // 資料來源、排序與完成行為不變，只是少了一個顯示點。
   function renderRadar() {
     const items = RuntimeCore.radarItems(state, todayKey);
-    elements["money-radar"].hidden = !items.length;
     elements["projects-radar"].hidden = !items.length;
     if (!items.length) {
-      elements["money-radar-list"].innerHTML = "";
       elements["projects-radar-list"].innerHTML = "";
       return;
     }
@@ -388,7 +404,6 @@
         <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${escapeHtml(relativeLabel(item))}${item.event?.dueDate ? ` · ${escapeHtml(formatDisplayDate(item.event.dueDate))}` : ""}</span></div>
         ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
       </article>`).join("");
-    elements["money-radar-list"].innerHTML = markup;
     elements["projects-radar-list"].innerHTML = markup;
   }
 
@@ -400,7 +415,7 @@
     elements["account-manager"].innerHTML = state.accounts.map(account => `
       <article class="manager-row ${account.active ? "" : "is-archived"}" data-account-id="${escapeHtml(account.id)}">
         <label class="field"><span>${account.system ? "System account" : (account.active ? "Custom account" : "Archived account")}</span><input class="record-input" type="text" value="${escapeHtml(account.name)}" data-account-name aria-label="Account name ${escapeHtml(account.name)}"></label>
-        <div class="manager-row-meta"><strong>${escapeHtml(formatCurrency(balances[account.id] || 0))}</strong>${account.system ? '<span class="status-pill">Always active</span>' : `<button type="button" class="button button-quiet" data-account-active="${account.active ? "false" : "true"}">${account.active ? "Archive" : "Unarchive"}</button>`}</div>
+        <div class="manager-row-meta"><strong>${escapeHtml(formatCurrency(balances[account.id] || 0))}</strong>${account.system ? '<span class="status-indicator">Always active</span>' : `<button type="button" class="button button-quiet" data-account-active="${account.active ? "false" : "true"}">${account.active ? "Archive" : "Unarchive"}</button>`}</div>
       </article>`).join("");
   }
 
@@ -869,7 +884,13 @@
     bindAutosaveInput("daily-note", "note");
 
     elements["revenue-target"].addEventListener("input", event => {
-      runDataChange(() => dataStore.updateSettings({ monthlyIncomeTarget: Math.max(0, Number(event.target.value) || 0) }));
+      runDataChange(() => dataStore.updateSettings({ monthlyIncomeTarget: parseTargetInput(event.target.value) }));
+    });
+
+    // 千分位在離開欄位時才補上：打字中重排字串會把游標推走。
+    // 貼上「60,000」「60 000」或純數字都會在這裡正規化成一致的顯示。
+    elements["revenue-target"].addEventListener("blur", event => {
+      event.target.value = formatThousands(parseTargetInput(event.target.value));
     });
 
     elements["settings-radar-days"].addEventListener("input", event => {
@@ -1047,17 +1068,6 @@
       renderAccounts();
       renderTransactionForm();
       showToast(button.dataset.accountActive === "true" ? "Account unarchived" : "Account archived");
-    });
-
-    elements["money-radar-list"].addEventListener("click", event => {
-      const complete = event.target.closest("[data-complete-event]");
-      const mileage = event.target.closest("[data-update-mileage]");
-      if (mileage) {
-        openMileageEditor(mileage.dataset.updateMileage, mileage);
-      } else if (complete && runDataChange(() => dataStore.completeEvent(complete.dataset.completeEvent, { completedDate: todayKey }))) {
-        renderMoney();
-        showToast("Marked done");
-      }
     });
 
     elements["toggle-project-form"].addEventListener("click", () => toggleProjectForm(elements["project-form"].hidden));

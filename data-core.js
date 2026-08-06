@@ -759,12 +759,21 @@
     return rows.map(row => row.map(csvEscape).join(",")).join("\r\n");
   }
 
-  // 時長一律 h:mm（小時不補零、分鐘補兩位），零值是 0:00 不是 0 分。
+  // h:mm（小時不補零、分鐘補兩位），零值是 0:00 不是 0 分。
   // 依視覺基準 _design-reference.html：主數字 3:24、工作段列 2:30 / 0:54、未開工 0:00。
-  // 全部八個呼叫點（今日工時、工作段時長、睡眠總時數、REVIEW 的平均睡眠／總工時／每日睡眠與工時）
-  // 都是同一種量——分鐘數的時長——所以共用同一個格式，不分出第二個函式：
-  // 同一個數字在 WORK 顯示 9:30、在 REVIEW 顯示「9 小時 30 分」會更難讀。
-  // 時長與時鐘時間並置的疑慮，基準自己已經給了答案（工作段列同一行是 09:30 — 12:00 與 2:30）。
+  //
+  // 時長顯示有兩種格式，判準是「這個數字是幾天份的」，不是它長在哪一頁：
+  //   一天以內（單日值、單段長度、日均）→ 本函式的 h:mm，共七個呼叫點：
+  //     #sleep-total、#today-work-total、sessionDuration() 兩個分支、#metric-sleep、
+  //     REVIEW 每日列的 SLEEP 與 WORK。
+  //   跨越多天的加總 → app.js 的 decimalHours()（16.0h），三個呼叫點：
+  //     #stat-week、#stat-month、#metric-work。
+  // 日均雖然由多天算出，但它表達的是「一天」的量，所以歸在 h:mm。
+  // 完整規則見 HANDOFF.md 第 3 節；新增時長顯示時先套那條規則。
+  //
+  // 同一個數字在 WORK 顯示 9:30、在 REVIEW 顯示「9 小時 30 分」會更難讀，
+  // 所以單日這一側只有這一個格式。時長與時鐘時間並置的疑慮，基準自己已經
+  // 給了答案（工作段列同一行是 09:30 — 12:00 與 2:30）。
   function formatMinutes(minutes) {
     if (minutes === null || minutes === undefined) return "—";
     const total = Math.round(Number(minutes));
