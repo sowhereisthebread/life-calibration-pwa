@@ -21,7 +21,10 @@
   let monthlyMode = "new";
 
   function syncMonthlyFields() {
-    if (cycle.value !== "monthly") return;
+    if (cycle.value !== "monthly") {
+      if (dayLabel) dayLabel.textContent = "Cycle day";
+      return;
+    }
 
     if (dayLabel) dayLabel.textContent = "Repeat day";
 
