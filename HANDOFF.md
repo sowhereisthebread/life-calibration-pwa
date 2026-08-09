@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（頂層 IA 重構完成，待 Draft PR 驗收）
+更新：2026-08-10（銀灰材質快取修正完成，待 Draft PR 驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,12 +59,12 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、**資產版本號為 `0.4.8`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、**資產版本號為 `0.4.9`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
 - **`test.html` 95／95 全綠。**
 - 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- 施工分支為 `codex/restructure-top-level-tasks`，基線是 `master` 的 `ca3056e9d277195d74b1a75c3275476110e5e8e8`；尚未 merge 或部署。
-- 視覺改版與批次 A／A-補／B／C **已部署**，線上 commit `23f398c`（Pages build 2026-08-05T23:30:59Z 成功，線上檔案已與該 commit 逐位元組比對相同）。**但該版尚未經 iPhone 實機驗收。**
-- 本輪缺陷修正完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收** —— 已部署的 `23f398c` 與本輪修正會在那一次一併驗。
+- PR #6 已合併；本輪施工分支為 `codex/fix-design-material-rendering`，基線是最新 `master` 的 `3a1260a172957a0c998f3f26b34c347e635d9225`。本分支尚未 merge 或部署，正式站目前仍是資產 `0.4.8`。
+- 同引擎 390×844 實測證明：最新 master 的 GROUND、ICE、GLASS、DEBOSS、ACT token 與 computed style 已對齊 Design 5a，GROUND 四點逐像素相同或只差 1 RGB；偏暖不是色票或 body 合成座標造成。
+- 可重現根因是舊 Service Worker／HTTP cache 混用資產：正式 GitHub Pages 的 `style.css` 為未版本化 URL，且回應 `Cache-Control: max-age=600`。現改為 `style.css?v=0.4.9`，與 cache／app 版本共用同一鍵；舊 origin 已實測由 `0.4.8` 更新到 `0.4.9`，離線 warm-cache 與新分頁啟動都成功。
 
 ### 驗收怎麼做的
 
@@ -76,7 +76,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ### 1.1 [1] 問題回報區結案候選
 
-- **弱網啟動**：根因是舊 Service Worker 對所有 GET 採沒有 timeout 的 network-first；裝置仍顯示有網路但 request stalled 時，快取永遠輪不到。現行策略只對 App 入口 navigation 與版本化 app shell 採 cache-first；其他請求保留 3 秒 bounded network-first。新 `CACHE_NAME` 安裝時仍重建完整 app shell，舊 cache 由 activate 清掉，不會把新版本永久鎖死。`test.html` 不是 App 入口，不會被離線 navigation fallback 誤導到 `index.html`。
+- **弱網啟動**：根因是舊 Service Worker 對所有 GET 採沒有 timeout 的 network-first；裝置仍顯示有網路但 request stalled 時，快取永遠輪不到。現行策略只對 App 入口 navigation 與版本化 app shell 採 cache-first；`style.css` 與 `app.js` 都帶資產版本 query，其他請求保留 3 秒 bounded network-first。新 `CACHE_NAME` 安裝時仍重建完整 app shell，舊 cache 由 activate 清掉，不會把新版本永久鎖死。`test.html` 不是 App 入口，不會被離線 navigation fallback 誤導到 `index.html`。
 - **Safe Delete**：只有「所有相關事件皆為 pending，且沒有 event／transaction 連結歷史」的 obligation 可永久刪除；刪除時只移除 obligation 與其 pending events。done、auto-paid 或任何 linked MONEY transaction 一律阻止 hard delete，介面不顯示 Delete 並保留 Archive。判斷與刪除都在 `data-core.js`／`data-store.js`，不只靠 DOM。
 - **Card payment / Auto payment**：Card payment 維持唯一一筆未封存的 manual transfer（主帳戶 → 信用卡）；Auto payment 正規化為 `handling=auto`、`completionMode=expense`、`paymentMethod=card`，可建立多筆。非法 Auto + Transfer 在 UI 與資料正規化層都會收斂；第二筆 Card payment 由資料層與中文錯誤訊息阻止。
 - **Auto payment 區**：TASKS 內的獨立區段只列 active automatic obligations；人工 dated／later／no-date TO-DO 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
@@ -151,12 +151,10 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 |---|---|---|---|
 | 1 | **iPhone 實機驗收** | 未驗證 | 已部署的 `23f398c` 與本輪修正都還沒上過真機。本輪三項 iOS 修正（Quick Add 對齊、工作段展開層、主畫面 PWA 狀態列白底）**只能由實機判定通過與否**；`test.html` 對狀態列那一項只做結構檢查，不代表視覺已通過 |
 | 2 | **`backdrop-filter` 疊多層 + `background-attachment: fixed` 的捲動效能** | 未驗證 | 桌面 headless 正常，真手機（尤其舊機）可能掉幀。這是本次視覺最主要的效能風險 |
-| 3 | **Service Worker 的字型快取** | 未驗證 | 兩個 woff2 已列入 `APP_SHELL`，但沒做離線斷網實測 |
-| 4 | **PWA 更新路徑** | 未驗證 | `CACHE_NAME` 已升到 `0.4.8`，正式舊 client 應會在下次啟動時換快取，尚未以已安裝 PWA 實測 |
-| 5 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
-| 6 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
-| 7 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
-| 8 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
+| 3 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
+| 4 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
+| 5 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
+| 6 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
 
 ---
 
@@ -165,6 +163,9 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 失敗的嘗試不會進 commit，git history 救不回這一節。
 
 - 近黑底做不出玻璃感；近白底做不出金屬高光。
+- Design 5a 與最新 master 在 390×844、同一 Browser engine 下的 GROUND 四點為：左上 `171/178/184`、右上 Design `197/202/206` 對 PWA `198/203/207`、中段 `155/164/171`、下段 `146/155/162`；ICE 頂部與中央完全相同，底部只差 `1/1/2` RGB，ACT 都是 `51/56/62`。因此不調 token。
+- GROUND variant 已結案：移除 `background-attachment: fixed` 會讓主畫面亮 `3–12` RGB，反而偏離 Design；獨立 fixed layer 與明確 `100vw × 100dvh` 尺寸都與現況相同，沒有改善；隔離 `html --ground-solid` 對主 viewport 零影響，卻會失去 iOS canvas 保底。現行 body fixed 光場就是正確座標系。
+- `backdrop-filter` variant 已結案：分別停用 saturate 或 blur，代表面色只變 `0–1` RGB，不能解釋偏暖；保留 `-webkit-backdrop-filter` 與標準屬性。
 - 銀灰底可以，但字必須壓到 `#16191B`、琥珀降到 `#B4791C`。
 - 「Q 版感」的來源＝700 字重 + 46px 主數字 + 16px 圓角三者疊加。
 - GLASS 的透明度必須低於 ICE —— 反過來的話「疊在內容上」時 GLASS 會遮得更死。

@@ -997,17 +997,25 @@
           workerRequest.open("GET", "./sw.js?v=0.4.0", false);
           workerRequest.send();
           const worker = workerRequest.responseText;
-          // 資產版本不寫死：三處必須互相一致，跳號時不會再壞一次。
+          // 資產版本不寫死：五處必須互相一致，跳號時不會再壞一次。
           // 頁首版本號另外做字面比對 —— 它是功能版本，跳號是有意義的事件。
+          const indexStyleVersion = documentCopy.querySelector('link[href^="./style.css?v="]')
+            ?.getAttribute("href").split("?v=")[1];
           const indexAppVersion = documentCopy.querySelector('script[src^="./app.js?v="]')
             ?.getAttribute("src").split("?v=")[1];
           const cacheVersion = worker.match(/CACHE_NAME\s*=\s*"life-calibration-v([^"]+)"/)?.[1];
+          const workerStyleVersion = worker.match(/"\.\/style\.css\?v=([^"]+)"/)?.[1];
           const workerAppVersion = worker.match(/"\.\/app\.js\?v=([^"]+)"/)?.[1];
+          if (!indexStyleVersion) throw new Error("index.html 找不到 style.css 的 ?v= 查詢字串");
           if (!indexAppVersion) throw new Error("index.html 找不到 app.js 的 ?v= 查詢字串");
           if (!cacheVersion) throw new Error("sw.js 找不到 CACHE_NAME 的版本尾碼");
+          if (!workerStyleVersion) throw new Error("sw.js 的 APP_SHELL 找不到 style.css 的 ?v= 查詢字串");
           if (!workerAppVersion) throw new Error("sw.js 的 APP_SHELL 找不到 app.js 的 ?v= 查詢字串");
-          if (indexAppVersion !== cacheVersion || cacheVersion !== workerAppVersion) {
-            throw new Error(`資產版本不一致：index.html ${indexAppVersion}／CACHE_NAME ${cacheVersion}／sw.js app.js ${workerAppVersion}`);
+          if (indexStyleVersion !== cacheVersion
+            || indexAppVersion !== cacheVersion
+            || workerStyleVersion !== cacheVersion
+            || workerAppVersion !== cacheVersion) {
+            throw new Error(`資產版本不一致：index style ${indexStyleVersion}／index app ${indexAppVersion}／CACHE_NAME ${cacheVersion}／sw style ${workerStyleVersion}／sw app ${workerAppVersion}`);
           }
         });
 
