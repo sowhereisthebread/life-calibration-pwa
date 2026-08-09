@@ -1045,6 +1045,38 @@
           });
         });
 
+        test("TASKS 人工完成統一使用 compact completion checkbox", () => {
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=task-done-check", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const completionStart = app.indexOf("function completionControlMarkup");
+          const radarStart = app.indexOf("function renderRadar");
+          const taskStart = app.indexOf("function taskMarkup");
+          const safeDeleteStart = app.indexOf("function safeDeleteButton");
+          const completionSource = app.slice(completionStart, radarStart);
+          const radarSource = app.slice(radarStart, app.indexOf("\n  function ", radarStart + 20));
+          const taskSource = app.slice(taskStart, safeDeleteStart);
+
+          if (completionStart < 0 || !completionSource.includes('class="task-done-check"')) throw new Error("缺少共用 completion checkbox renderer");
+          if (!completionSource.includes("data-complete-event") || !completionSource.includes("aria-label")) throw new Error("completion checkbox 缺少既有事件鍵或 aria-label");
+          if (!radarSource.includes("completionControlMarkup(item.event, item.obligation)")) throw new Error("RADAR 未使用 completion checkbox");
+          if (!taskSource.includes("completionControlMarkup(event, obligation)")) throw new Error("TO-DO expanded 未使用 completion checkbox");
+          if (app.includes(">Mark done<")) throw new Error("產品 UI 仍產生可見 Mark done 文字");
+          if (!radarSource.includes("data-update-mileage") || !radarSource.includes(">Update mileage</button>")) throw new Error("Update mileage 被 completion checkbox 誤改");
+          if (!app.includes('event.target.closest("[data-complete-event]")')) throw new Error("completion event delegation 已改變");
+          if (!app.includes("dataStore.undoEvent(undo.dataset.undoEvent)")) throw new Error("Undo 邏輯遺失");
+
+          const styleRequest = new XMLHttpRequest();
+          styleRequest.open("GET", "./style.css?test=task-done-check", false);
+          styleRequest.send();
+          const css = styleRequest.responseText;
+          const targetRule = css.match(/(?:^|\n)\.task-done-check\s*\{[^}]*\}/)?.[0] || "";
+          const visualRule = css.match(/(?:^|\n)\.task-done-check::before\s*\{[^}]*\}/)?.[0] || "";
+          if (!targetRule.includes("width: 44px") || !targetRule.includes("height: 44px")) throw new Error("completion checkbox 觸控面不是 44×44px");
+          if (!visualRule.includes("width: 21px") || !visualRule.includes("height: 21px") || !visualRule.includes("border-radius: 5px")) throw new Error("completion checkbox 可見框不符合 compact 規格");
+        });
+
         test("Auto payment 有獨立區域且不混入人工 TASK 清單", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html", false);

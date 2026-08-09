@@ -4,28 +4,28 @@
 
 ## 版本與 Git
 
-- 功能版本：**`0.6.0`**；本輪只修正視覺資產快取，未自行升功能版本。
-- 資產版本：**`0.4.9`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
-- 施工分支：`codex/fix-design-material-rendering`；基線為當下最新 `master`：`3a1260a172957a0c998f3f26b34c347e635d9225`。
+- 功能版本：**`0.6.0`**；本輪只修改 TASKS completion control 的呈現，未自行升功能版本。
+- 資產版本：**`0.4.10`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
+- 施工分支：`codex/compact-task-done-checkbox`；基線為最新 `master`：`425d110e57fd235a675dea7028d87e27e5f47587`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #6 已合併；本分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布資產 `0.4.8`：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #7 已合併；銀灰材質資產 `0.4.9` 已進 `master`。本分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
 - PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
 
-- **`test.html`：95／95 全數通過**；資產一致性斷言已涵蓋 `style.css` 與 `app.js` 的 index／worker 五處版本鍵。
-- `node --check sw.js` 通過；`app.js`、`data-core.js`、`data-store.js` 本輪保持不動。
-- Browser 掃描 320／375／390／393／820 px，共 25 組「五頁 × 五寬度」：無白屏、非預期水平 overflow 為 0、bottom nav 五格完整、console error 為 0。
-- PROJECTS 實際操作：新增、展開、修改、切 PAUSED、兩階段 Delete 全部可用；TASKS 的 RADAR、TO-DO、Mark done／Undo、AUTO PAYMENT 分流、FROZEN、BOOKS 均已操作驗證。
+- **`test.html`：96／96 全數通過**；新增 RADAR／TO-DO completion checkbox、可見文字清零、Update mileage／delegation／Undo 保留及 44×44px 命中區回歸。
+- `node --check app.js`、`node --check sw.js` 通過；`data-core.js`、`data-store.js` 本輪保持不動。
+- Browser 掃描 320／375／390／393／820 px：既有五頁矩陣無白屏、非預期水平 overflow 為 0、bottom nav 五格完整；本輪 TASKS 的 RADAR／TO-DO checkbox 在五個寬度皆為 44×44px 命中區與 21×21px 可見框，沒有可見 `Mark done`，console error 為 0。
+- PROJECTS 既有新增、展開、修改、切 PAUSED、兩階段 Delete 全部可用；TASKS 的 completion checkbox、recurring 下一期、MONEY 連動、Done／Undo、Update mileage、AUTO PAYMENT 分流、FROZEN、BOOKS 均保留。本輪實際操作月循環完成、下一期、交易與 Undo 通過。
 - 390×844 的 PROJECTS 外層為單一 ICE；project form 無 `.card`，expanded details 為透明、無 border、無 shadow，不形成 ICE → ICE。
 - 390×844 的 Design 5a 與 PWA 實際材質像素已比對；GROUND 四點相同或只差 1 RGB，ICE／ACT 相同或只差 0–2 RGB。偏暖根因是未版本化 `style.css` 可被舊 Service Worker／HTTP cache 沿用，不是 token 或 compositing。
 - Service Worker 已實測從同 origin 的 `0.4.8` 更新到 `0.4.9`；伺服器停止後，既有頁 reload 與新分頁啟動都能由 warm cache 完整載入，IBM Plex Mono 亦可用。
 - schema 維持 v3、localStorage key 維持 `lifeCalibrationData`；project、manual task、auto payment、frozen task、book 的 v3 JSON round trip 後 ID 與內容皆保留，沒有 migration。
-- **尚未做 iPhone 實機驗收**；原生控制項、PWA 狀態列與真機捲動效能仍不得以桌面 Browser 代為宣告通過。
+- Tako 已在 iPhone 真機確認銀灰頁面捲動正常、沒有背景跳動或接縫；`backdrop-filter`／fixed background 的捲動風險已通過使用者驗證。新 completion checkbox 與既有原生控制項仍需各自的部署後真機驗收。
 
 ### `#待補`
 
-- `#待補` Draft PR merge／部署後的 iPhone 主畫面 PWA 實機驗收。
+- `#待補` 本輪 Draft PR 驗收／merge／部署後，以 iPhone PWA 確認 completion checkbox 的觸控與版面。
 - 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
 ## 資料與相容性

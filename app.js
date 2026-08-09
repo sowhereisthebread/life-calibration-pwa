@@ -424,6 +424,10 @@
 
   // 到期雷達只出現在 TASKS。MONEY 不顯示任何待辦到期雷達（Tako 2026-08-06 裁決）。
   // 資料來源、排序與完成行為不變，只是少了一個顯示點。
+  function completionControlMarkup(event, obligation) {
+    return `<button type="button" class="task-done-check" data-complete-event="${escapeHtml(event.id)}" aria-label="${escapeHtml(`Mark ${obligation.name} done`)}"></button>`;
+  }
+
   function renderRadar() {
     const items = RuntimeCore.radarItems(state, todayKey);
     elements["tasks-radar"].hidden = !items.length;
@@ -441,7 +445,7 @@
     const markup = items.map(item => `
       <article class="radar-item is-${escapeHtml(item.kind)}">
         <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${escapeHtml(relativeLabel(item))}${item.event?.dueDate ? ` · ${escapeHtml(formatDisplayDate(item.event.dueDate))}` : ""}</span></div>
-        ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
+        ${item.event ? completionControlMarkup(item.event, item.obligation) : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
       </article>`).join("");
     elements["tasks-radar-list"].innerHTML = markup;
   }
@@ -567,7 +571,7 @@
         ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
           <div class="task-details-meta"><span>Repeats <strong>${escapeHtml(cycleLabel)}</strong></span><span>When done <strong>${escapeHtml(completionLabel)}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div>
           <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
-          <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>
+          <div class="task-actions">${completionControlMarkup(event, obligation)}<div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>
         </div>` : ""}
       </article>`;
   }
