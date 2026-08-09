@@ -17,7 +17,7 @@
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
     <link rel="preload" href="./fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-    <script src="./app.js?v=0.4.6" defer></script>
+    <script src="./app.js?v=0.4.7" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -328,6 +328,7 @@
                 <label class="field"><span>Handling</span><select id="obligation-handling"><option value="manual">Manual</option><option value="auto">Automatic</option></select></label>
                 <label class="field"><span>When done</span><select id="obligation-completion-mode"><option value="none">No transaction</option><option value="expense">Expense</option><option value="transfer">Card payment · Transfer</option></select></label>
               </div>
+              <p class="helper obligation-mode-help">Automatic = recurring card expense. Card payment = manual account transfer.</p>
               <div class="two-column">
                 <label id="obligation-payment-method-field" class="field" hidden><span>Paid with</span><select id="obligation-payment-method"><option value="bank">Bank</option><option value="card">Card</option><option value="cash">Cash</option></select></label>
                 <label class="field"><span>Status</span><select id="obligation-status"><option value="active">Active</option><option value="frozen">Frozen</option></select></label>
@@ -357,6 +358,11 @@
             <details id="task-later" class="recess-group"><summary>Later</summary><div id="task-later-list" class="task-list"></div></details>
             <section class="no-date-group"><h4>No date</h4><div id="task-no-date" class="task-list"></div></section>
             <details id="task-done-group" class="recess-group"><summary>Done</summary><div id="task-done" class="task-list"></div></details>
+          </section>
+
+          <section class="card auto-payment-section" aria-labelledby="auto-payment-heading">
+            <div class="section-heading"><h3 id="auto-payment-heading">AUTO PAYMENT</h3></div>
+            <div id="auto-payment-list" class="task-list" aria-live="polite"></div>
           </section>
 
           <section class="frozen-section" aria-labelledby="frozen-heading">

@@ -166,9 +166,12 @@
 
   function normalizeObligation(raw) {
     const handling = raw?.handling === "auto" ? "auto" : "manual";
-    const completionMode = ["none", "expense", "transfer"].includes(raw?.completionMode)
+    const requestedCompletionMode = ["none", "expense", "transfer"].includes(raw?.completionMode)
       ? raw.completionMode
       : (numberOrNull(raw?.amount) === null ? "none" : "expense");
+    // 自動扣款永遠是刷卡支出；帳戶移轉只代表人工卡費繳款。
+    // 在正規化層收斂舊資料或繞過 UI 的非法 auto + transfer 組合，不新增 schema。
+    const completionMode = handling === "auto" ? "expense" : requestedCompletionMode;
     return {
       ...(raw && typeof raw === "object" ? raw : {}),
       id: String(raw?.id || uid("obligation")),
@@ -177,9 +180,11 @@
       amount: numberOrNull(raw?.amount),
       handling,
       completionMode,
-      paymentMethod: ["card", "cash", "bank"].includes(raw?.paymentMethod)
+      paymentMethod: handling === "auto"
+        ? "card"
+        : ["card", "cash", "bank"].includes(raw?.paymentMethod)
         ? raw.paymentMethod
-        : (handling === "auto" ? "card" : "bank"),
+        : "bank",
       transferFromAccountId: String(raw?.transferFromAccountId || "main"),
       transferToAccountId: String(raw?.transferToAccountId || "card"),
       category: String(raw?.category || "其他"),
@@ -558,6 +563,47 @@
     );
   }
 
+  function obligationDeletionPolicy(inputState, obligationId) {
+    const state = normalizeState(inputState);
+    const id = String(obligationId || "");
+    const obligation = state.obligations.find(item => item.id === id);
+    if (!obligation) {
+      return { allowed: false, reason: "找不到這筆待辦，未執行刪除。", pendingEventCount: 0 };
+    }
+
+    const relatedEvents = state.events.filter(event => event.obligationId === id);
+    const eventIds = new Set(relatedEvents.map(event => event.id));
+    const transactionIds = new Set(relatedEvents.map(event => event.transactionId).filter(Boolean));
+    const hasHistoricalEvent = relatedEvents.some(event => event.status !== "pending");
+    const hasLinkedTransaction = allTransactions(state).some(transaction =>
+      eventIds.has(transaction.eventId) || transactionIds.has(transaction.id)
+    );
+
+    if (hasHistoricalEvent || hasLinkedTransaction) {
+      return {
+        allowed: false,
+        reason: "這筆待辦已有完成、自動扣款或交易紀錄，不能永久刪除；請改用 Archive。",
+        pendingEventCount: relatedEvents.filter(event => event.status === "pending").length
+      };
+    }
+
+    return {
+      allowed: true,
+      reason: "",
+      pendingEventCount: relatedEvents.filter(event => event.status === "pending").length
+    };
+  }
+
+  function deleteObligationSafely(inputState, obligationId) {
+    const state = normalizeState(inputState);
+    const policy = obligationDeletionPolicy(state, obligationId);
+    if (!policy.allowed) return { state, changed: false, ...policy };
+    const id = String(obligationId || "");
+    state.obligations = state.obligations.filter(obligation => obligation.id !== id);
+    state.events = state.events.filter(event => event.obligationId !== id);
+    return { state, changed: true, ...policy };
+  }
+
   function dayIncome(day) {
     return (day?.transactions || []).reduce((total, item) => item.type === "income" ? total + transactionAmount(item) : total, 0);
   }
@@ -818,6 +864,8 @@
     transactionAmount,
     transactionDisplayName,
     allTransactions,
+    obligationDeletionPolicy,
+    deleteObligationSafely,
     dayIncome,
     dayExpense,
     dayNet,

@@ -20,12 +20,13 @@
     <ol id="results"></ol>
     <script src="data-core.js"></script>
     <script src="data-store.js"></script>
-    <script src="app.js?v=0.4.5"></script>
+    <script src="app.js"></script>
     <script>
       (() => {
         "use strict";
         const Core = window.LifeCalibrationCore;
         const MonthlyUX = window.LifeCalibrationMonthlyRepeatUX;
+        const ObligationUX = window.LifeCalibrationObligationUX;
         const results = [];
 
         function test(name, action) {
@@ -403,6 +404,105 @@
           const first = Core.runAutoPayments(state, "2026-08-02").state;
           const second = Core.runAutoPayments(first, "2026-08-02").state;
           equal(Core.allTransactions(second).length, 1);
+        });
+        test("Auto + Transfer 在資料層正規化為刷卡支出", () => {
+          const obligation = Core.normalizeObligation({ handling: "auto", completionMode: "transfer", paymentMethod: "bank" });
+          equal(obligation.handling, "auto");
+          equal(obligation.completionMode, "expense");
+          equal(obligation.paymentMethod, "card");
+        });
+        test("表單切 Automatic 固定 Expense，改選 Transfer 則回到 Manual", () => {
+          const automatic = ObligationUX.resolveObligationFormMode({ handling: "auto", completionMode: "transfer", paymentMethod: "bank", changedField: "handling" });
+          equal(automatic.handling, "auto");
+          equal(automatic.completionMode, "expense");
+          equal(automatic.paymentMethod, "card");
+          equal(automatic.transferDisabled, true);
+          const transfer = ObligationUX.resolveObligationFormMode({ handling: "auto", completionMode: "transfer", paymentMethod: "card", changedField: "completion" });
+          equal(transfer.handling, "manual");
+          equal(transfer.completionMode, "transfer");
+          equal(transfer.transferDisabled, false);
+        });
+        test("已有 Card payment 時仍可建立任意多筆 Auto payment", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "卡費繳款", cycle: { type: "monthly", day: 16 }, handling: "manual", completionMode: "transfer" }, "2026-08-16");
+          ["YouTube", "Netflix", "iCloud"].forEach(name => {
+            store.addObligation({ name, cycle: { type: "monthly", day: 1 }, amount: 100, handling: "auto", completionMode: "expense", paymentMethod: "card" }, "2026-08-01");
+          });
+          const state = store.readState();
+          equal(state.obligations.filter(item => item.handling === "auto").length, 3);
+          equal(state.obligations.filter(item => item.completionMode === "transfer").length, 1);
+        });
+        test("第二筆 active Card payment 在資料層被阻止", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "卡費一", cycle: { type: "monthly", day: 16 }, completionMode: "transfer" }, "2026-08-16");
+          let message = "";
+          try {
+            store.addObligation({ name: "卡費二", cycle: { type: "monthly", day: 20 }, completionMode: "transfer" }, "2026-08-20");
+          } catch (error) {
+            message = error.message;
+          }
+          if (!message.includes("唯一的帳戶移轉義務")) throw new Error("第二筆 transfer 未被中文規則阻止");
+          equal(store.readState().obligations.length, 1);
+        });
+        test("同日多筆 Auto payment 各自產生交易、連結與下一期", () => {
+          const state = Core.createEmptyState();
+          [
+            { id: "auto-1", name: "YouTube", amount: 199 },
+            { id: "auto-2", name: "Netflix", amount: 390 }
+          ].forEach((item, index) => {
+            state.obligations.push(Core.normalizeObligation({ ...item, cycle: { type: "monthly", day: 1 }, handling: "auto", completionMode: "expense", paymentMethod: "card" }));
+            state.events.push(Core.normalizeEvent({ id: `auto-event-${index + 1}`, obligationId: item.id, dueDate: "2026-08-01", status: "pending" }));
+          });
+          const result = Core.runAutoPayments(state, "2026-08-01");
+          const transactions = Core.allTransactions(result.state);
+          equal(result.completedEventIds.length, 2);
+          equal(transactions.length, 2);
+          equal(new Set(transactions.map(item => item.title)).size, 2);
+          transactions.forEach(transaction => {
+            const event = result.state.events.find(item => item.id === transaction.eventId);
+            if (!event || event.transactionId !== transaction.id || event.status !== "auto-paid") throw new Error("交易與事件連結不完整");
+          });
+          const nextDates = result.state.events.filter(item => item.status === "pending").map(item => item.dueDate);
+          equal(nextDates.length, 2);
+          if (nextDates.some(date => date !== "2026-09-01")) throw new Error("下一期 recurrence 錯誤");
+        });
+        test("無歷史 obligation 可安全刪除且 pending event 一併移除", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "可刪", cycle: { type: "monthly", day: 5 }, completionMode: "none" }, "2026-08-05");
+          const result = store.deleteObligationSafely(created.obligation.id);
+          equal(result.deleted, true);
+          const state = store.readState();
+          equal(state.obligations.length, 0);
+          equal(state.events.length, 0);
+          equal(state.events.some(event => !state.obligations.some(obligation => obligation.id === event.obligationId)), false);
+        });
+        test("Done history 阻止 hard delete 且 Archive 仍正常", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "已完成", cycle: { type: "monthly", day: 5 }, completionMode: "none" }, "2026-08-05");
+          store.completeEvent(created.event.id, { completedDate: "2026-08-05" });
+          const result = store.deleteObligationSafely(created.obligation.id);
+          equal(result.deleted, false);
+          if (!result.reason.includes("請改用 Archive")) throw new Error("缺少安全替代說明");
+          store.updateObligation(created.obligation.id, { status: "archived" });
+          equal(store.readState().obligations[0].status, "archived");
+          equal(store.readState().events.some(event => event.status === "done"), true);
+        });
+        test("Auto-paid history 阻止 hard delete", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 199, handling: "auto", completionMode: "expense" }, "2026-08-01");
+          store.runAutoPayments("2026-08-01");
+          equal(store.deleteObligationSafely(created.obligation.id).deleted, false);
+          equal(Core.allTransactions(store.readState()).length, 1);
+        });
+        test("linked MONEY transaction 阻止刪除且絕不 cascade", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "有交易", cycle: { type: "none" }, completionMode: "none" }, null);
+          store.addTransaction("2026-08-01", { id: "linked-money", type: "expense", amount: 50, category: "其他", eventId: created.event.id });
+          const result = store.deleteObligationSafely(created.obligation.id);
+          equal(result.deleted, false);
+          equal(Core.allTransactions(store.readState()).some(item => item.id === "linked-money"), true);
+          equal(store.readState().obligations.length, 1);
+          equal(store.readState().events.length, 1);
         });
         test("移轉不計月支出", () => {
           const state = Core.createEmptyState();
@@ -856,6 +956,37 @@
           const css = styleRequest.responseText;
           [".project-summary", ".task-summary", ".task-summary-meta.has-due", "text-overflow: ellipsis", ".task-actions-secondary", "#page-projects input", "font-size: 16px"].forEach(rule => {
             if (!css.includes(rule)) throw new Error(`缺少精簡摘要樣式：${rule}`);
+          });
+        });
+
+        test("Auto payment 有獨立區域且不混入人工 TASK 清單", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          const section = documentCopy.querySelector(".auto-payment-section");
+          if (!section || !section.querySelector("#auto-payment-list")) throw new Error("缺少 Auto payment 獨立區域");
+          if (!documentCopy.querySelector(".obligation-mode-help")?.textContent.includes("Automatic")) throw new Error("缺少 Auto / Card payment 概念說明");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          if (!app.includes('item.obligation.handling !== "auto"')) throw new Error("人工 TASK 清單未排除 Automatic");
+          const start = app.indexOf("function autoPaymentMarkup");
+          const end = app.indexOf("\n  function ", start + 20);
+          const source = app.slice(start, end);
+          if (!source.includes("data-edit-obligation") || !source.includes("data-freeze-obligation") || !source.includes("data-archive-obligation")) throw new Error("Auto payment 展開操作不完整");
+          if (source.includes("data-complete-event")) throw new Error("Auto payment 不應出現人工 Mark done");
+        });
+
+        test("Service Worker 對 warm app shell 採 cache-first 並保留有界網路 fallback", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./sw.js", false);
+          request.send();
+          const worker = request.responseText;
+          ["APP_SHELL_URLS", "appShellFirst", "isAppNavigation", 'relativePath === "index.html"', "NETWORK_TIMEOUT_MS = 3000", "AbortController", "boundedNetworkFirst"].forEach(rule => {
+            if (!worker.includes(rule)) throw new Error(`弱網策略缺少：${rule}`);
           });
         });
 

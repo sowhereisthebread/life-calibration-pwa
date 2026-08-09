@@ -20,6 +20,25 @@
 
   globalThis.LifeCalibrationMonthlyRepeatUX = { inferDayFromDue, monthlyRepeatFieldState };
 
+  function resolveObligationFormMode({ handling, completionMode, paymentMethod, changedField = "" }) {
+    let nextHandling = handling === "auto" ? "auto" : "manual";
+    let nextCompletionMode = ["none", "expense", "transfer"].includes(completionMode) ? completionMode : "none";
+    let nextPaymentMethod = ["card", "cash", "bank"].includes(paymentMethod) ? paymentMethod : "bank";
+    if (changedField === "completion" && nextCompletionMode === "transfer") nextHandling = "manual";
+    if (nextHandling === "auto") {
+      nextCompletionMode = "expense";
+      nextPaymentMethod = "card";
+    }
+    return {
+      handling: nextHandling,
+      completionMode: nextCompletionMode,
+      paymentMethod: nextPaymentMethod,
+      transferDisabled: nextHandling === "auto"
+    };
+  }
+
+  globalThis.LifeCalibrationObligationUX = { resolveObligationFormMode };
+
   const RuntimeCore = globalThis.LifeCalibrationCore;
   const appRoot = globalThis.document?.getElementById("app");
   if (!RuntimeCore) {
@@ -78,7 +97,7 @@
       "obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month", "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
       "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
       "obligation-last-mileage", "obligation-current-mileage", "obligation-mileage-updated", "obligation-reminder-days", "obligation-threshold",
-      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
+      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "auto-payment-list", "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
       "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
       "metric-days", "review-list", "review-month-income", "review-month-expense", "review-month-net", "statement-amount", "statement-recorded", "statement-gap",
       "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
@@ -538,6 +557,7 @@
     const detailId = `task-details-${event.id}`;
     const cycleLabel = { none: "None", once: "Once", monthly: "Monthly", yearly: "Yearly", after_days: "After N days", mileage: "By mileage" }[obligation.cycle.type] || "None";
     const completionLabel = { none: "No transaction", expense: "Expense", transfer: "Account transfer" }[obligation.completionMode] || "No transaction";
+    const deleteButton = safeDeleteButton(obligation);
     return `
       <article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
         <button type="button" class="task-summary" data-toggle-task="${escapeHtml(event.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
@@ -547,9 +567,50 @@
         ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
           <div class="task-details-meta"><span>Repeats <strong>${escapeHtml(cycleLabel)}</strong></span><span>When done <strong>${escapeHtml(completionLabel)}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div>
           <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
-          <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><div class="task-actions-secondary"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button></div></div>
+          <div class="task-actions"><button type="button" class="button button-primary" data-complete-event="${escapeHtml(event.id)}">Mark done</button><div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>
         </div>` : ""}
       </article>`;
+  }
+
+  function safeDeleteButton(obligation) {
+    const policy = RuntimeCore.obligationDeletionPolicy(state, obligation.id);
+    return policy.allowed
+      ? `<button type="button" class="button button-danger" data-delete-obligation="${escapeHtml(obligation.id)}">Delete</button>`
+      : "";
+  }
+
+  function latestAutoPayment(obligationId) {
+    const event = state.events
+      .filter(item => item.obligationId === obligationId && item.status === "auto-paid")
+      .sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")))[0];
+    if (!event) return null;
+    const transaction = RuntimeCore.allTransactions(state).find(item => item.id === event.transactionId || item.eventId === event.id);
+    return {
+      date: event.completedAt?.slice(0, 10) || transaction?.occurredOn || "",
+      amount: transaction?.amount ?? event.actualAmount
+    };
+  }
+
+  function autoPaymentMarkup(obligation) {
+    const taskKey = `auto:${obligation.id}`;
+    const expanded = expandedTaskKey === taskKey;
+    const detailId = `auto-payment-details-${obligation.id}`;
+    const pendingEvent = state.events
+      .filter(event => event.obligationId === obligation.id && event.status === "pending")
+      .sort((a, b) => String(a.dueDate || "9999-12-31").localeCompare(String(b.dueDate || "9999-12-31")))[0];
+    const latest = latestAutoPayment(obligation.id);
+    const dueLabel = pendingEvent?.dueDate ? `Next ${formatDisplayDate(pendingEvent.dueDate)}` : "No next date";
+    const amountLabel = obligation.amount !== null ? `<span>${escapeHtml(formatCurrency(obligation.amount))}</span>` : "";
+    const latestLabel = latest?.date
+      ? `<span>Last paid <strong>${escapeHtml(formatDisplayDate(latest.date, false))}${latest.amount !== null && latest.amount !== undefined ? ` · ${escapeHtml(formatCurrency(latest.amount))}` : ""}</strong></span>`
+      : "";
+    const deleteButton = safeDeleteButton(obligation);
+    return `<article class="task-item auto-payment-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}">
+      <button type="button" class="task-summary" data-toggle-task="${escapeHtml(taskKey)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+        <span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong><span class="task-summary-meta has-due"><span>${escapeHtml(dueLabel)}</span><span class="auto-payment-status">Automatic${amountLabel}</span></span></span><span class="task-chevron" aria-hidden="true"></span>
+      </button>
+      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details"><div class="task-details-meta"><span>Status <strong>Automatic</strong></span><span>Next due <strong>${escapeHtml(pendingEvent?.dueDate ? formatDisplayDate(pendingEvent.dueDate, false) : "—")}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}${latestLabel}</div><div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>` : ""}
+    </article>`;
   }
 
   function frozenTaskMarkup(obligation) {
@@ -571,14 +632,22 @@
     const cutoff = new Date(RuntimeCore.dateFromKey(todayKey));
     cutoff.setDate(cutoff.getDate() + 30);
     const cutoffKey = RuntimeCore.localDateKey(cutoff);
-    const dated = pending.filter(item => item.event.dueDate && item.event.dueDate <= cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
-    const later = pending.filter(item => item.event.dueDate && item.event.dueDate > cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
-    const noDate = pending.filter(item => !item.event.dueDate);
+    const manualPending = pending.filter(item => item.obligation.handling !== "auto");
+    const dated = manualPending.filter(item => item.event.dueDate && item.event.dueDate <= cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
+    const later = manualPending.filter(item => item.event.dueDate && item.event.dueDate > cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
+    const noDate = manualPending.filter(item => !item.event.dueDate);
     const empty = '<div class="empty-state compact-empty">Nothing due.</div>';
     elements["task-dated"].innerHTML = dated.length ? dated.map(item => taskMarkup(item.event, item.obligation)).join("") : empty;
     elements["task-later"].hidden = !later.length;
     elements["task-later-list"].innerHTML = later.map(item => taskMarkup(item.event, item.obligation)).join("");
     elements["task-no-date"].innerHTML = noDate.length ? noDate.map(item => taskMarkup(item.event, item.obligation)).join("") : '<div class="empty-state compact-empty">Nothing here.</div>';
+
+    const autoPayments = state.obligations
+      .filter(item => item.handling === "auto" && item.status === "active")
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-TW"));
+    elements["auto-payment-list"].innerHTML = autoPayments.length
+      ? autoPayments.map(autoPaymentMarkup).join("")
+      : '<div class="empty-state compact-empty">No automatic payments.</div>';
 
     const done = state.events.filter(event => event.status !== "pending").sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
     elements["task-done"].innerHTML = done.length ? done.map(event => {
@@ -790,8 +859,19 @@
     syncDateControls();
   }
 
-  function syncObligationCompletionFields() {
-    const mode = elements["obligation-completion-mode"].value;
+  function syncObligationCompletionFields(changedField = "") {
+    const resolved = resolveObligationFormMode({
+      handling: elements["obligation-handling"].value,
+      completionMode: elements["obligation-completion-mode"].value,
+      paymentMethod: elements["obligation-payment-method"].value,
+      changedField
+    });
+    elements["obligation-handling"].value = resolved.handling;
+    elements["obligation-completion-mode"].value = resolved.completionMode;
+    elements["obligation-payment-method"].value = resolved.paymentMethod;
+    const transferOption = elements["obligation-completion-mode"].querySelector('option[value="transfer"]');
+    if (transferOption) transferOption.disabled = resolved.transferDisabled;
+    const mode = resolved.completionMode;
     elements["obligation-payment-method-field"].hidden = mode !== "expense";
     elements["obligation-transfer-fields"].hidden = mode !== "transfer";
   }
@@ -1169,15 +1249,13 @@
     elements["obligation-cycle"].addEventListener("change", syncObligationCycleFields);
     elements["obligation-due"].addEventListener("input", syncObligationCycleFields);
     elements["obligation-due"].addEventListener("change", syncObligationCycleFields);
-    elements["obligation-completion-mode"].addEventListener("change", syncObligationCompletionFields);
+    elements["obligation-completion-mode"].addEventListener("change", () => syncObligationCompletionFields("completion"));
     elements["obligation-amount"].addEventListener("input", () => {
       if (elements["obligation-completion-mode"].value === "transfer") return;
       elements["obligation-completion-mode"].value = elements["obligation-amount"].value === "" ? "none" : "expense";
-      syncObligationCompletionFields();
+      syncObligationCompletionFields("amount");
     });
-    elements["obligation-handling"].addEventListener("change", () => {
-      elements["obligation-payment-method"].value = elements["obligation-handling"].value === "auto" ? "card" : "bank";
-    });
+    elements["obligation-handling"].addEventListener("change", () => syncObligationCompletionFields("handling"));
 
     elements["quick-task-form"].addEventListener("submit", event => {
       event.preventDefault();
@@ -1205,7 +1283,7 @@
       const dueDate = elements["obligation-due"].value || null;
       const completionMode = elements["obligation-completion-mode"].value;
       if (completionMode === "transfer" && state.obligations.some(item => item.id !== editingObligationId && item.completionMode === "transfer" && item.status !== "archived")) {
-        showToast("Card payment is the only transfer obligation and already exists.", 5000);
+        showToast("目前卡費繳款是唯一的帳戶移轉義務；自動扣款請使用 Automatic + Expense。", 5000);
         return;
       }
       const cycle = {
@@ -1275,6 +1353,7 @@
       const freeze = event.target.closest("[data-freeze-obligation]");
       const archive = event.target.closest("[data-archive-obligation]");
       const unfreeze = event.target.closest("[data-unfreeze-obligation]");
+      const deleteObligation = event.target.closest("[data-delete-obligation]");
       const undo = event.target.closest("[data-undo-event]");
       const removeBook = event.target.closest("[data-remove-book]");
       if (toggleTask) {
@@ -1299,6 +1378,33 @@
             expandedBookId = null;
             renderBooks();
             showToast("Book deleted");
+          }
+        });
+        return;
+      }
+      if (deleteObligation) {
+        const obligation = state.obligations.find(item => item.id === deleteObligation.dataset.deleteObligation);
+        const policy = RuntimeCore.obligationDeletionPolicy(state, deleteObligation.dataset.deleteObligation);
+        if (!policy.allowed) {
+          showToast(policy.reason, 5000);
+          return;
+        }
+        openConfirmation({
+          title: "DELETE TASK",
+          message: `「${obligation?.name || "UNNAMED"}」尚未有歷史紀錄；刪除後，未處理事件也會一併移除。`,
+          finalLabel: "DELETE",
+          trigger: deleteObligation,
+          action: () => {
+            let deletion = null;
+            const saved = runDataChange(() => { deletion = dataStore.deleteObligationSafely(deleteObligation.dataset.deleteObligation); });
+            if (!saved) return;
+            if (!deletion?.deleted) {
+              showToast(deletion?.reason || "這筆待辦目前不能刪除；請改用 Archive。", 5000);
+              return;
+            }
+            expandedTaskKey = null;
+            renderCommitments();
+            showToast("Task deleted");
           }
         });
         return;
