@@ -548,6 +548,10 @@
     return Math.max(0, amount);
   }
 
+  function transactionDisplayName(transaction) {
+    return transaction?.title || transaction?.category || "Other";
+  }
+
   function allTransactions(state) {
     return Object.entries(state?.days || {}).flatMap(([dayKey, day]) =>
       (day.transactions || []).map(transaction => ({ ...transaction, occurredOn: transaction.occurredOn || dayKey }))
@@ -812,6 +816,7 @@
     undoEventCompletion,
     runAutoPayments,
     transactionAmount,
+    transactionDisplayName,
     allTransactions,
     dayIncome,
     dayExpense,
