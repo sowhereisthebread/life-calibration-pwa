@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（TASKS completion checkbox 施工完成，待 Draft PR 驗收）
+更新：2026-08-10（MONEY rolling RECENT／WEEKLY HISTORY 施工完成，待 Draft PR 驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,11 +59,12 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、**資產版本號為 `0.4.10`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 96／96 全綠。**
+- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、本任務 branch 的**資產版本號為 `0.4.11`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 102／102 全綠。**
 - 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #7 已合併，merge commit 為 `425d110e57fd235a675dea7028d87e27e5f47587`；銀灰材質資產 `0.4.9` 已進 `master`。本輪分支 `codex/compact-task-done-checkbox` 以該 commit 為基線，尚未 merge 或部署。
-- TASKS 的人工完成入口（RADAR 與 TO-DO expanded）統一為無文字的 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。`Update mileage`、completion handler、recurrence、MONEY transaction、Done／Undo 與 schema 都未變。
+- PR #8 已合併，merge commit 為 `942f17ba07ec968e2cad4584aea7e20a78f96b53`；TASKS completion checkbox 與資產 `0.4.10` 已進 `master`。本輪分支 `codex/money-weekly-transaction-history` 以該 commit 為基線，尚未 merge 或部署。
+- MONEY 的 RECENT 只顯示含今天在內最近 7 個日曆日；更舊交易依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY。兩者共用同一個依日 renderer／transaction editor，日期變更後由 `occurredOn` 重新歸組；沒有 schema、刪除、匯出入、帳務或統計規則變更。現行資料若含 future transaction，不會誤進 RECENT，仍在同一張 ICE card 的低權重 FUTURE 區可見。
+- TASKS 的人工完成入口（RADAR 與 TO-DO expanded）維持 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。`Update mileage`、completion handler、recurrence、MONEY transaction、Done／Undo 與 schema 都未變。
 - 同引擎 390×844 實測證明：最新 master 的 GROUND、ICE、GLASS、DEBOSS、ACT token 與 computed style 已對齊 Design 5a，GROUND 四點逐像素相同或只差 1 RGB；偏暖不是色票或 body 合成座標造成。
 - 可重現根因是舊 Service Worker／HTTP cache 混用資產：正式 GitHub Pages 的 `style.css` 為未版本化 URL，且回應 `Cache-Control: max-age=600`。現改為 `style.css?v=0.4.9`，與 cache／app 版本共用同一鍵；舊 origin 已實測由 `0.4.8` 更新到 `0.4.9`，離線 warm-cache 與新分頁啟動都成功。
 - Tako 已在 iPhone 真機確認銀灰頁面捲動正常，沒有背景跳動或接縫；`backdrop-filter` 與 fixed background 的捲動風險不再是 blocker。顏色後續主觀微調另案處理，不影響本輪 checkbox 驗收。
@@ -73,6 +74,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - 環境：本機 `python -m http.server` + Browser runtime，非 `file://` 直開；Service Worker 測試要使用乾淨 origin，避免舊 localhost 快取混入不同資產版本。
 - 五個分頁 × 320／375／390／393／820 px 共 25 組：console 無 error、無水平捲動、bottom nav 五格完整。
 - TASKS completion checkbox 另以 320／375／390／393／820 px 實測：RADAR 與 TO-DO expanded 的按鈕皆為 44×44px、可見框 21×21px、沒有可見 `Mark done`，`Update mileage` 保留，五個寬度皆無水平 overflow。月循環完成後下一期、MONEY 交易、Done 與 Undo 已逐步操作通過，console error 為 0。
+- MONEY history 以含 today／1 day ago／cutoff／7 days ago／8 days ago／前一週／跨月週／future 的實際 transaction fixture 驗證；375／390／393 px 的 RECENT 日期、週摘要、預設收合、展開 editor、日期移入 RECENT 後再移回 History、bottom nav 與零水平 overflow 均通過，console error 為 0。
 - **寬度掃描一律要納入 390 與 393** —— 那是 iPhone 14／15／16（390）與 15 Pro／16 Pro（393、402）的實際寬度。批次 A 之前只掃 320／375／820，正好漏掉這一段。
 - 對比實測：截圖回灌 canvas 取面色眾數，避開文字筆畫。**取值位置必須是該 token 可能出現的最暗合成背景**，不是卡片頂端（見架構.md 第五章「token 的色碼必須在最暗合成背景上取值」）。
 - 現行實測值記在 `style.css` 的 `:root` 註解裡，以那裡為準：`--t-ice-label` 4.67:1、`--t-frozen` 3.38:1（刻意的 3:1 例外）、圖表最淺一階 3.09:1、相鄰兩階 1.34:1。
@@ -152,7 +154,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 | # | 項目 | 狀態 | 為什麼還沒動 |
 |---|---|---|---|
-| 1 | **iPhone completion checkbox 與原生控制項實機驗收** | 未驗證 | 銀灰 fixed background 的捲動、跳動與接縫已由 Tako 真機確認正常；本輪新的 44×44px checkbox 仍需在 merge／部署後以 iPhone PWA 驗收，既有原生時間／日期控制項也不得只靠桌面 Browser 宣告通過 |
+| 1 | **iPhone completion checkbox、WEEKLY HISTORY 與原生控制項實機驗收** | 未驗證 | 銀灰 fixed background 的捲動、跳動與接縫已由 Tako 真機確認正常；44×44px checkbox、WEEKLY HISTORY summary／展開 editor 與既有原生時間／日期控制項仍需在 merge／部署後以 iPhone PWA 驗收，不得只靠桌面 Browser 宣告通過 |
 | 2 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
 | 3 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
 | 4 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |

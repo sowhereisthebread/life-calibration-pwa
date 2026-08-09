@@ -27,6 +27,7 @@
         const Core = window.LifeCalibrationCore;
         const MonthlyUX = window.LifeCalibrationMonthlyRepeatUX;
         const ObligationUX = window.LifeCalibrationObligationUX;
+        const MoneyHistoryUX = window.LifeCalibrationMoneyHistoryUX;
         const results = [];
 
         function test(name, action) {
@@ -119,6 +120,88 @@
         test("缺少時間時不產生錯誤數字", () => equal(Core.durationBetweenTimes("09:00", ""), null));
         test("未完成工作段不計工時", () => equal(Core.workMinutes([{ start: "09:00", end: "17:00" }, { start: "18:00", end: "" }]), 480));
         test("收入減支出得到正確淨額且移轉不影響", () => equal(Core.dayNet({ transactions: [{ type: "income", amount: 1000 }, { type: "expense", amount: 350 }, { type: "transfer", amount: 500 }] }), 650));
+        test("MONEY RECENT 是含今天的 rolling 7 calendar days", () => {
+          const transactions = [
+            { id: "day-7", occurredOn: "2026-08-03" },
+            { id: "cutoff", occurredOn: "2026-08-04" },
+            { id: "today", occurredOn: "2026-08-10" },
+            { id: "future", occurredOn: "2026-08-11" }
+          ];
+          const view = MoneyHistoryUX.partitionMoneyTransactions(transactions, "2026-08-10");
+          equal(view.recentStart, "2026-08-04");
+          equal(view.recent.map(item => item.id).join(","), "today,cutoff");
+          equal(view.history.map(item => item.id).join(","), "day-7");
+          equal(view.future.map(item => item.id).join(","), "future");
+        });
+        test("WEEKLY HISTORY 固定以 local Monday–Sunday 分組並正確跨月跨年", () => {
+          equal(MoneyHistoryUX.mondayKey("2026-08-02"), "2026-07-27");
+          equal(MoneyHistoryUX.mondayKey("2026-08-03"), "2026-08-03");
+          equal(MoneyHistoryUX.formatHistoryWeekRange("2026-07-27", "2026-08-02"), "7/27–8/2");
+          equal(MoneyHistoryUX.formatHistoryWeekRange("2026-12-28", "2027-01-03"), "12/28/2026–1/3/2027");
+        });
+        test("Recent 與 History 無重複、聯集完整，週與日皆由新到舊", () => {
+          const transactions = [
+            { id: "r1", occurredOn: "2026-08-25" },
+            { id: "r2", occurredOn: "2026-08-19" },
+            { id: "h1", occurredOn: "2026-08-09" },
+            { id: "h2", occurredOn: "2026-08-03" },
+            { id: "h3", occurredOn: "2026-08-02" },
+            { id: "h4", occurredOn: "2026-07-27" }
+          ];
+          const view = MoneyHistoryUX.partitionMoneyTransactions(transactions, "2026-08-25");
+          const recentIds = new Set(view.recent.map(item => item.id));
+          const historyIds = new Set(view.history.map(item => item.id));
+          if ([...recentIds].some(id => historyIds.has(id))) throw new Error("Recent 與 History IDs overlap");
+          equal(new Set([...recentIds, ...historyIds]).size, transactions.length);
+          equal(view.weeks.map(week => week.startKey).join(","), "2026-08-03,2026-07-27");
+          equal(view.weeks[0].transactions.map(item => item.occurredOn).join(","), "2026-08-09,2026-08-03");
+          equal(view.weeks[1].transactions.map(item => item.occurredOn).join(","), "2026-08-02,2026-07-27");
+        });
+        test("修改 occurredOn 會移動同一 transaction 並重新歸組", () => {
+          const store = createMemoryStore();
+          store.addTransaction("2026-08-03", { id: "move-me", type: "expense", amount: 88, category: "測試", paymentMethod: "cash", occurredOn: "2026-08-03" });
+          const before = store.readState();
+          const beforeBalances = JSON.stringify(Core.accountBalances(before));
+          equal(store.updateTransaction("2026-08-03", "move-me", { occurredOn: "2026-08-10" }), true);
+          const after = store.readState();
+          equal(after.days["2026-08-03"].transactions.length, 0);
+          equal(after.days["2026-08-10"].transactions[0].id, "move-me");
+          equal(after.days["2026-08-10"].transactions[0].occurredOn, "2026-08-10");
+          equal(Core.allTransactions(after).length, 1);
+          equal(MoneyHistoryUX.partitionMoneyTransactions(Core.allTransactions(after), "2026-08-10").recent[0].id, "move-me");
+          equal(Core.monthExpense(after, "2026-08"), Core.monthExpense(before, "2026-08"));
+          equal(JSON.stringify(Core.accountBalances(after)), beforeBalances);
+        });
+        test("History 共用既有 transaction renderer、editor、AUTO 與 expense title", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./app.js?test=money-weekly-history", false);
+          request.send();
+          const app = request.responseText;
+          if (!app.includes("function transactionMarkup") || !app.includes("function transactionDaysMarkup")) throw new Error("缺少共用 transaction renderer");
+          if ((app.match(/data-transaction-field=\"amount\"/g) || []).length !== 1) throw new Error("transaction editor markup 被複製");
+          if (!app.includes('data-transaction-field="occurredOn"')) throw new Error("history editor 缺少 Date 欄位");
+          if (!app.includes('class="weekly-history-group"') || !app.includes("transactionDaysMarkup(week.transactions")) throw new Error("weekly group 未重用日／交易 renderer");
+          if (!app.includes('class="auto-tag"') || !app.includes("RuntimeCore.transactionDisplayName(transaction)")) throw new Error("AUTO 或 expense display title 遺失");
+        });
+        test("History partition 不修改資料源或現行會計結果", () => {
+          const state = Core.createEmptyState();
+          state.days["2026-07-01"] = Core.createEmptyDay();
+          state.days["2026-07-01"].transactions = [
+            Core.normalizeTransaction({ id: "old-expense", type: "expense", amount: 120, category: "舊交易", paymentMethod: "card", occurredOn: "2026-07-01" }, "2026-07-01")
+          ];
+          state.days["2026-08-10"] = Core.createEmptyDay();
+          state.days["2026-08-10"].transactions = [
+            Core.normalizeTransaction({ id: "new-income", type: "income", amount: 500, accountId: "main", occurredOn: "2026-08-10" }, "2026-08-10")
+          ];
+          const before = JSON.stringify(state);
+          const balances = JSON.stringify(Core.accountBalances(state));
+          const all = Core.allTransactions(state);
+          const view = MoneyHistoryUX.partitionMoneyTransactions(all, "2026-08-10");
+          equal(view.recent.length + view.history.length + view.future.length, all.length);
+          equal(JSON.stringify(state), before);
+          equal(JSON.stringify(Core.accountBalances(state)), balances);
+          equal(Core.allTransactions(state).length, 2);
+        });
         test("最近七天固定產生七列", () => equal(Core.summarizeReview(Core.createEmptyState(), "2026-08-01").rows.length, 7));
         test("CSV 會包住逗號並跳脫雙引號", () => equal(Core.csvEscape('餐飲,"晚餐"'), '"餐飲,""晚餐"""'));
         test("CSV 輸出包含中文標題", () => {
