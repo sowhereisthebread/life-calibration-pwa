@@ -892,7 +892,7 @@
           if (/\.app-shell[^{]*\{[^}]*\b4[47]px/.test(css)) throw new Error(".app-shell 疑似寫死狀態列高度");
         });
 
-        test("v0.5.1 表單間距、欄位邊界與版本防護存在", () => {
+        test("v0.6.0 表單間距、欄位邊界與版本防護存在", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
@@ -901,7 +901,7 @@
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.5.1") throw new Error("頁首版本不是 0.5.1（基準無 v 前綴）");
+          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.6.0") throw new Error("頁首版本不是 0.6.0（基準無 v 前綴）");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 

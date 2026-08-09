@@ -59,7 +59,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號仍為 `0.5.1`**（`index.html` 頁首）、**資產版本號為 `0.4.7`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **功能版本號已定案為 `0.6.0`**（`index.html` 頁首）、**資產版本號維持 `0.4.7`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
 - **`test.html` 92／92 全綠。**
 - 視覺改版與批次 A／A-補／B／C **已部署**，線上 commit `23f398c`（Pages build 2026-08-05T23:30:59Z 成功，線上檔案已與該 commit 逐位元組比對相同）。**但該版尚未經 iPhone 實機驗收。**
 - 本輪缺陷修正完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收** —— 已部署的 `23f398c` 與本輪修正會在那一次一併驗。
@@ -80,8 +80,8 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - **Auto payment 區**：PROJECTS 內新增獨立區段，只列 active automatic obligations；人工 dated／later／no-date TASK 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
 - **資料模型**：schema 仍為 v3，`DATA_VERSION` 未變；MONEY 仍是 accounting 正典。多筆同日 Auto payment 各自生成 transaction、event link 與下一期 recurrence，交易 title 保留 obligation name。
 - **驗證**：本機瀏覽器 390×844；五分頁可開啟、無白屏、可見範圍無水平越界，console error 0。正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。完整 regression 92／92，四個 JS 檔 `node --check` 通過。
-- **仍待 Tako 裁決**：本輪沒有修改功能版本 `0.5.1`。因新增獨立 Auto payment 區與 Safe Delete 產品行為，建議下一個功能版本為 `0.6.0`；只提出建議，不在本分支自行跳號。
-- **架構文件**：`TAKO_架構.md` 位於本 repo 外，依任務邊界未跨 repo 修改。後續需同步第二章 PROJECTS 待辦區（Auto payment 獨立區）、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
+- **功能版本已定案**：Tako 已裁決本輪功能版本為 `0.6.0`；資產版本維持 `0.4.7`，因這仍是同一個尚未部署的 PR #5，不另行跳號。
+- **架構文件**：repo 外正式 `TAKO_架構.md` 已同步第二章 PROJECTS 待辦區（Auto payment 獨立區）、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
 
 ---
 
