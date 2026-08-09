@@ -1718,6 +1718,11 @@ input[type="date"] {
   font-size: 10.5px;
 }
 
+/* 44px 觸控面以負 margin 吸收既有列內距，RADAR 列高仍維持 56px。 */
+.radar-item .task-done-check {
+  margin-block: -4px;
+}
+
 /* 要動手的（逾期、今日到期、該保養）— 排在最上層 */
 .radar-item.is-overdue { order: -3; }
 .radar-item.is-today,
@@ -2212,15 +2217,48 @@ input[type="time"] {
 
 .task-actions {
   display: grid;
+  grid-template-areas: "secondary complete";
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: start;
   gap: 8px;
 }
 
-.task-actions > .button {
-  width: 100%;
+.task-done-check {
+  display: inline-grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.task-done-check::before {
+  width: 21px;
+  height: 21px;
+  border: 1.5px solid rgba(22,25,27,.72);
+  border-radius: 5px;
+  background: rgba(255,255,255,.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.52),
+    inset 0 -1px 0 rgba(38,48,56,.16);
+  content: "";
+  transition: opacity 160ms ease, transform 100ms ease;
+}
+
+.task-done-check:active::before {
+  opacity: .72;
+  transform: scale(.9);
+}
+
+.task-actions > .task-done-check {
+  grid-area: complete;
 }
 
 .task-actions-secondary {
   display: grid;
+  grid-area: secondary;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
