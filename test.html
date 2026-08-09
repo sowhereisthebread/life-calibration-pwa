@@ -267,6 +267,23 @@
           store.deleteProject("project-1");
           equal(store.readState().projects.length, 0);
         });
+        test("schema v3 的 project／manual／auto／frozen／book 可原樣匯入且 ID 不變", () => {
+          const source = createMemoryStore();
+          source.addProject({ id: "project-compat", name: "相容專案", status: "active", nextStep: "下一步", updatedAt: "2026-08-01T00:00:00.000Z" });
+          source.addObligation({ id: "manual-compat", name: "人工待辦", cycle: { type: "none" }, handling: "manual", completionMode: "none", status: "active" });
+          source.addObligation({ id: "auto-compat", name: "自動扣款", cycle: { type: "monthly", day: 8 }, amount: 299, handling: "auto", completionMode: "expense", paymentMethod: "card", status: "active" }, "2026-08-08");
+          source.addObligation({ id: "frozen-compat", name: "冷凍待辦", cycle: { type: "none" }, handling: "manual", completionMode: "none", status: "frozen" });
+          source.addBook({ id: "book-compat", name: "相容書籍", status: "queued" });
+
+          const importedStore = createMemoryStore();
+          const imported = importedStore.importState(JSON.parse(source.exportJson()));
+          equal(imported.version, 3);
+          equal(imported.projects.find(item => item.id === "project-compat")?.name, "相容專案");
+          equal(imported.obligations.find(item => item.id === "manual-compat")?.name, "人工待辦");
+          equal(imported.obligations.find(item => item.id === "auto-compat")?.handling, "auto");
+          equal(imported.obligations.find(item => item.id === "frozen-compat")?.status, "frozen");
+          equal(imported.books.find(item => item.id === "book-compat")?.name, "相容書籍");
+        });
         test("資料模組匯入失敗時保留原資料", () => {
           const store = createMemoryStore();
           store.writeDayField("2026-08-01", "note", "保留我");
@@ -808,31 +825,92 @@
           if (!recoveryCard?.querySelector("#recovery-activity") || !recoveryCard?.querySelector("#recovery-effect")) throw new Error("一句話備註未併入恢復卡");
         });
 
-        test("到期雷達只在 PROJECTS，MONEY 完全沒有雷達", () => {
+        test("頂層導覽與 page identity 已改為 MONEY／WORK／TASKS／REVIEW／DATA", () => {
           const indexRequest = new XMLHttpRequest();
-          indexRequest.open("GET", "./index.html?v=0.5.0", false);
+          indexRequest.open("GET", "./index.html", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          const navButtons = Array.from(documentCopy.querySelectorAll(".bottom-nav [data-page-target]"));
+          equal(navButtons.map(button => button.textContent.trim()).join(" / "), "MONEY / WORK / TASKS / REVIEW / DATA");
+          equal(navButtons.map(button => button.dataset.pageTarget).join(" / "), "money / work / tasks / review / data");
+          if (navButtons.some(button => button.textContent.includes("PROJ"))) throw new Error("primary nav 仍出現 PROJ");
+          if (!documentCopy.querySelector('#page-tasks[data-page="tasks"]')) throw new Error("缺少 TASKS 頂層 page identity");
+          if (documentCopy.getElementById("page-projects") || documentCopy.querySelector('[data-page="projects"]')) throw new Error("舊 PROJECTS 頂層 page identity 仍存在");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          if (!/if \(pageName === "work"\) \{\s*renderToday\(\);\s*renderProjects\(\);\s*\}/.test(app)) throw new Error("進 WORK 時未分別渲染 daily 與 projects");
+          if (!app.includes('if (pageName === "tasks") renderCommitments();')) throw new Error("進 TASKS 時未渲染 commitments");
+          if (app.includes('pageName === "projects"') || app.includes('setPage("projects")')) throw new Error("app.js 仍保留 projects 頂層 route");
+          if (app.includes("projectsPage")) throw new Error("app.js 仍保留舊頂層 page 事件變數");
+        });
+
+        test("PROJECTS 位於 WORK 的 SESSIONS 後、SLEEP 前，TASKS 維持純任務順序", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          const workPage = documentCopy.getElementById("page-work");
+          const tasksPage = documentCopy.getElementById("page-tasks");
+          const sessionsCard = documentCopy.getElementById("work-sessions")?.closest("article");
+          const projectsSection = documentCopy.getElementById("projects-section");
+          const sleepCard = documentCopy.getElementById("sleep-card");
+          if (!workPage || !tasksPage || !sessionsCard || !projectsSection || !sleepCard) throw new Error("WORK／TASKS IA 必要節點缺失");
+          if (!workPage.contains(projectsSection) || !projectsSection.classList.contains("card")) throw new Error("PROJECTS 未以 WORK 的 ICE 主卡承載");
+          const workChildren = Array.from(workPage.children);
+          if (!(workChildren.indexOf(sessionsCard) < workChildren.indexOf(projectsSection) && workChildren.indexOf(projectsSection) < workChildren.indexOf(sleepCard))) {
+            throw new Error("PROJECTS DOM 順序不是 SESSIONS → PROJECTS → SLEEP");
+          }
+          if (projectsSection.querySelector("#projects-heading")?.textContent.trim() !== "02 · PROJECTS") throw new Error("PROJECTS 編號不正確");
+          if (sleepCard.querySelector("#sleep-section-label")?.textContent.trim() !== "03 · SLEEP") throw new Error("SLEEP 未順延為 03");
+          if (workPage.querySelector("#recovery-heading")?.previousElementSibling?.textContent.trim() !== "04 · RECOVERY") throw new Error("RECOVERY 未順延為 04");
+          if (!projectsSection.querySelector("#project-form") || !projectsSection.querySelector("#project-list")) throw new Error("Project form／list 未完整搬入 WORK");
+          if (tasksPage.querySelector("#project-form, #project-list, #toggle-project-form")) throw new Error("TASKS 仍含 Project UI");
+          if (projectsSection.querySelector("#project-form")?.classList.contains("card")) throw new Error("Project form 形成 ICE → ICE 嵌套");
+
+          const orderedSections = ["tasks-radar", "todo-heading", "auto-payment-heading", "frozen-heading", "books-heading"]
+            .map(id => documentCopy.getElementById(id)?.closest("section"));
+          if (orderedSections.some(section => !section || !tasksPage.contains(section))) throw new Error("TASKS 缺少 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS");
+          const tasksChildren = Array.from(tasksPage.children);
+          const positions = orderedSections.map(section => tasksChildren.indexOf(section));
+          if (positions.some((position, index) => position < 0 || (index > 0 && position <= positions[index - 1]))) throw new Error("TASKS 區段順序不正確");
+          equal(documentCopy.getElementById("tasks-page-heading")?.textContent.trim(), "TASKS");
+          equal(documentCopy.getElementById("todo-heading")?.textContent.trim(), "TO-DO");
+          if (Array.from(tasksPage.querySelectorAll("section .section-heading h3")).some(heading => heading.textContent.trim() === "TASKS")) throw new Error("TO-DO 內層仍命名為 TASKS");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js", false);
+          appRequest.send();
+          if (appRequest.responseText.includes('class="card project-details"')) throw new Error("Project expanded details 仍套第二張 ICE");
+        });
+
+        test("到期雷達只在 TASKS，MONEY 完全沒有雷達", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
           const moneyPage = documentCopy.getElementById("page-money");
-          const projectsPage = documentCopy.getElementById("page-projects");
+          const tasksPage = documentCopy.getElementById("page-tasks");
           if (!moneyPage) throw new Error("找不到 MONEY 分頁");
-          if (!projectsPage) throw new Error("找不到 PROJECTS 分頁");
+          if (!tasksPage) throw new Error("找不到 TASKS 分頁");
           // MONEY 不得有任何雷達殘留：容器、清單、標題三種都掃
           if (documentCopy.getElementById("money-radar")) throw new Error("MONEY 仍存在 #money-radar");
           if (documentCopy.getElementById("money-radar-list")) throw new Error("MONEY 仍存在 #money-radar-list");
           if (moneyPage.querySelector(".radar, .radar-list")) throw new Error("MONEY 仍存在雷達元件");
           if (moneyPage.textContent.includes("RADAR")) throw new Error("MONEY 仍出現 RADAR 標題");
-          // PROJECTS 的雷達必須完好，本輪不得動它
-          if (!projectsPage.querySelector("#projects-radar.radar")) throw new Error("PROJECTS 雷達容器遺失");
-          if (!projectsPage.querySelector("#projects-radar-list.radar-list")) throw new Error("PROJECTS 雷達清單遺失");
-          if (!documentCopy.getElementById("projects-radar").hasAttribute("hidden")) throw new Error("PROJECTS 雷達未預設隱藏");
+          if (!tasksPage.querySelector("#tasks-radar.radar")) throw new Error("TASKS 雷達容器遺失");
+          if (!tasksPage.querySelector("#tasks-radar-list.radar-list")) throw new Error("TASKS 雷達清單遺失");
+          if (!documentCopy.getElementById("tasks-radar").hasAttribute("hidden")) throw new Error("TASKS 雷達未預設隱藏");
+          if (documentCopy.querySelectorAll(".radar").length !== 1) throw new Error("RADAR 不只出現在 TASKS");
 
           const appRequest = new XMLHttpRequest();
-          appRequest.open("GET", "./app.js?v=0.5.0", false);
+          appRequest.open("GET", "./app.js", false);
           appRequest.send();
           const app = appRequest.responseText;
           if (app.includes("money-radar")) throw new Error("app.js 仍引用 money-radar");
-          if (!app.includes("projects-radar-list")) throw new Error("app.js 遺失 projects-radar-list 的渲染");
+          if (!app.includes("tasks-radar-list")) throw new Error("app.js 遺失 tasks-radar-list 的渲染");
         });
 
         // 這條只驗「規則存在且互相一致」，不驗 iPhone 上長什麼樣。
@@ -954,7 +1032,7 @@
           styleRequest.open("GET", "./style.css?v=0.4.0", false);
           styleRequest.send();
           const css = styleRequest.responseText;
-          [".project-summary", ".task-summary", ".task-summary-meta.has-due", "text-overflow: ellipsis", ".task-actions-secondary", "#page-projects input", "font-size: 16px"].forEach(rule => {
+          [".project-summary", ".task-summary", ".task-summary-meta.has-due", "text-overflow: ellipsis", ".task-actions-secondary", "#projects-section input", "#page-tasks input", "font-size: 16px"].forEach(rule => {
             if (!css.includes(rule)) throw new Error(`缺少精簡摘要樣式：${rule}`);
           });
         });

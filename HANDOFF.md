@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（[1] 問題回報區剩餘事項結案候選）
+更新：2026-08-10（頂層 IA 重構完成，待 Draft PR 驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -46,7 +46,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 裁決方式三條：
 
 1. 基準與架構檔衝突 → 以基準為準，但**必須同一次把架構檔改到與基準一致**。不容許兩份長期並存不同說法 —— 那正是 SPEC.md 要被併掉的原因。
-2. 基準沒有對應物（雷達、PROJECTS／REVIEW／DATA 三頁）→ 以架構檔為準。
+2. 基準沒有對應物（雷達、TASKS／REVIEW／DATA 三頁）→ 以架構檔為準。
 3. 基準取不到而條文有疑義 → 以架構檔為準，並把該次判斷記進本檔。
 
 ### 0.4 授權範圍
@@ -59,15 +59,17 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號已定案為 `0.6.0`**（`index.html` 頁首）、**資產版本號維持 `0.4.7`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 92／92 全綠。**
+- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、**資產版本號為 `0.4.8`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 95／95 全綠。**
+- 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
+- 施工分支為 `codex/restructure-top-level-tasks`，基線是 `master` 的 `ca3056e9d277195d74b1a75c3275476110e5e8e8`；尚未 merge 或部署。
 - 視覺改版與批次 A／A-補／B／C **已部署**，線上 commit `23f398c`（Pages build 2026-08-05T23:30:59Z 成功，線上檔案已與該 commit 逐位元組比對相同）。**但該版尚未經 iPhone 實機驗收。**
 - 本輪缺陷修正完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收** —— 已部署的 `23f398c` 與本輪修正會在那一次一併驗。
 
 ### 驗收怎麼做的
 
-- 環境：本機 `python -m http.server` + headless Chrome 走 CDP，非 `file://` 直開。
-- 五個分頁 × 多個寬度掃描：console 無 error、無水平捲動、無殘留白底元素（掃全樹 computed style，`rgb > 235` 且 alpha > .85 判定）。
+- 環境：本機 `python -m http.server` + Browser runtime，非 `file://` 直開；Service Worker 測試要使用乾淨 origin，避免舊 localhost 快取混入不同資產版本。
+- 五個分頁 × 320／375／390／393／820 px 共 25 組：console 無 error、無水平捲動、bottom nav 五格完整。
 - **寬度掃描一律要納入 390 與 393** —— 那是 iPhone 14／15／16（390）與 15 Pro／16 Pro（393、402）的實際寬度。批次 A 之前只掃 320／375／820，正好漏掉這一段。
 - 對比實測：截圖回灌 canvas 取面色眾數，避開文字筆畫。**取值位置必須是該 token 可能出現的最暗合成背景**，不是卡片頂端（見架構.md 第五章「token 的色碼必須在最暗合成背景上取值」）。
 - 現行實測值記在 `style.css` 的 `:root` 註解裡，以那裡為準：`--t-ice-label` 4.67:1、`--t-frozen` 3.38:1（刻意的 3:1 例外）、圖表最淺一階 3.09:1、相鄰兩階 1.34:1。
@@ -77,11 +79,19 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - **弱網啟動**：根因是舊 Service Worker 對所有 GET 採沒有 timeout 的 network-first；裝置仍顯示有網路但 request stalled 時，快取永遠輪不到。現行策略只對 App 入口 navigation 與版本化 app shell 採 cache-first；其他請求保留 3 秒 bounded network-first。新 `CACHE_NAME` 安裝時仍重建完整 app shell，舊 cache 由 activate 清掉，不會把新版本永久鎖死。`test.html` 不是 App 入口，不會被離線 navigation fallback 誤導到 `index.html`。
 - **Safe Delete**：只有「所有相關事件皆為 pending，且沒有 event／transaction 連結歷史」的 obligation 可永久刪除；刪除時只移除 obligation 與其 pending events。done、auto-paid 或任何 linked MONEY transaction 一律阻止 hard delete，介面不顯示 Delete 並保留 Archive。判斷與刪除都在 `data-core.js`／`data-store.js`，不只靠 DOM。
 - **Card payment / Auto payment**：Card payment 維持唯一一筆未封存的 manual transfer（主帳戶 → 信用卡）；Auto payment 正規化為 `handling=auto`、`completionMode=expense`、`paymentMethod=card`，可建立多筆。非法 Auto + Transfer 在 UI 與資料正規化層都會收斂；第二筆 Card payment 由資料層與中文錯誤訊息阻止。
-- **Auto payment 區**：PROJECTS 內新增獨立區段，只列 active automatic obligations；人工 dated／later／no-date TASK 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
+- **Auto payment 區**：TASKS 內的獨立區段只列 active automatic obligations；人工 dated／later／no-date TO-DO 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
 - **資料模型**：schema 仍為 v3，`DATA_VERSION` 未變；MONEY 仍是 accounting 正典。多筆同日 Auto payment 各自生成 transaction、event link 與下一期 recurrence，交易 title 保留 obligation name。
-- **驗證**：本機瀏覽器 390×844；五分頁可開啟、無白屏、可見範圍無水平越界，console error 0。正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。完整 regression 92／92，四個 JS 檔 `node --check` 通過。
-- **功能版本已定案**：Tako 已裁決本輪功能版本為 `0.6.0`；資產版本維持 `0.4.7`，因這仍是同一個尚未部署的 PR #5，不另行跳號。
-- **架構文件**：repo 外正式 `TAKO_架構.md` 已同步第二章 PROJECTS 待辦區（Auto payment 獨立區）、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
+- **驗證**：PR #5 基線原有 regression 92／92；本次 IA 加測後為 95／95，四個 JS 檔 `node --check` 通過。弱網驗證數據維持：正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。
+- **功能版本已定案**：Tako 已裁決問題回報區功能版本為 `0.6.0`；PR #5 當時資產版為 `0.4.7`，本次 IA 因修改 JS／CSS 依規則升為 `0.4.8`。
+- **架構文件**：repo 外正式 `TAKO_架構.md` 已同步第二章 TASKS 的 Auto payment 獨立區、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
+
+### 1.2 頂層 IA 重構現況
+
+- `page-projects`／`data-page="projects"`／第三格 `PROJ` 已退役，現為 `page-tasks`／`data-page="tasks"`／第三格 `TASKS`。
+- `setPage("work")` 的責任是 `renderToday()` + `renderProjects()`；`setPage("tasks")` 只呼叫 `renderCommitments()`。Project CRUD 與 commitment renderer 仍彼此獨立。
+- WORK 的 PROJECTS 主卡保留 ACTIVE／PAUSED、New project、Project form、收合／展開與 Delete；內層 form 和 expanded details 不再套第二張 `.card`。
+- Browser 已實際驗證 PROJECTS 新增／修改／PAUSED／Delete，以及 TASKS 的 RADAR／TO-DO／Mark done／Undo／AUTO PAYMENT／FROZEN／BOOKS。
+- schema 仍為 v3，沒有 migration；`data-core.js`／`data-store.js` 本次未修改。
 
 ---
 
@@ -142,9 +152,9 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 | 1 | **iPhone 實機驗收** | 未驗證 | 已部署的 `23f398c` 與本輪修正都還沒上過真機。本輪三項 iOS 修正（Quick Add 對齊、工作段展開層、主畫面 PWA 狀態列白底）**只能由實機判定通過與否**；`test.html` 對狀態列那一項只做結構檢查，不代表視覺已通過 |
 | 2 | **`backdrop-filter` 疊多層 + `background-attachment: fixed` 的捲動效能** | 未驗證 | 桌面 headless 正常，真手機（尤其舊機）可能掉幀。這是本次視覺最主要的效能風險 |
 | 3 | **Service Worker 的字型快取** | 未驗證 | 兩個 woff2 已列入 `APP_SHELL`，但沒做離線斷網實測 |
-| 4 | **PWA 更新路徑** | 未驗證 | `CACHE_NAME` 已升到 `0.4.3`，舊 client 應會在下次啟動時換快取，未實測 |
-| 5 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`、PROJECTS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構，基準沒有這些頁面的模型。留給 PROJECTS／REVIEW／DATA 三頁重排時一併做 |
-| 6 | **PROJECTS / REVIEW / DATA 三頁的資訊架構** | 未設計 | 材質已依判準套用，版面本身未經設計。基準只有 WORK 頁的完整模型 |
+| 4 | **PWA 更新路徑** | 未驗證 | `CACHE_NAME` 已升到 `0.4.8`，正式舊 client 應會在下次啟動時換快取，尚未以已安裝 PWA 實測 |
+| 5 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
+| 6 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
 | 7 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
 | 8 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
 
@@ -240,7 +250,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 **處置**：2026-08-06 已修，**但尚未經實機確認**。關掉 select 的原生外觀改由 CSS 控制盒模型，箭頭自己畫並預留 `padding-right: 34px`（文字不被箭頭擠壓），input 與 select 一律鎖 `height: 44px` 實高而不只是 `min-height`。字級維持 16px，防自動放大要求沒有犧牲。金額欄的 `.money-input` 是 span 包層，不吃這條，仍是 46px。
 
-**範圍刻意收窄**：選擇器是 `.quick-add-grid select` 與 `.quick-add-grid .field > input, .quick-add-grid .field > select`，**只作用於 MONEY Quick Add**（Tako 2026-08-06 裁決）。`.quick-add-grid` 只出現在 `#transaction-form` 的四個列容器；PROJECTS、WORK、DATA 的下拉維持原生外觀，本輪一律不動。改動這條前先確認是不是真的要動到其他頁。
+**範圍刻意收窄**：選擇器是 `.quick-add-grid select` 與 `.quick-add-grid .field > input, .quick-add-grid .field > select`，**只作用於 MONEY Quick Add**（Tako 2026-08-06 裁決）。`.quick-add-grid` 只出現在 `#transaction-form` 的四個列容器；WORK、TASKS、DATA 的下拉維持原生外觀，本輪一律不動。改動這條前先確認是不是真的要動到其他頁。
 
 ### 名實不符的殘留命名
 

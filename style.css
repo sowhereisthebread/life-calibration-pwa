@@ -428,7 +428,8 @@ h3 {
 
 .eyebrow,
 .step-label,
-.section-heading h3 {
+.section-heading h3,
+.section-heading h4 {
   margin: 0 0 2px;
   color: var(--t-ice-label);
   font-family: var(--font-mono);
@@ -671,7 +672,7 @@ fieldset {
    箭頭色寫死 #474F55（＝--t-ice-label）：data URI 讀不到 CSS 變數。
 
    範圍只限 MONEY Quick Add（Tako 2026-08-06 裁決）。`.quick-add-grid` 只出現在
-   `#transaction-form` 內的四個列容器，PROJECTS／WORK／DATA 的下拉維持原生外觀不動。
+   `#transaction-form` 內的四個列容器，WORK／TASKS／DATA 的下拉維持原生外觀不動。
    其他頁若日後也出現實機異常，再另案處理，不要順手把這條放寬成全站。 */
 .quick-add-grid select {
   padding-right: 34px;
@@ -1650,6 +1651,10 @@ input[type="date"] {
   margin: 0;
 }
 
+.section-heading h4 {
+  margin: 0;
+}
+
 .quick-add-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1953,6 +1958,16 @@ input[type="date"] {
 
 
 /* ══ PROJECTS ═════════════════════════════════════ */
+
+.projects-section .project-form {
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.projects-section .project-form h4 {
+  margin: 0;
+  font-size: 14px;
+}
 
 .content-section,
 .frozen-section {
@@ -2418,9 +2433,12 @@ input[type="time"] {
     grid-column: 1 / -1;
   }
 
-  #page-projects input,
-  #page-projects select,
-  #page-projects textarea {
+  #projects-section input,
+  #projects-section select,
+  #projects-section textarea,
+  #page-tasks input,
+  #page-tasks select,
+  #page-tasks textarea {
     font-size: 16px;
   }
 

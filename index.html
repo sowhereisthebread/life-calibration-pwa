@@ -17,7 +17,7 @@
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
     <link rel="preload" href="./fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-    <script src="./app.js?v=0.4.7" defer></script>
+    <script src="./app.js?v=0.4.8" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -190,10 +190,38 @@
             <div id="work-sessions" class="session-list" aria-live="polite"></div>
           </article>
 
+          <article id="projects-section" class="card projects-section" aria-labelledby="projects-heading">
+            <div class="card-heading">
+              <h3 id="projects-heading" class="step-label">02 · PROJECTS</h3>
+              <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">New project</button>
+            </div>
+
+            <form id="project-form" class="stack-form project-form" hidden novalidate>
+              <h4>New project</h4>
+              <label class="field">
+                <span>NAME</span>
+                <input id="project-name" type="text" autocomplete="off">
+              </label>
+              <label class="field">
+                <span>NEXT STEP</span>
+                <input id="project-next-step" type="text" autocomplete="off">
+              </label>
+              <div class="form-actions">
+                <button type="button" id="cancel-project" class="button button-quiet">Cancel</button>
+                <button type="submit" class="button button-primary">Add project</button>
+              </div>
+            </form>
+
+            <section aria-labelledby="active-projects-heading">
+              <div class="section-heading"><h4 id="active-projects-heading">ACTIVE</h4></div>
+              <div id="project-list" class="project-list" aria-live="polite"></div>
+            </section>
+          </article>
+
           <article id="sleep-card" class="card" aria-labelledby="sleep-section-label">
             <div class="card-heading">
               <div>
-                <p id="sleep-section-label" class="step-label">02 · SLEEP</p>
+                <p id="sleep-section-label" class="step-label">03 · SLEEP</p>
               </div>
               <strong id="sleep-total" class="card-number">—</strong>
             </div>
@@ -218,7 +246,7 @@
           <article class="card" aria-labelledby="recovery-heading">
             <div class="card-heading">
               <div>
-                <p class="step-label">03 · RECOVERY</p>
+                <p class="step-label">04 · RECOVERY</p>
                 <h3 id="recovery-heading">What helped you recover?</h3>
               </div>
             </div>
@@ -262,43 +290,21 @@
           </section>
         </section>
 
-        <section id="page-projects" class="page" data-page="projects" aria-labelledby="projects-heading" hidden>
+        <section id="page-tasks" class="page" data-page="tasks" aria-labelledby="tasks-page-heading" hidden>
           <div class="page-heading">
             <div>
               <p class="eyebrow">Commitments & next steps</p>
-              <h2 id="projects-heading">PROJECTS</h2>
+              <h2 id="tasks-page-heading">TASKS</h2>
             </div>
-            <button id="toggle-project-form" type="button" class="button button-secondary" aria-expanded="false" aria-controls="project-form">New project</button>
           </div>
 
-          <form id="project-form" class="card stack-form" hidden novalidate>
-            <h3>New project</h3>
-            <label class="field">
-              <span>NAME</span>
-              <input id="project-name" type="text" autocomplete="off">
-            </label>
-            <label class="field">
-              <span>NEXT STEP</span>
-              <input id="project-next-step" type="text" autocomplete="off">
-            </label>
-            <div class="form-actions">
-              <button type="button" id="cancel-project" class="button button-quiet">Cancel</button>
-              <button type="submit" class="button button-primary">Add project</button>
-            </div>
-          </form>
-
-          <section id="projects-radar" class="radar" aria-labelledby="projects-radar-heading" hidden>
-            <div class="section-heading"><h3 id="projects-radar-heading">RADAR</h3></div>
-            <div id="projects-radar-list" class="radar-list"></div>
+          <section id="tasks-radar" class="radar" aria-labelledby="tasks-radar-heading" hidden>
+            <div class="section-heading"><h3 id="tasks-radar-heading">RADAR</h3></div>
+            <div id="tasks-radar-list" class="radar-list"></div>
           </section>
 
-          <section class="content-section" aria-labelledby="active-projects-heading">
-            <div class="section-heading"><h3 id="active-projects-heading">ACTIVE</h3></div>
-            <div id="project-list" class="project-list" aria-live="polite"></div>
-          </section>
-
-          <section class="card" aria-labelledby="tasks-heading">
-            <div class="section-heading"><h3 id="tasks-heading">TASKS</h3></div>
+          <section class="card" aria-labelledby="todo-heading">
+            <div class="section-heading"><h3 id="todo-heading">TO-DO</h3></div>
             <form id="quick-task-form" class="input-action-row" novalidate>
               <label class="visually-hidden" for="quick-task-name">Name</label>
               <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
@@ -482,8 +488,8 @@
         <button type="button" class="nav-item" data-page-target="work">
           <span>WORK</span>
         </button>
-        <button type="button" class="nav-item" data-page-target="projects">
-          <span>PROJ</span>
+        <button type="button" class="nav-item" data-page-target="tasks">
+          <span>TASKS</span>
         </button>
         <button type="button" class="nav-item" data-page-target="review">
           <span>REVIEW</span>
