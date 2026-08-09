@@ -20,7 +20,7 @@
     <ol id="results"></ol>
     <script src="data-core.js"></script>
     <script src="data-store.js"></script>
-    <script src="app.js?v=0.4.4"></script>
+    <script src="app.js?v=0.4.5"></script>
     <script>
       (() => {
         "use strict";
@@ -852,6 +852,27 @@
           const css = styleRequest.responseText;
           [".project-summary", ".task-summary", ".task-summary-meta.has-due", "text-overflow: ellipsis", ".task-actions-secondary", "#page-projects input", "font-size: 16px"].forEach(rule => {
             if (!css.includes(rule)) throw new Error(`缺少精簡摘要樣式：${rule}`);
+          });
+        });
+
+        test("TASK 展開後只在摘要顯示一次任務名稱", () => {
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?v=0.4.0", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const functionSource = name => {
+            const start = app.indexOf(`function ${name}`);
+            if (start < 0) throw new Error(`找不到 ${name}`);
+            const rest = app.slice(start + 20);
+            const end = rest.indexOf("\n  function ");
+            return app.slice(start, start + 20 + (end < 0 ? rest.length : end));
+          };
+
+          ["taskMarkup", "frozenTaskMarkup"].forEach(name => {
+            const source = functionSource(name);
+            if (!source.includes("task-summary")) throw new Error(`${name} 遺失摘要`);
+            const visibleNames = source.match(/<strong\b[^>]*>\$\{escapeHtml\(obligation\.name\)\}<\/strong>/g) || [];
+            equal(visibleNames.length, 1);
           });
         });
 
