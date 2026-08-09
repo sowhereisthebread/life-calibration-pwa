@@ -365,7 +365,7 @@
         <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
         ${items.map(transaction => `
           <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
-            <summary><span>${escapeHtml(transaction.type === "expense" ? (transaction.category || "Other") : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
+            <summary><span>${escapeHtml(transaction.type === "expense" ? RuntimeCore.transactionDisplayName(transaction) : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
             <div class="transaction-editor">
               <div class="inline-fields">
                 <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>

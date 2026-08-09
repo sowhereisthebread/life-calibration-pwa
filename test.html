@@ -368,11 +368,15 @@
           equal(result.state.obligations[0].note, "檢查監理服務");
         });
         test("Expense TASK 完成後建立支出並保留付款方式", () => {
-          const result = Core.completeEvent(stateWithEvent({ type: "once" }, "2026-08-20", { amount: 680, completionMode: "expense", paymentMethod: "cash" }), "event-1", { completedDate: "2026-08-20" });
+          const result = Core.completeEvent(stateWithEvent({ type: "once" }, "2026-08-20", { name: "車貸", amount: 680, category: "其他", completionMode: "expense", paymentMethod: "cash" }), "event-1", { completedDate: "2026-08-20" });
           const transaction = Core.allTransactions(result.state)[0];
           equal(transaction.type, "expense");
           equal(transaction.amount, 680);
           equal(transaction.paymentMethod, "cash");
+          equal(transaction.category, "其他");
+          equal(transaction.title, "車貸");
+          equal(Core.transactionDisplayName(transaction), "車貸");
+          equal(Core.transactionDisplayName({ type: "expense", category: "其他" }), "其他");
         });
         test("里程完成以目前里程重新起算", () => {
           const result = Core.completeEvent(stateWithEvent({ type: "mileage" }, null, { service: { lastServiceMileage: 40000, currentMileage: 50100, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } }), "event-1", { completedDate: "2026-08-02" });
