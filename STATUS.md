@@ -4,27 +4,28 @@
 
 ## 版本與 Git
 
-- 功能版本：**`0.6.0`**；本輪只做資訊架構重組，未自行升功能版本。
-- 資產版本：**`0.4.8`**；`sw.js` 的 `CACHE_NAME`、`index.html` 的 `app.js?v=`、`sw.js` APP_SHELL 的 `app.js?v=` 三處一致。
-- 施工分支：`codex/restructure-top-level-tasks`；基線為當下最新 `master`：`ca3056e9d277195d74b1a75c3275476110e5e8e8`。
+- 功能版本：**`0.6.0`**；本輪只修正視覺資產快取，未自行升功能版本。
+- 資產版本：**`0.4.9`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
+- 施工分支：`codex/fix-design-material-rendering`；基線為當下最新 `master`：`3a1260a172957a0c998f3f26b34c347e635d9225`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- 本分支尚未 merge；正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #6 已合併；本分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布資產 `0.4.8`：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
 - PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
 
-- **`test.html`：95／95 全數通過**；在乾淨本機 HTTP origin 實跑，新增頂層導覽、page identity、PROJECTS DOM 順序、單層材質與 schema v3 五類樣本相容性斷言。
-- `node --check app.js`、`data-core.js`、`data-store.js`、`sw.js` 全數通過；`data-core.js` 與 `data-store.js` 本輪保持不動。
+- **`test.html`：95／95 全數通過**；資產一致性斷言已涵蓋 `style.css` 與 `app.js` 的 index／worker 五處版本鍵。
+- `node --check sw.js` 通過；`app.js`、`data-core.js`、`data-store.js` 本輪保持不動。
 - Browser 掃描 320／375／390／393／820 px，共 25 組「五頁 × 五寬度」：無白屏、非預期水平 overflow 為 0、bottom nav 五格完整、console error 為 0。
 - PROJECTS 實際操作：新增、展開、修改、切 PAUSED、兩階段 Delete 全部可用；TASKS 的 RADAR、TO-DO、Mark done／Undo、AUTO PAYMENT 分流、FROZEN、BOOKS 均已操作驗證。
 - 390×844 的 PROJECTS 外層為單一 ICE；project form 無 `.card`，expanded details 為透明、無 border、無 shadow，不形成 ICE → ICE。
+- 390×844 的 Design 5a 與 PWA 實際材質像素已比對；GROUND 四點相同或只差 1 RGB，ICE／ACT 相同或只差 0–2 RGB。偏暖根因是未版本化 `style.css` 可被舊 Service Worker／HTTP cache 沿用，不是 token 或 compositing。
+- Service Worker 已實測從同 origin 的 `0.4.8` 更新到 `0.4.9`；伺服器停止後，既有頁 reload 與新分頁啟動都能由 warm cache 完整載入，IBM Plex Mono 亦可用。
 - schema 維持 v3、localStorage key 維持 `lifeCalibrationData`；project、manual task、auto payment、frozen task、book 的 v3 JSON round trip 後 ID 與內容皆保留，沒有 migration。
 - **尚未做 iPhone 實機驗收**；原生控制項、PWA 狀態列與真機捲動效能仍不得以桌面 Browser 代為宣告通過。
 
 ### `#待補`
 
 - `#待補` Draft PR merge／部署後的 iPhone 主畫面 PWA 實機驗收。
-- `#待補` 離線斷網的字型快取實測、PWA 從舊資產版本換到 `0.4.8` 的更新路徑實測。
 - 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
 ## 資料與相容性
