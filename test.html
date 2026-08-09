@@ -20,10 +20,12 @@
     <ol id="results"></ol>
     <script src="data-core.js"></script>
     <script src="data-store.js"></script>
+    <script src="app.js?v=0.4.4"></script>
     <script>
       (() => {
         "use strict";
         const Core = window.LifeCalibrationCore;
+        const MonthlyUX = window.LifeCalibrationMonthlyRepeatUX;
         const results = [];
 
         function test(name, action) {
@@ -302,6 +304,40 @@
           const state = stateWithEvent({ type: "monthly", day: 15 }, "2026-08-15");
           const result = Core.completeEvent(state, "event-1", { completedDate: "2026-09-02" });
           equal(result.state.events.find(item => item.id !== "event-1").dueDate, "2026-09-15");
+        });
+        test("新增 Monthly 有 Due 時自動推導 repeat day", () => {
+          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-08-07", preserveMonthlyDay: false });
+          equal(result.label, "Repeat day");
+          equal(result.hidden, true);
+          equal(result.inferredDay, 7);
+        });
+        test("新增 Monthly 無 Due 時不猜日期並保留 Repeat day 欄位", () => {
+          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "", preserveMonthlyDay: false });
+          equal(result.label, "Repeat day");
+          equal(result.hidden, false);
+          equal(result.inferredDay, null);
+        });
+        test("既有 Monthly 改本期 Due 時不覆寫長期 repeat day", () => {
+          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-09-08", preserveMonthlyDay: true });
+          equal(result.hidden, false);
+          equal(result.inferredDay, null);
+        });
+        test("本期特殊改日後下一期仍依長期 Monthly rule 生成", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "月繳", cycle: { type: "monthly", day: 7 } }, "2026-09-07");
+          store.updateEvent(created.event.id, { dueDate: "2026-09-08" });
+          store.completeEvent(created.event.id, { completedDate: "2026-09-08" });
+          const state = store.readState();
+          equal(state.obligations[0].cycle.day, 7);
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-10-07");
+        });
+        test("Monthly 切換 Yearly 後恢復 Cycle day label 與欄位", () => {
+          const monthly = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-08-07", preserveMonthlyDay: false });
+          const yearly = MonthlyUX.monthlyRepeatFieldState({ cycleType: "yearly", dueDate: "2026-08-07", preserveMonthlyDay: false });
+          equal(monthly.label, "Repeat day");
+          equal(yearly.label, "Cycle day");
+          equal(yearly.hidden, false);
+          equal(yearly.inferredDay, null);
         });
         test("每年 2 月 29 日遇非閏年取月底", () => {
           const state = stateWithEvent({ type: "yearly", month: 2, day: 29 }, "2024-02-29");
@@ -752,7 +788,7 @@
           if (/\.app-shell[^{]*\{[^}]*\b4[47]px/.test(css)) throw new Error(".app-shell 疑似寫死狀態列高度");
         });
 
-        test("v0.5.0 表單間距、欄位邊界與版本防護存在", () => {
+        test("v0.5.1 表單間距、欄位邊界與版本防護存在", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
@@ -761,7 +797,7 @@
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.5.0") throw new Error("頁首版本不是 0.5.0（基準無 v 前綴）");
+          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.5.1") throw new Error("頁首版本不是 0.5.1（基準無 v 前綴）");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 

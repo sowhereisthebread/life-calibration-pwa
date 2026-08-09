@@ -6,7 +6,6 @@ const APP_SHELL = [
   "./data-core.js",
   "./data-store.js",
   "./app.js?v=0.4.4",
-  "./monthly-repeat-ux.js?v=0.4.4",
   "./manifest.json",
   "./icons/icon-192.png?v=0.3.4",
   "./icons/icon-512.png",
