@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-06（視覺改版總覆驗後的缺陷修正）
+更新：2026-08-10（[1] 問題回報區剩餘事項結案候選）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,8 +59,8 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號 `0.5.0`**（`index.html` 頁首）、**資產版本號 `0.4.3`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處必須相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 75／75 全綠。**
+- **功能版本號已定案為 `0.6.0`**（`index.html` 頁首）、**資產版本號維持 `0.4.7`**（`sw.js` 的 `CACHE_NAME` 尾碼、`index.html` 的 `app.js?v=`、`sw.js` 內 `app.js` 的 `?v=`，三處相等）。兩者用途不同、跳號時機不同，規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 92／92 全綠。**
 - 視覺改版與批次 A／A-補／B／C **已部署**，線上 commit `23f398c`（Pages build 2026-08-05T23:30:59Z 成功，線上檔案已與該 commit 逐位元組比對相同）。**但該版尚未經 iPhone 實機驗收。**
 - 本輪缺陷修正完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收** —— 已部署的 `23f398c` 與本輪修正會在那一次一併驗。
 
@@ -71,6 +71,17 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - **寬度掃描一律要納入 390 與 393** —— 那是 iPhone 14／15／16（390）與 15 Pro／16 Pro（393、402）的實際寬度。批次 A 之前只掃 320／375／820，正好漏掉這一段。
 - 對比實測：截圖回灌 canvas 取面色眾數，避開文字筆畫。**取值位置必須是該 token 可能出現的最暗合成背景**，不是卡片頂端（見架構.md 第五章「token 的色碼必須在最暗合成背景上取值」）。
 - 現行實測值記在 `style.css` 的 `:root` 註解裡，以那裡為準：`--t-ice-label` 4.67:1、`--t-frozen` 3.38:1（刻意的 3:1 例外）、圖表最淺一階 3.09:1、相鄰兩階 1.34:1。
+
+### 1.1 [1] 問題回報區結案候選
+
+- **弱網啟動**：根因是舊 Service Worker 對所有 GET 採沒有 timeout 的 network-first；裝置仍顯示有網路但 request stalled 時，快取永遠輪不到。現行策略只對 App 入口 navigation 與版本化 app shell 採 cache-first；其他請求保留 3 秒 bounded network-first。新 `CACHE_NAME` 安裝時仍重建完整 app shell，舊 cache 由 activate 清掉，不會把新版本永久鎖死。`test.html` 不是 App 入口，不會被離線 navigation fallback 誤導到 `index.html`。
+- **Safe Delete**：只有「所有相關事件皆為 pending，且沒有 event／transaction 連結歷史」的 obligation 可永久刪除；刪除時只移除 obligation 與其 pending events。done、auto-paid 或任何 linked MONEY transaction 一律阻止 hard delete，介面不顯示 Delete 並保留 Archive。判斷與刪除都在 `data-core.js`／`data-store.js`，不只靠 DOM。
+- **Card payment / Auto payment**：Card payment 維持唯一一筆未封存的 manual transfer（主帳戶 → 信用卡）；Auto payment 正規化為 `handling=auto`、`completionMode=expense`、`paymentMethod=card`，可建立多筆。非法 Auto + Transfer 在 UI 與資料正規化層都會收斂；第二筆 Card payment 由資料層與中文錯誤訊息阻止。
+- **Auto payment 區**：PROJECTS 內新增獨立區段，只列 active automatic obligations；人工 dated／later／no-date TASK 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
+- **資料模型**：schema 仍為 v3，`DATA_VERSION` 未變；MONEY 仍是 accounting 正典。多筆同日 Auto payment 各自生成 transaction、event link 與下一期 recurrence，交易 title 保留 obligation name。
+- **驗證**：本機瀏覽器 390×844；五分頁可開啟、無白屏、可見範圍無水平越界，console error 0。正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。完整 regression 92／92，四個 JS 檔 `node --check` 通過。
+- **功能版本已定案**：Tako 已裁決本輪功能版本為 `0.6.0`；資產版本維持 `0.4.7`，因這仍是同一個尚未部署的 PR #5，不另行跳號。
+- **架構文件**：repo 外正式 `TAKO_架構.md` 已同步第二章 PROJECTS 待辦區（Auto payment 獨立區）、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
 
 ---
 

@@ -167,6 +167,7 @@
 
     function addObligation(obligation, dueDate = null) {
       const entry = core.normalizeObligation({ ...obligation, id: obligation.id || core.uid("obligation"), createdAt: obligation.createdAt || timestamp(), updatedAt: timestamp() });
+      assertUniqueTransferObligation(entry);
       state.obligations.push(entry);
       const event = core.normalizeEvent({ id: core.uid("event"), obligationId: entry.id, dueDate, status: "pending" });
       state.events.push(event);
@@ -179,15 +180,35 @@
       if (index < 0) return false;
       const current = state.obligations[index];
       const incoming = clone(changes);
-      state.obligations[index] = core.normalizeObligation({
+      const next = core.normalizeObligation({
         ...current,
         ...incoming,
         cycle: incoming.cycle ? { ...current.cycle, ...incoming.cycle } : current.cycle,
         service: incoming.service ? { ...current.service, ...incoming.service } : current.service,
         updatedAt: timestamp()
       });
+      assertUniqueTransferObligation(next, obligationId);
+      state.obligations[index] = next;
       persist();
       return true;
+    }
+
+    function assertUniqueTransferObligation(candidate, excludedId = "") {
+      if (candidate.completionMode !== "transfer" || candidate.status === "archived") return;
+      const duplicate = state.obligations.some(item =>
+        item.id !== excludedId && item.completionMode === "transfer" && item.status !== "archived"
+      );
+      if (duplicate) {
+        throw new Error("目前卡費繳款是唯一的帳戶移轉義務；自動扣款請使用 Automatic + Expense。");
+      }
+    }
+
+    function deleteObligationSafely(obligationId) {
+      const result = core.deleteObligationSafely(state, obligationId);
+      if (!result.changed) return { deleted: false, reason: result.reason };
+      state = result.state;
+      persist();
+      return { deleted: true, reason: "" };
     }
 
     function updateEvent(eventId, changes) {
@@ -409,6 +430,7 @@
       deleteProject,
       addObligation,
       updateObligation,
+      deleteObligationSafely,
       updateEvent,
       updateMileage,
       completeEvent,
