@@ -1,44 +1,30 @@
-# TAKO v0.5.0｜現行狀態
+# TAKO v0.6.0｜現行狀態
 
-更新：2026-08-06
+更新：2026-08-10
 
 ## 版本與 Git
 
-- 正式版本：**v0.5.0**（產品功能）。資產查詢字串與 Service Worker 快取名為 `0.4.3`（`app.js?v=0.4.3`、`CACHE_NAME = "life-calibration-v0.4.3"`）。兩個版本號的分工見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- `0.4.0 → 0.5.0` 是 2026-08-06 的裁決：視覺改版那一輪新增了時薪／本週／本月三格統計、進行中工作段累計、圓餅圖 OTHER 規則，並把介面語言整體改為英文，落在「使用者做得到的事」與「產品行為」上，不只是視覺。
-- **視覺改版與批次 A／A-補／B／C 已部署**，線上 commit 為 `23f398c`（GitHub Pages 於 2026-08-05T23:30:59Z build 成功；已比對線上 `index.html` 與該 commit 逐位元組相同）。
-- **該版尚未完成 iPhone 實機驗收。**
-- 本輪缺陷修正（MONEY 移除雷達、Quick Add 對齊、工作段展開層、iPhone PWA 狀態列白底、`.status-pill` 改名、營收目標千分位、文件同步）完成後，將**再以新資產版本部署並執行完整 iPhone 實機驗收**。
-- branch：`master`。
-- v0.4.0 完成部署、電腦驗收與 iPhone 實機驗收時的 App 基線 commit：`5488954f427890d12013234904f243d3fad6b14e`。
-- v0.4.0 程式發布 commit：`5488954f427890d12013234904f243d3fad6b14e`。
-- v0.3.9 完成部署、電腦驗收與 iPhone 實機驗收時的 App 基線 commit：`84ec6183092bc02ae981e76392ba559f7f459ed3`。
-- v0.3.9 程式發布 commit：`acb86f75674815851d3038624d54ff1ad5606650`。
-- 正式網址：<https://sowhereisthebread.github.io/life-calibration-pwa/>
-- GitHub Pages：public repo `sowhereisthebread/life-calibration-pwa`，由 `master` 的 `/(root)` 發布。
+- 功能版本：**`0.6.0`**；本輪只做資訊架構重組，未自行升功能版本。
+- 資產版本：**`0.4.8`**；`sw.js` 的 `CACHE_NAME`、`index.html` 的 `app.js?v=`、`sw.js` APP_SHELL 的 `app.js?v=` 三處一致。
+- 施工分支：`codex/restructure-top-level-tasks`；基線為當下最新 `master`：`ca3056e9d277195d74b1a75c3275476110e5e8e8`。
+- 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
+- 本分支尚未 merge；正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
 
-- v0.4.0（視覺改版前）已完成電腦瀏覽器驗收：`test.html` 72／72 通過；並於 2026-08-04 完成 iPhone 主畫面 PWA 實機驗收。
-- v0.3.9 已完成電腦瀏覽器與 iPhone 主畫面 PWA 實機驗收，手機既有資料正常。
-
-### 視覺改版與其後批次（2026-08-05 起）的驗收狀態
-
-- **`test.html` 75／75 全數通過**（2026-08-06 本輪修正後以 headless Chrome 實跑確認；新增兩條：「到期雷達只在 PROJECTS」與「PWA 滿版與 safe-area 規則存在且一致」，後者是結構檢查，**不代表 iPhone 視覺已通過**）。
-  改版當時的 69／72 已解除：三項失敗都是測試在斷言改版前的值，`2aea300` 已依實況更新五條視覺斷言。
-  資產版本的三處一致性是互相比對、不寫死數值，跳號不會弄壞測試；功能版本則是字面比對，跳號時要一併改測試。
-- 電腦瀏覽器掃描（headless Chrome）：五個分頁 × 多寬度，**console 無 error、無水平捲動、無殘留白底元素**。
-  批次 A-補 起，寬度掃描一律納入 390 與 393（iPhone 14／15／16 的實際寬度）。
-- WORK 頁已與視覺基準的 TURN 5 `5a` 做 390×844 並排比對。
-- 合成後文字對比：實測值以 `style.css` 的 `:root` 註解為準（`--t-ice-label` 4.67:1、`--t-frozen` 3.38:1、圖表最淺一階 3.09:1）。
-  取值位置一律是該 token 可能出現的**最暗合成背景**，不是卡片頂端 —— 舊的 3.89:1 是單點量測，已作廢。
-- **尚未做 iPhone 實機驗收**，也未驗證 `background-attachment: fixed` 疊多層 `backdrop-filter` 在真手機上的捲動效能。
-- 本輪針對 iOS 原生控制項的修正（Quick Add 四欄對齊、工作段展開層溢出）**本機只能當參考值**，通過與否一律以 iPhone 實機為準。
+- **`test.html`：95／95 全數通過**；在乾淨本機 HTTP origin 實跑，新增頂層導覽、page identity、PROJECTS DOM 順序、單層材質與 schema v3 五類樣本相容性斷言。
+- `node --check app.js`、`data-core.js`、`data-store.js`、`sw.js` 全數通過；`data-core.js` 與 `data-store.js` 本輪保持不動。
+- Browser 掃描 320／375／390／393／820 px，共 25 組「五頁 × 五寬度」：無白屏、非預期水平 overflow 為 0、bottom nav 五格完整、console error 為 0。
+- PROJECTS 實際操作：新增、展開、修改、切 PAUSED、兩階段 Delete 全部可用；TASKS 的 RADAR、TO-DO、Mark done／Undo、AUTO PAYMENT 分流、FROZEN、BOOKS 均已操作驗證。
+- 390×844 的 PROJECTS 外層為單一 ICE；project form 無 `.card`，expanded details 為透明、無 border、無 shadow，不形成 ICE → ICE。
+- schema 維持 v3、localStorage key 維持 `lifeCalibrationData`；project、manual task、auto payment、frozen task、book 的 v3 JSON round trip 後 ID 與內容皆保留，沒有 migration。
+- **尚未做 iPhone 實機驗收**；原生控制項、PWA 狀態列與真機捲動效能仍不得以桌面 Browser 代為宣告通過。
 
 ### `#待補`
 
-- `#待補` 已部署的 `23f398c` 與本輪修正的 iPhone 實機驗收（兩者將在下次部署後一併驗）。
-- `#待補` 離線斷網的字型快取實測、PWA 換快取路徑實測。
+- `#待補` Draft PR merge／部署後的 iPhone 主畫面 PWA 實機驗收。
+- `#待補` 離線斷網的字型快取實測、PWA 從舊資產版本換到 `0.4.8` 的更新路徑實測。
 - 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
 ## 資料與相容性

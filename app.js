@@ -92,7 +92,7 @@
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
-      "projects-radar", "projects-radar-list", "quick-task-form", "quick-task-name", "obligation-form",
+      "tasks-radar", "tasks-radar-list", "quick-task-form", "quick-task-name", "obligation-form",
       "obligation-form-title", "cancel-obligation-edit", "obligation-submit", "obligation-name", "obligation-cycle", "obligation-due",
       "obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month", "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
       "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
@@ -202,13 +202,13 @@
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    if (pageName === "work") renderToday();
+    if (pageName === "work") {
+      renderToday();
+      renderProjects();
+    }
     if (pageName === "money") renderMoney();
     if (pageName === "review") renderReview();
-    if (pageName === "projects") {
-      renderProjects();
-      renderCommitments();
-    }
+    if (pageName === "tasks") renderCommitments();
     if (pageName === "data") renderDataPage();
     window.scrollTo({ top: 0, behavior: "smooth" });
     document.getElementById(`page-${pageName}`)?.focus({ preventScroll: true });
@@ -422,13 +422,13 @@
     }
   }
 
-  // 到期雷達只出現在 PROJECTS。MONEY 不顯示任何待辦到期雷達（Tako 2026-08-06 裁決）。
+  // 到期雷達只出現在 TASKS。MONEY 不顯示任何待辦到期雷達（Tako 2026-08-06 裁決）。
   // 資料來源、排序與完成行為不變，只是少了一個顯示點。
   function renderRadar() {
     const items = RuntimeCore.radarItems(state, todayKey);
-    elements["projects-radar"].hidden = !items.length;
+    elements["tasks-radar"].hidden = !items.length;
     if (!items.length) {
-      elements["projects-radar-list"].innerHTML = "";
+      elements["tasks-radar-list"].innerHTML = "";
       return;
     }
     const label = { overdue: "Overdue", today: "Due today", soon: "Due soon", "service-due": "Service due", "update-mileage": "Update mileage" };
@@ -443,7 +443,7 @@
         <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${escapeHtml(relativeLabel(item))}${item.event?.dueDate ? ` · ${escapeHtml(formatDisplayDate(item.event.dueDate))}` : ""}</span></div>
         ${item.event ? `<button type="button" class="button button-quiet" data-complete-event="${escapeHtml(item.event.id)}">Mark done</button>` : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
       </article>`).join("");
-    elements["projects-radar-list"].innerHTML = markup;
+    elements["tasks-radar-list"].innerHTML = markup;
   }
 
   function renderAccounts() {
@@ -524,7 +524,7 @@
           <button type="button" class="project-summary" data-toggle-project="${escapeHtml(project.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailsId)}">
             <strong>${escapeHtml(project.name || "UNNAMED")}</strong><span aria-hidden="true"></span>
           </button>
-          ${expanded ? `<div id="${escapeHtml(detailsId)}" class="card project-details">
+          ${expanded ? `<div id="${escapeHtml(detailsId)}" class="project-details">
             <div class="project-card-header">
               <label class="field"><span>NAME</span><input class="record-input" type="text" value="${escapeHtml(project.name || "")}" data-project-field="name"></label>
               <label class="field"><span>STATUS</span><select class="record-input" data-project-field="status"><option value="active" ${project.status === "active" ? "selected" : ""}>Active</option><option value="paused" ${project.status === "paused" ? "selected" : ""}>Paused</option></select></label>
@@ -1329,8 +1329,8 @@
       showToast(wasEditing ? "Obligation updated" : "Obligation added");
     });
 
-    const projectsPage = document.getElementById("page-projects");
-    projectsPage.addEventListener("input", event => {
+    const tasksPage = document.getElementById("page-tasks");
+    tasksPage.addEventListener("input", event => {
       const row = event.target.closest("[data-event-id]");
       if (row && event.target.dataset.eventField === "actualAmount") {
         const value = event.target.value === "" ? null : Math.max(0, Number(event.target.value) || 0);
@@ -1341,10 +1341,10 @@
         runDataChange(() => dataStore.updateBook(book.dataset.bookId, { [event.target.dataset.bookField]: event.target.value }));
       }
     });
-    projectsPage.addEventListener("change", event => {
+    tasksPage.addEventListener("change", event => {
       if (event.target.dataset.bookField === "status") renderBooks();
     });
-    projectsPage.addEventListener("click", event => {
+    tasksPage.addEventListener("click", event => {
       const toggleTask = event.target.closest("[data-toggle-task]");
       const toggleBook = event.target.closest("[data-toggle-book]");
       const complete = event.target.closest("[data-complete-event]");
