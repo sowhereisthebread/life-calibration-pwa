@@ -1,6 +1,25 @@
 (() => {
   "use strict";
 
+  function inferDayFromDue(dueDate) {
+    const match = /^\d{4}-\d{2}-(\d{2})$/.exec(String(dueDate || ""));
+    if (!match) return null;
+    const day = Number(match[1]);
+    return day >= 1 && day <= 31 ? day : null;
+  }
+
+  function monthlyRepeatFieldState({ cycleType, dueDate, preserveMonthlyDay }) {
+    const isMonthly = cycleType === "monthly";
+    const inferredDay = isMonthly && !preserveMonthlyDay ? inferDayFromDue(dueDate) : null;
+    return {
+      label: isMonthly ? "Repeat day" : "Cycle day",
+      hidden: isMonthly ? inferredDay !== null : cycleType !== "yearly",
+      inferredDay
+    };
+  }
+
+  globalThis.LifeCalibrationMonthlyRepeatUX = { inferDayFromDue, monthlyRepeatFieldState };
+
   const RuntimeCore = globalThis.LifeCalibrationCore;
   const appRoot = globalThis.document?.getElementById("app");
   if (!RuntimeCore) {
@@ -34,6 +53,7 @@
   let modalReturnFocus = null;
   let editingObligationId = null;
   let editingEventId = null;
+  let preserveMonthlyCycleDay = false;
   let mileageObligationId = null;
   let mileageReturnFocus = null;
   let expandedProjectId = null;
@@ -753,9 +773,19 @@
 
   function syncObligationCycleFields() {
     const cycle = elements["obligation-cycle"].value;
+    const monthlyState = monthlyRepeatFieldState({
+      cycleType: cycle,
+      dueDate: elements["obligation-due"].value,
+      preserveMonthlyDay: preserveMonthlyCycleDay
+    });
+    const dayLabel = elements["obligation-cycle-day-field"].querySelector("span");
+    if (dayLabel) dayLabel.textContent = monthlyState.label;
+    if (monthlyState.inferredDay !== null) {
+      elements["obligation-cycle-day"].value = String(monthlyState.inferredDay);
+    }
     elements["mileage-fields"].hidden = cycle !== "mileage";
     elements["obligation-due"].disabled = cycle === "none" || cycle === "mileage";
-    elements["obligation-cycle-day-field"].hidden = !["monthly", "yearly"].includes(cycle);
+    elements["obligation-cycle-day-field"].hidden = monthlyState.hidden;
     elements["obligation-cycle-month-field"].hidden = cycle !== "yearly";
     elements["obligation-interval-field"].hidden = cycle !== "after_days";
     syncDateControls();
@@ -770,6 +800,7 @@
   function resetObligationForm({ close = false } = {}) {
     editingObligationId = null;
     editingEventId = null;
+    preserveMonthlyCycleDay = false;
     elements["obligation-form"].reset();
     elements["obligation-cycle-day"].value = "1";
     elements["obligation-cycle-month"].value = "1";
@@ -796,6 +827,7 @@
       || null;
     editingObligationId = obligation.id;
     editingEventId = currentEvent?.id || null;
+    preserveMonthlyCycleDay = obligation.cycle.type === "monthly";
     elements["obligation-name"].value = obligation.name;
     elements["obligation-cycle"].value = obligation.cycle.type;
     elements["obligation-due"].value = currentEvent?.dueDate || "";
@@ -1136,6 +1168,8 @@
     });
 
     elements["obligation-cycle"].addEventListener("change", syncObligationCycleFields);
+    elements["obligation-due"].addEventListener("input", syncObligationCycleFields);
+    elements["obligation-due"].addEventListener("change", syncObligationCycleFields);
     elements["obligation-completion-mode"].addEventListener("change", syncObligationCompletionFields);
     elements["obligation-amount"].addEventListener("input", () => {
       if (elements["obligation-completion-mode"].value === "transfer") return;
@@ -1167,6 +1201,7 @@
 
     elements["obligation-form"].addEventListener("submit", event => {
       event.preventDefault();
+      syncObligationCycleFields();
       const cycleType = elements["obligation-cycle"].value;
       const dueDate = elements["obligation-due"].value || null;
       const completionMode = elements["obligation-completion-mode"].value;
