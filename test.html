@@ -25,7 +25,7 @@
       (() => {
         "use strict";
         const Core = window.LifeCalibrationCore;
-        const MonthlyUX = window.LifeCalibrationMonthlyRepeatUX;
+        const CalendarRepeatUX = window.LifeCalibrationCalendarRepeatUX;
         const ObligationUX = window.LifeCalibrationObligationUX;
         const MoneyHistoryUX = window.LifeCalibrationMoneyHistoryUX;
         const TransactionDateUX = window.LifeCalibrationTransactionDateUX;
@@ -59,6 +59,24 @@
             storage,
             now: () => new Date("2026-08-01T12:00:00+08:00")
           });
+        }
+
+        function editCalendarRepeat(store, obligationId, eventId, cycleType, dueDate) {
+          const before = store.readState();
+          const obligation = before.obligations.find(item => item.id === obligationId);
+          const event = before.events.find(item => item.id === eventId && item.status === "pending");
+          const result = CalendarRepeatUX.calendarRepeatCycleState({
+            cycleType,
+            dueDate,
+            existingCycle: obligation?.cycle || null,
+            originalCycleType: obligation?.cycle.type || "",
+            originalDueDate: event?.dueDate || null,
+            intervalDays: obligation?.cycle.days || 1
+          });
+          if (result.error) throw new Error(result.error);
+          store.updateObligation(obligationId, { cycle: result.cycle });
+          store.updateEvent(eventId, { dueDate });
+          return result;
         }
 
         test("空白資料為 schema v3", () => equal(Core.createEmptyState().version, 3));
@@ -451,39 +469,90 @@
           const result = Core.completeEvent(state, "event-1", { completedDate: "2026-09-02" });
           equal(result.state.events.find(item => item.id !== "event-1").dueDate, "2026-09-15");
         });
-        test("新增 Monthly 有 Due 時自動推導 repeat day", () => {
-          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-08-07", preserveMonthlyDay: false });
-          equal(result.label, "Repeat day");
-          equal(result.hidden, true);
-          equal(result.inferredDay, 7);
+        test("New Monthly 由 Due 建立 cycle.day", () => {
+          const result = CalendarRepeatUX.calendarRepeatCycleState({ cycleType: "monthly", dueDate: "2026-08-07" });
+          equal(result.error, "");
+          equal(result.reanchored, true);
+          equal(result.cycle.day, 7);
         });
-        test("新增 Monthly 無 Due 時不猜日期並保留 Repeat day 欄位", () => {
-          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "", preserveMonthlyDay: false });
-          equal(result.label, "Repeat day");
-          equal(result.hidden, false);
-          equal(result.inferredDay, null);
-        });
-        test("既有 Monthly 改本期 Due 時不覆寫長期 repeat day", () => {
-          const result = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-09-08", preserveMonthlyDay: true });
-          equal(result.hidden, false);
-          equal(result.inferredDay, null);
-        });
-        test("本期特殊改日後下一期仍依長期 Monthly rule 生成", () => {
+        test("Existing Monthly 改 Due 同步改 anchor 與下一期", () => {
           const store = createMemoryStore();
-          const created = store.addObligation({ name: "月繳", cycle: { type: "monthly", day: 7 } }, "2026-09-07");
-          store.updateEvent(created.event.id, { dueDate: "2026-09-08" });
-          store.completeEvent(created.event.id, { completedDate: "2026-09-08" });
+          const created = store.addObligation({ name: "月繳", cycle: { type: "monthly", day: 7 } }, "2026-08-07");
+          const edited = editCalendarRepeat(store, created.obligation.id, created.event.id, "monthly", "2026-08-08");
+          equal(edited.reanchored, true);
+          store.completeEvent(created.event.id, { completedDate: "2026-08-08" });
           const state = store.readState();
-          equal(state.obligations[0].cycle.day, 7);
-          equal(state.events.find(item => item.status === "pending").dueDate, "2026-10-07");
+          equal(state.obligations[0].cycle.day, 8);
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-09-08");
         });
-        test("Monthly 切換 Yearly 後恢復 Cycle day label 與欄位", () => {
-          const monthly = MonthlyUX.monthlyRepeatFieldState({ cycleType: "monthly", dueDate: "2026-08-07", preserveMonthlyDay: false });
-          const yearly = MonthlyUX.monthlyRepeatFieldState({ cycleType: "yearly", dueDate: "2026-08-07", preserveMonthlyDay: false });
-          equal(monthly.label, "Repeat day");
-          equal(yearly.label, "Cycle day");
-          equal(yearly.hidden, false);
-          equal(yearly.inferredDay, null);
+        test("Monthly 短月 Save unchanged 保留 31 日 anchor", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "月底", cycle: { type: "monthly", day: 31 } }, "2026-01-31");
+          store.completeEvent(created.event.id, { completedDate: "2026-01-31" });
+          let state = store.readState();
+          const february = state.events.find(item => item.status === "pending");
+          equal(february.dueDate, "2026-02-28");
+          const saved = editCalendarRepeat(store, created.obligation.id, february.id, "monthly", "2026-02-28");
+          equal(saved.reanchored, false);
+          equal(saved.cycle.day, 31);
+          store.completeEvent(february.id, { completedDate: "2026-02-28" });
+          state = store.readState();
+          equal(state.obligations[0].cycle.day, 31);
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-03-31");
+        });
+        test("New Yearly 由 Due 建立 cycle.month/day", () => {
+          const result = CalendarRepeatUX.calendarRepeatCycleState({ cycleType: "yearly", dueDate: "2026-08-17" });
+          equal(result.cycle.month, 8);
+          equal(result.cycle.day, 17);
+        });
+        test("Existing Yearly 改 Due 同步改 anchor 與下一期", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "年繳", cycle: { type: "yearly", month: 8, day: 17 } }, "2026-08-17");
+          editCalendarRepeat(store, created.obligation.id, created.event.id, "yearly", "2026-09-20");
+          store.completeEvent(created.event.id, { completedDate: "2026-09-20" });
+          const state = store.readState();
+          equal(state.obligations[0].cycle.month, 9);
+          equal(state.obligations[0].cycle.day, 20);
+          equal(state.events.find(item => item.status === "pending").dueDate, "2027-09-20");
+        });
+        test("Yearly 非閏年 Save unchanged 保留 2/29 anchor", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "Leap", cycle: { type: "yearly", month: 2, day: 29 } }, "2024-02-29");
+          store.completeEvent(created.event.id, { completedDate: "2024-02-29" });
+          const state = store.readState();
+          const nonLeap = state.events.find(item => item.status === "pending");
+          equal(nonLeap.dueDate, "2025-02-28");
+          const saved = editCalendarRepeat(store, created.obligation.id, nonLeap.id, "yearly", "2025-02-28");
+          equal(saved.reanchored, false);
+          equal(saved.cycle.month, 2);
+          equal(saved.cycle.day, 29);
+          equal(Core.nextOccurrenceDate(store.readState().obligations[0], { dueDate: "2027-02-28" }, "2027-02-28"), "2028-02-29");
+        });
+        test("切換進 Calendar Repeat 時由現行 Due 重建 anchor", () => {
+          const monthlyToYearly = CalendarRepeatUX.calendarRepeatCycleState({
+            cycleType: "yearly",
+            dueDate: "2026-09-20",
+            existingCycle: { type: "monthly", day: 31, month: 1, days: 1 },
+            originalCycleType: "monthly",
+            originalDueDate: "2026-09-20"
+          });
+          equal(monthlyToYearly.cycle.month, 9);
+          equal(monthlyToYearly.cycle.day, 20);
+          const onceToMonthly = CalendarRepeatUX.calendarRepeatCycleState({
+            cycleType: "monthly",
+            dueDate: "2026-08-07",
+            existingCycle: { type: "once", day: 1, month: 1, days: 1 },
+            originalCycleType: "once",
+            originalDueDate: "2026-08-07"
+          });
+          equal(onceToMonthly.cycle.day, 7);
+        });
+        test("Monthly／Yearly 沒有 Due 時拒絕建立 anchor", () => {
+          ["monthly", "yearly"].forEach(cycleType => {
+            const result = CalendarRepeatUX.calendarRepeatCycleState({ cycleType, dueDate: "" });
+            equal(result.cycle, null);
+            if (!result.error.includes("需要先設定 Due 日期")) throw new Error("缺少中文 Due 必填錯誤");
+          });
         });
         test("每年 2 月 29 日遇非閏年取月底", () => {
           const state = stateWithEvent({ type: "yearly", month: 2, day: 29 }, "2024-02-29");
@@ -543,6 +612,24 @@
           equal(event.status, "auto-paid");
           equal(transaction.type, "expense");
           equal(transaction.paymentMethod, "card");
+        });
+        test("Calendar Due re-anchor 保留 Auto payment 與 Card payment 行為", () => {
+          const autoStore = createMemoryStore();
+          const automatic = autoStore.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 17 }, amount: 299, handling: "auto", completionMode: "expense", paymentMethod: "card" }, "2026-08-17");
+          editCalendarRepeat(autoStore, automatic.obligation.id, automatic.event.id, "monthly", "2026-08-20");
+          autoStore.runAutoPayments("2026-08-20");
+          const autoState = autoStore.readState();
+          equal(autoState.events.find(item => item.id === automatic.event.id).status, "auto-paid");
+          equal(autoState.events.find(item => item.status === "pending").dueDate, "2026-09-20");
+          equal(Core.allTransactions(autoState)[0].paymentMethod, "card");
+
+          const cardStore = createMemoryStore();
+          const card = cardStore.addObligation({ name: "卡費", cycle: { type: "monthly", day: 16 }, amount: 1200, handling: "manual", completionMode: "transfer" }, "2026-08-16");
+          editCalendarRepeat(cardStore, card.obligation.id, card.event.id, "monthly", "2026-08-20");
+          cardStore.completeEvent(card.event.id, { completedDate: "2026-08-20" });
+          const cardState = cardStore.readState();
+          equal(cardState.events.find(item => item.status === "pending").dueDate, "2026-09-20");
+          equal(Core.allTransactions(cardState)[0].type, "transfer");
         });
         test("Auto-paid 重跑不重複生成", () => {
           const state = stateWithEvent({ type: "monthly", day: 1 }, "2026-08-01", { handling: "auto", paymentMethod: "card" });
@@ -1098,7 +1185,31 @@
           if (/\.app-shell[^{]*\{[^}]*\b4[47]px/.test(css)) throw new Error(".app-shell 疑似寫死狀態列高度");
         });
 
-        test("v0.6.1 表單間距、欄位邊界與版本防護存在", () => {
+        test("Calendar Repeat UI 只保留 Repeats 與 Due", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html?test=calendar-repeat-source", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          if (!documentCopy.querySelector('#obligation-cycle option[value="monthly"]')) throw new Error("缺少 Monthly repeat 選項");
+          if (!documentCopy.querySelector('#obligation-cycle option[value="yearly"]')) throw new Error("缺少 Yearly repeat 選項");
+          if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("缺少 Calendar Repeat Due");
+          if (!documentCopy.querySelector('#obligation-interval-field #obligation-interval')) throw new Error("After N days interval 被移除");
+          ["obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month"].forEach(id => {
+            if (documentCopy.getElementById(id)) throw new Error(`仍存在手動 calendar anchor UI：${id}`);
+          });
+          if (/Repeat day|Cycle day|Cycle month/.test(documentCopy.body.textContent)) throw new Error("仍顯示手動 calendar anchor 標籤");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=calendar-repeat-source", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          ["monthlyRepeatFieldState", "preserveMonthlyCycleDay", "LifeCalibrationMonthlyRepeatUX"].forEach(rule => {
+            if (app.includes(rule)) throw new Error(`仍存在舊雙真相邏輯：${rule}`);
+          });
+          if (!app.includes("Monthly／Yearly 重複需要先設定 Due 日期。")) throw new Error("缺少中文 Due 必填錯誤");
+        });
+
+        test("v0.6.2 表單間距、欄位邊界與版本防護存在", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
@@ -1107,7 +1218,7 @@
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.6.1") throw new Error("頁首版本不是 0.6.1（基準無 v 前綴）");
+          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.6.2") throw new Error("頁首版本不是 0.6.2（基準無 v 前綴）");
           if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
           if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
 

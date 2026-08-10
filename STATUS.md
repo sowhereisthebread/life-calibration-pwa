@@ -1,20 +1,21 @@
-# TAKO v0.6.1｜現行狀態
+# TAKO v0.6.2｜現行狀態
 
 更新：2026-08-10
 
 ## 版本與 Git
 
-- 功能版本：**`0.6.1`**；Tako／GPT 已裁決 MONEY WEEKLY HISTORY 與 Date 重新歸組屬可見產品行為，因此由 `0.6.0` 升版。
-- 資產版本：**`0.4.12`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
-- 施工分支：`codex/fix-ios-transaction-date-control`；基線為最新 `master`：`f2fe28f4cb463887f73347a3001710c69072959a`。
+- 功能版本：**`0.6.2`**；Monthly／Yearly 的 Due 現為 calendar repeat 唯一 UI 操作入口，屬正式產品行為變更。
+- 資產版本：**`0.4.13`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
+- 施工分支：`codex/calendar-repeat-due-source`；基線為最新 `master`：`a93fc0aa5270a531599f3a8c2355580014b46ef8`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #9 已合併；MONEY WEEKLY HISTORY 與資產 `0.4.11` 已進 `master`。本分支的 transaction Date iOS 修正尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #10 已合併；transaction Date iOS presentation／overflow 修正與資產 `0.4.12` 已進 `master`。本 Calendar Repeat 分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
 - PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
 
-- **`test.html`：105／105 全數通過**；既有 102 項全數保留，新增 transaction Date formatter、可見 display／原生 input 分離與 CSS containment 回歸。
-- `node --check app.js`、`node --check data-store.js`、`node --check data-core.js`、`node --check sw.js` 通過；schema 與 `data-core.js` 保持不動。
+- **`test.html`：110／110 全數通過**；廢止兩條保護「本期 Due 與長期 anchor 分離」的舊測試，改以 Monthly／Yearly re-anchor、短月／閏年 unchanged-save、必填 Due、cycle 切換及 Auto／Card payment 回歸保護新規則。
+- `node --check app.js`、`node --check data-store.js`、`node --check data-core.js`、`node --check sw.js` 通過；schema v3、localStorage key、`data-core.js` recurrence engine 與匯出入格式保持不動。
+- TASKS 的 Monthly／Yearly 只顯示 Repeats 與 Due；使用者真正修改 Due 時同步更新內部 `cycle.day`／`cycle.month`，未修改系統 clamp 產生的 Due 時則保留原 anchor，因此每月 31 日仍可依 1/31 → 2/28 → 3/31 運作，2/29 yearly anchor 亦不漂移。Monthly／Yearly 缺少 Due 時以中文錯誤阻止儲存。
 - MONEY RECENT 現只顯示含今天在內最近 7 個日曆日；較舊 transaction 依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY，展開後仍依日顯示並使用同一套 transaction editor。Date 資料與 native input value 維持 `YYYY-MM-DD`，可見介面固定為 `YYYY/MM/DD`；修改 Date 後依 `occurredOn` 自動移到正確位置，future transaction 仍保留可見。
 - Browser 以 RECENT／WEEKLY HISTORY／FUTURE fixture 掃描 375／390／393 px：共 9 個 Date control 均為 44px、固定 `YYYY/MM/DD`、native input 保留可互動層，control 與整頁水平 overflow 均為 0。`2026-08-03` 改為 `2026-08-10` 後移入 RECENT，再改為 `2026-08-20` 後移入 FUTURE；console error 為 0。
 - Browser 掃描 320／375／390／393／820 px：既有五頁矩陣無白屏、非預期水平 overflow 為 0、bottom nav 五格完整；本輪 TASKS 的 RADAR／TO-DO checkbox 在五個寬度皆為 44×44px 命中區與 21×21px 可見框，沒有可見 `Mark done`，console error 為 0。
@@ -27,6 +28,7 @@
 
 ### `#待補`
 
+- `#待補` 本輪 Calendar Repeat Draft PR 仍待 Tako／GPT review、merge 與 deployment；本文件目前描述的是分支驗證結果，不代表正式 production 已更新。
 - `#待補` 本輪 Draft PR 驗收／merge／部署後，以 iPhone PWA 複驗 transaction Date 的原生 picker、固定 `YYYY/MM/DD` 與手機寬度零 overflow。
 - 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
