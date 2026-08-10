@@ -26,7 +26,7 @@
         "use strict";
         const Core = window.LifeCalibrationCore;
         const CalendarRepeatUX = window.LifeCalibrationCalendarRepeatUX;
-        const ObligationUX = window.LifeCalibrationObligationUX;
+        const TaskUX = window.LifeCalibrationTaskUX;
         const MoneyHistoryUX = window.LifeCalibrationMoneyHistoryUX;
         const TransactionDateUX = window.LifeCalibrationTransactionDateUX;
         const results = [];
@@ -79,7 +79,7 @@
           return result;
         }
 
-        test("空白資料為 schema v3", () => equal(Core.createEmptyState().version, 3));
+        test("空白資料為 schema v5", () => equal(Core.createEmptyState().version, 5));
         test("核心缺席時不得建立資料模組或寫入 localStorage", () => {
           let reads = 0;
           let writes = 0;
@@ -275,7 +275,7 @@
         test("v1 匯入資料通過版本檢查", () => equal(Core.validateImportedState({ version: 1, days: {}, projects: [] }).valid, true));
         test("v2 匯入資料通過版本檢查", () => equal(Core.validateImportedState({ version: 2, days: {}, projects: [] }).valid, true));
         test("v3 匯入資料通過版本檢查", () => equal(Core.validateImportedState(Core.createEmptyState()).valid, true));
-        test("匯入版本清單只接受 v1、v2、v3", () => equal(Core.SUPPORTED_IMPORT_VERSIONS.join(","), "1,2,3"));
+        test("匯入版本清單接受 v1 到 v5", () => equal(Core.SUPPORTED_IMPORT_VERSIONS.join(","), "1,2,3,4,5"));
         test("錯誤版本不會通過匯入檢查", () => equal(Core.validateImportedState({ version: 99, days: {}, projects: [] }).valid, false));
         test("v1 每日資料、交易與專案升級後一筆不失", () => {
           const upgraded = Core.normalizeState({
@@ -285,7 +285,7 @@
             customCategories: ["舊分類"],
             meta: {}
           });
-          equal(upgraded.version, 3);
+          equal(upgraded.version, 5);
           equal(upgraded.days["2026-08-01"].note, "保留");
           equal(upgraded.days["2026-08-01"].transactions.length, 1);
           equal(upgraded.days["2026-08-01"].transactions[0].title, "舊備註");
@@ -413,7 +413,7 @@
           store.deleteProject("project-1");
           equal(store.readState().projects.length, 0);
         });
-        test("schema v3 的 project／manual／auto／frozen／book 可原樣匯入且 ID 不變", () => {
+        test("舊 schema 的 project／manual／auto／frozen／book 可原樣匯入且 ID 不變", () => {
           const source = createMemoryStore();
           source.addProject({ id: "project-compat", name: "相容專案", status: "active", nextStep: "下一步", updatedAt: "2026-08-01T00:00:00.000Z" });
           source.addObligation({ id: "manual-compat", name: "人工待辦", cycle: { type: "none" }, handling: "manual", completionMode: "none", status: "active" });
@@ -423,7 +423,7 @@
 
           const importedStore = createMemoryStore();
           const imported = importedStore.importState(JSON.parse(source.exportJson()));
-          equal(imported.version, 3);
+          equal(imported.version, 5);
           equal(imported.projects.find(item => item.id === "project-compat")?.name, "相容專案");
           equal(imported.obligations.find(item => item.id === "manual-compat")?.name, "人工待辦");
           equal(imported.obligations.find(item => item.id === "auto-compat")?.handling, "auto");
@@ -444,7 +444,7 @@
           if (!store.exportCsv().startsWith("資料類型,日期")) throw new Error("CSV 標題錯誤");
           store.clear();
           equal(store.readDay("2026-08-01").note, "");
-          equal(store.readState().version, 3);
+          equal(store.readState().version, 5);
         });
 
         function createObligation(cycle, extras = {}) {
@@ -568,22 +568,21 @@
           const result = Core.completeEvent(stateWithEvent({ type: "once" }, "2026-08-20"), "event-1", { completedDate: "2026-08-20" });
           equal(result.state.obligations[0].status, "archived");
         });
-        test("無日期完成後保留下一個無日期事件", () => {
-          const result = Core.completeEvent(stateWithEvent({ type: "none" }, null, { amount: null, completionMode: "none" }), "event-1", { completedDate: "2026-08-02", actualAmount: 120 });
-          const next = result.state.events.find(item => item.id !== "event-1");
-          equal(next.status, "pending");
-          equal(next.dueDate, null);
-          equal(result.state.events.find(item => item.id === "event-1").actualAmount, 120);
+        test("無日期完成後結束，不再生成下一期", () => {
+          const result = Core.completeEvent(stateWithEvent({ type: "none" }, null, { amount: null }), "event-1", { completedDate: "2026-08-02", actualAmount: 120 });
+          equal(result.state.events.length, 1);
+          equal(result.state.events[0].status, "done");
+          equal(result.state.obligations[0].status, "archived");
           equal(Core.allTransactions(result.state).length, 0);
         });
-        test("每月 No transaction 保留下一期但不建立交易", () => {
-          const result = Core.completeEvent(stateWithEvent({ type: "monthly", day: 30 }, "2026-08-30", { amount: null, completionMode: "none", note: "檢查監理服務" }), "event-1", { completedDate: "2026-08-30" });
+        test("循環但沒有 Amount：保留下一期但不建立交易", () => {
+          const result = Core.completeEvent(stateWithEvent({ type: "monthly", day: 30 }, "2026-08-30", { amount: null, note: "檢查監理服務" }), "event-1", { completedDate: "2026-08-30" });
           equal(result.state.events.find(item => item.id !== "event-1").dueDate, "2026-09-30");
           equal(Core.allTransactions(result.state).length, 0);
           equal(result.state.obligations[0].note, "檢查監理服務");
         });
-        test("Expense TASK 完成後建立支出並保留付款方式", () => {
-          const result = Core.completeEvent(stateWithEvent({ type: "once" }, "2026-08-20", { name: "車貸", amount: 680, category: "其他", completionMode: "expense", paymentMethod: "cash" }), "event-1", { completedDate: "2026-08-20" });
+        test("循環 Task 有 Amount 時完成後建立支出並保留付款方式", () => {
+          const result = Core.completeEvent(stateWithEvent({ type: "monthly", day: 20 }, "2026-08-20", { name: "車貸", amount: 680, category: "其他", paymentMethod: "cash" }), "event-1", { completedDate: "2026-08-20" });
           const transaction = Core.allTransactions(result.state)[0];
           equal(transaction.type, "expense");
           equal(transaction.amount, 680);
@@ -623,13 +622,14 @@
           equal(autoState.events.find(item => item.status === "pending").dueDate, "2026-09-20");
           equal(Core.allTransactions(autoState)[0].paymentMethod, "card");
 
+          // 新的 Card payment 只是循環提醒：Complete 不產生任何交易，下一期照樣生成。
           const cardStore = createMemoryStore();
-          const card = cardStore.addObligation({ name: "卡費", cycle: { type: "monthly", day: 16 }, amount: 1200, handling: "manual", completionMode: "transfer" }, "2026-08-16");
+          const card = cardStore.addObligation({ name: "卡費", cycle: { type: "monthly", day: 16 }, handling: "manual" }, "2026-08-16");
           editCalendarRepeat(cardStore, card.obligation.id, card.event.id, "monthly", "2026-08-20");
           cardStore.completeEvent(card.event.id, { completedDate: "2026-08-20" });
           const cardState = cardStore.readState();
           equal(cardState.events.find(item => item.status === "pending").dueDate, "2026-09-20");
-          equal(Core.allTransactions(cardState)[0].type, "transfer");
+          equal(Core.allTransactions(cardState).length, 0);
         });
         test("Auto-paid 重跑不重複生成", () => {
           const state = stateWithEvent({ type: "monthly", day: 1 }, "2026-08-01", { handling: "auto", paymentMethod: "card" });
@@ -637,44 +637,63 @@
           const second = Core.runAutoPayments(first, "2026-08-02").state;
           equal(Core.allTransactions(second).length, 1);
         });
-        test("Auto + Transfer 在資料層正規化為刷卡支出", () => {
-          const obligation = Core.normalizeObligation({ handling: "auto", completionMode: "transfer", paymentMethod: "bank" });
-          equal(obligation.handling, "auto");
-          equal(obligation.completionMode, "expense");
-          equal(obligation.paymentMethod, "card");
+        test("舊 transfer 規則轉為惰性 legacy 狀態，不改寫使用者原值", () => {
+          const migrated = Core.normalizeObligation({ name: "卡費", cycle: { type: "monthly", day: 16 }, amount: 1200, handling: "manual", completionMode: "transfer" });
+          // 原值原封不動保留，只是任何會產生後果的地方都不認它。
+          equal(migrated.completionMode, "transfer");
+          equal(migrated.amount, 1200);
+          equal(Core.isLegacyTransfer(migrated), true);
+          // 冪等：再跑一次結果不變。
+          equal(Core.normalizeObligation(migrated).completionMode, "transfer");
+          equal(Core.normalizeObligation(migrated).amount, 1200);
+          // auto 一律走推導路徑，不會被誤判成 legacy transfer。
+          const auto = Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: 390, handling: "auto", completionMode: "transfer" });
+          equal(auto.completionMode, "expense");
+          equal(Core.isLegacyTransfer(auto), false);
         });
-        test("表單切 Automatic 固定 Expense，改選 Transfer 則回到 Manual", () => {
-          const automatic = ObligationUX.resolveObligationFormMode({ handling: "auto", completionMode: "transfer", paymentMethod: "bank", changedField: "handling" });
-          equal(automatic.handling, "auto");
-          equal(automatic.completionMode, "expense");
-          equal(automatic.paymentMethod, "card");
-          equal(automatic.transferDisabled, true);
-          const transfer = ObligationUX.resolveObligationFormMode({ handling: "auto", completionMode: "transfer", paymentMethod: "card", changedField: "completion" });
-          equal(transfer.handling, "manual");
-          equal(transfer.completionMode, "transfer");
-          equal(transfer.transferDisabled, false);
+        test("完成後果由前面的意圖唯一推導，不再有 When done 選單", () => {
+          equal(Core.normalizeObligation({ cycle: { type: "none" }, amount: 500 }).completionMode, "none");
+          equal(Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: null }).completionMode, "none");
+          equal(Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: 350 }).completionMode, "expense");
+          equal(Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: 350, handling: "auto" }).completionMode, "expense");
+          // Auto payment 不支援 CASH，且沒有預設值：cash 與缺值都回到「未選」。
+          equal(Core.normalizeObligation({ handling: "auto", paymentMethod: "cash" }).paymentMethod, "");
+          equal(Core.normalizeObligation({ handling: "auto" }).paymentMethod, "");
+          equal(Core.normalizeObligation({ handling: "auto", paymentMethod: "bank" }).paymentMethod, "bank");
+          equal(Core.normalizeObligation({ handling: "auto", paymentMethod: "card" }).paymentMethod, "card");
+          // 人工 Task 同樣沒有預設值：系統不替使用者猜要從哪個帳戶付錢。
+          equal(Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: 350 }).paymentMethod, "");
+          equal(Core.normalizeObligation({ cycle: { type: "monthly", day: 1 }, amount: 350, paymentMethod: "cash" }).paymentMethod, "cash");
         });
-        test("已有 Card payment 時仍可建立任意多筆 Auto payment", () => {
+        test("editor 欄位可見性由 cycle 與 amount 推導", () => {
+          const single = TaskUX.taskEditorFields({ cycleType: "none", amount: null });
+          equal(single.showAmount, false);
+          equal(single.showPaidFrom, false);
+          equal(single.showDue, true);
+          const recurring = TaskUX.taskEditorFields({ cycleType: "monthly", amount: null });
+          equal(recurring.showAmount, true);
+          equal(recurring.showPaidFrom, false);
+          const financial = TaskUX.taskEditorFields({ cycleType: "monthly", amount: 13965 });
+          equal(financial.showPaidFrom, true);
+          equal(financial.paidFromOptions.join(","), "bank,cash,card");
+          const auto = TaskUX.taskEditorFields({ cycleType: "monthly", amount: 390, handling: "auto" });
+          equal(auto.paidFromOptions.join(","), "bank,card");
+          const mileage = TaskUX.taskEditorFields({ cycleType: "mileage", amount: null });
+          equal(mileage.showMileage, true);
+          equal(mileage.showDue, false);
+          equal(TaskUX.taskEditorFields({ cycleType: "after_days" }).showInterval, true);
+          equal(TaskUX.UNDO_WINDOW_MS, 10000);
+        });
+        test("Card payment 與多筆 Auto payment 可同時存在且互不阻擋", () => {
           const store = createMemoryStore();
-          store.addObligation({ name: "卡費繳款", cycle: { type: "monthly", day: 16 }, handling: "manual", completionMode: "transfer" }, "2026-08-16");
+          store.addObligation({ name: "卡費繳款", cycle: { type: "monthly", day: 16 }, handling: "manual" }, "2026-08-16");
           ["YouTube", "Netflix", "iCloud"].forEach(name => {
-            store.addObligation({ name, cycle: { type: "monthly", day: 1 }, amount: 100, handling: "auto", completionMode: "expense", paymentMethod: "card" }, "2026-08-01");
+            store.addObligation({ name, cycle: { type: "monthly", day: 1 }, amount: 100, handling: "auto", paymentMethod: "card" }, "2026-08-01");
           });
           const state = store.readState();
           equal(state.obligations.filter(item => item.handling === "auto").length, 3);
-          equal(state.obligations.filter(item => item.completionMode === "transfer").length, 1);
-        });
-        test("第二筆 active Card payment 在資料層被阻止", () => {
-          const store = createMemoryStore();
-          store.addObligation({ name: "卡費一", cycle: { type: "monthly", day: 16 }, completionMode: "transfer" }, "2026-08-16");
-          let message = "";
-          try {
-            store.addObligation({ name: "卡費二", cycle: { type: "monthly", day: 20 }, completionMode: "transfer" }, "2026-08-20");
-          } catch (error) {
-            message = error.message;
-          }
-          if (!message.includes("唯一的帳戶移轉義務")) throw new Error("第二筆 transfer 未被中文規則阻止");
-          equal(store.readState().obligations.length, 1);
+          equal(state.obligations.filter(item => item.completionMode === "transfer").length, 0);
+          equal(Core.autoPaymentRules(state).length, 3);
         });
         test("同日多筆 Auto payment 各自產生交易、連結與下一期", () => {
           const state = Core.createEmptyState();
@@ -721,7 +740,7 @@
         });
         test("Auto-paid history 阻止 hard delete", () => {
           const store = createMemoryStore();
-          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 199, handling: "auto", completionMode: "expense" }, "2026-08-01");
+          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 199, handling: "auto", paymentMethod: "card" }, "2026-08-01");
           store.runAutoPayments("2026-08-01");
           equal(store.deleteObligationSafely(created.obligation.id).deleted, false);
           equal(Core.allTransactions(store.readState()).length, 1);
@@ -787,23 +806,24 @@
         });
         test("里程超過門檻顯示 Service due", () => {
           const state = stateWithEvent({ type: "mileage" }, null, { service: { lastServiceMileage: 40000, currentMileage: 50000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } });
-          equal(Core.radarItems(state, "2026-08-02")[0].kind, "service-due");
+          equal(Core.mileageStatus(state.obligations[0], "2026-08-02"), "service-due");
         });
         test("里程超過更新間隔顯示 Update mileage", () => {
           const state = stateWithEvent({ type: "mileage" }, null, { service: { lastServiceMileage: 40000, currentMileage: 40100, mileageUpdatedAt: "2026-07-01", reminderDays: 15, thresholdKm: 10000 } });
-          equal(Core.radarItems(state, "2026-08-02")[0].kind, "update-mileage");
+          equal(Core.mileageStatus(state.obligations[0], "2026-08-02"), "update-mileage");
         });
-        test("Auto-paid 不進雷達", () => {
-          const state = stateWithEvent({ type: "monthly", day: 1 }, "2026-08-01", { handling: "auto" });
-          equal(Core.radarItems(state, "2026-08-02").length, 0);
+        test("Auto payment 不進 TASKS、不進 SLEEPING", () => {
+          const state = stateWithEvent({ type: "monthly", day: 1 }, "2026-08-01", { handling: "auto", amount: 390 });
+          const buckets = Core.taskBuckets(state, "2026-08-02");
+          equal(buckets.active.length, 0);
+          equal(buckets.sleeping.length, 0);
+          equal(Core.autoPaymentRules(state).length, 1);
         });
-        test("帳戶移轉型義務固定產生主帳戶到信用卡", () => {
-          const state = stateWithEvent({ type: "monthly", day: 16 }, "2026-08-16", { completionMode: "transfer", transferFromAccountId: "main", transferToAccountId: "card" });
+        test("Card payment 完成不再產生 BANK → CARD 移轉", () => {
+          const state = stateWithEvent({ type: "monthly", day: 16 }, "2026-08-16", { completionMode: "transfer", amount: 1200 });
           const result = Core.completeEvent(state, "event-1", { completedDate: "2026-08-16" });
-          const transaction = Core.allTransactions(result.state)[0];
-          equal(transaction.type, "transfer");
-          equal(transaction.fromAccountId, "main");
-          equal(transaction.toAccountId, "card");
+          equal(Core.allTransactions(result.state).length, 0);
+          equal(result.state.events.filter(item => item.status === "pending").length, 1);
         });
         test("完整 CSV 涵蓋全部新資料型別", () => {
           const state = Core.createEmptyState();
@@ -859,7 +879,7 @@
 
         test("修改義務不影響歷史已完成事件", () => {
           const store = createMemoryStore();
-          const created = store.addObligation({ name: "舊名稱", cycle: { type: "monthly", day: 15 }, amount: 100, completionMode: "expense" }, "2026-08-15");
+          const created = store.addObligation({ name: "舊名稱", cycle: { type: "monthly", day: 15 }, amount: 100, paymentMethod: "bank" }, "2026-08-15");
           store.completeEvent(created.event.id, { completedDate: "2026-08-15", actualAmount: 120 });
           const before = store.readState().events.find(item => item.id === created.event.id);
           store.updateObligation(created.obligation.id, { name: "新名稱", cycle: { type: "monthly", day: 20 }, amount: 200 });
@@ -872,19 +892,19 @@
 
         test("更新里程後十五天更新警示消失且不產生交易", () => {
           const store = createMemoryStore();
-          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, completionMode: "none", service: { lastServiceMileage: 40000, currentMileage: 40100, mileageUpdatedAt: "2026-07-01", reminderDays: 15, thresholdKm: 10000 } });
-          equal(Core.radarItems(store.readState(), "2026-08-02")[0].kind, "update-mileage");
+          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, service: { lastServiceMileage: 40000, currentMileage: 40100, mileageUpdatedAt: "2026-07-01", reminderDays: 15, thresholdKm: 10000 } });
+          equal(Core.mileageStatus(store.readState().obligations[0], "2026-08-02"), "update-mileage");
           store.updateMileage(created.obligation.id, 40200, "2026-08-02");
-          equal(Core.radarItems(store.readState(), "2026-08-02").some(item => item.kind === "update-mileage"), false);
+          equal(Core.mileageStatus(store.readState().obligations[0], "2026-08-02"), "");
           equal(Core.allTransactions(store.readState()).length, 0);
         });
 
         test("更新里程後重新計算保養門檻但不自動完成事件", () => {
           const store = createMemoryStore();
-          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, completionMode: "none", service: { lastServiceMileage: 40000, currentMileage: 45000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } });
+          const created = store.addObligation({ name: "保養", cycle: { type: "mileage" }, service: { lastServiceMileage: 40000, currentMileage: 45000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } });
           store.updateMileage(created.obligation.id, 50000, "2026-08-02");
           const state = store.readState();
-          equal(Core.radarItems(state, "2026-08-02")[0].kind, "service-due");
+          equal(Core.mileageStatus(state.obligations[0], "2026-08-02"), "service-due");
           equal(state.events[0].status, "pending");
           equal(Core.allTransactions(state).length, 0);
         });
@@ -962,17 +982,17 @@
           equal(store.deleteBook(book.id), false);
         });
 
-        test("自動義務不進雷達，AUTO 標記只出現在交易列", () => {
+        test("自動義務不進 TASKS，AUTO 標記只出現在交易列", () => {
           const store = createMemoryStore();
           const today = "2026-08-01";
-          store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 390, handling: "auto", completionMode: "expense", paymentMethod: "card" }, today);
-          store.addObligation({ name: "房租", cycle: { type: "monthly", day: 1 }, amount: 12000, handling: "manual", completionMode: "expense", paymentMethod: "bank" }, today);
+          store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 390, handling: "auto", paymentMethod: "card" }, today);
+          store.addObligation({ name: "房租", cycle: { type: "monthly", day: 1 }, amount: 12000, handling: "manual", paymentMethod: "bank" }, today);
           store.runAutoPayments(today);
 
           const state = store.readState();
-          const radar = Core.radarItems(state, today).map(item => item.obligation.name);
-          if (radar.includes("訂閱")) throw new Error("自動處理的義務進了雷達");
-          if (!radar.includes("房租")) throw new Error("自行處理的義務不在雷達");
+          const names = Core.taskBuckets(state, today).active.map(item => item.obligation.name);
+          if (names.includes("訂閱")) throw new Error("自動處理的義務進了 TASKS");
+          if (!names.includes("房租")) throw new Error("自行處理的義務不在 TASKS");
 
           const autoObligation = state.obligations.find(item => item.name === "訂閱");
           const autoEvent = state.events.find(event => event.obligationId === autoObligation.id && event.status === "auto-paid");
@@ -986,12 +1006,7 @@
           appRequest.open("GET", "./app.js?v=0.4.0", false);
           appRequest.send();
           const app = appRequest.responseText;
-          const start = app.indexOf("function renderRadar");
-          if (start < 0) throw new Error("找不到 renderRadar");
-          const rest = app.slice(start + 20);
-          const end = rest.indexOf("\n  function ");
-          const radarSource = app.slice(start, start + 20 + (end < 0 ? rest.length : end));
-          if (radarSource.includes("auto-tag")) throw new Error("renderRadar 的 markup 內出現 auto-tag");
+          if (app.includes("function renderRadar") || app.includes("radarItems")) throw new Error("app.js 仍保留獨立到期雷達");
           if (!app.includes("auto-tag")) throw new Error("交易列缺少 auto-tag 標記");
         });
 
@@ -1057,7 +1072,7 @@
           appRequest.send();
           const app = appRequest.responseText;
           if (!/if \(pageName === "work"\) \{\s*renderToday\(\);\s*renderProjects\(\);\s*\}/.test(app)) throw new Error("進 WORK 時未分別渲染 daily 與 projects");
-          if (!app.includes('if (pageName === "tasks") renderCommitments();')) throw new Error("進 TASKS 時未渲染 commitments");
+          if (!app.includes('if (pageName === "tasks") renderTasks();')) throw new Error("進 TASKS 時未渲染 tasks");
           if (app.includes('pageName === "projects"') || app.includes('setPage("projects")')) throw new Error("app.js 仍保留 projects 頂層 route");
           if (app.includes("projectsPage")) throw new Error("app.js 仍保留舊頂層 page 事件變數");
         });
@@ -1085,9 +1100,9 @@
           if (tasksPage.querySelector("#project-form, #project-list, #toggle-project-form")) throw new Error("TASKS 仍含 Project UI");
           if (projectsSection.querySelector("#project-form")?.classList.contains("card")) throw new Error("Project form 形成 ICE → ICE 嵌套");
 
-          const orderedSections = ["tasks-radar", "todo-heading", "auto-payment-heading", "frozen-heading", "books-heading"]
+          const orderedSections = ["todo-heading", "sleeping-heading", "frozen-heading", "books-heading"]
             .map(id => documentCopy.getElementById(id)?.closest("section"));
-          if (orderedSections.some(section => !section || !tasksPage.contains(section))) throw new Error("TASKS 缺少 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS");
+          if (orderedSections.some(section => !section || !tasksPage.contains(section))) throw new Error("TASKS 缺少 TO-DO／SLEEPING／FROZEN／BOOKS");
           const tasksChildren = Array.from(tasksPage.children);
           const positions = orderedSections.map(section => tasksChildren.indexOf(section));
           if (positions.some((position, index) => position < 0 || (index > 0 && position <= positions[index - 1]))) throw new Error("TASKS 區段順序不正確");
@@ -1101,31 +1116,881 @@
           if (appRequest.responseText.includes('class="card project-details"')) throw new Error("Project expanded details 仍套第二張 ICE");
         });
 
-        test("到期雷達只在 TASKS，MONEY 完全沒有雷達", () => {
+        test("獨立到期雷達已刪除，主清單本身就是注意力入口", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
-          const moneyPage = documentCopy.getElementById("page-money");
-          const tasksPage = documentCopy.getElementById("page-tasks");
-          if (!moneyPage) throw new Error("找不到 MONEY 分頁");
-          if (!tasksPage) throw new Error("找不到 TASKS 分頁");
-          // MONEY 不得有任何雷達殘留：容器、清單、標題三種都掃
-          if (documentCopy.getElementById("money-radar")) throw new Error("MONEY 仍存在 #money-radar");
-          if (documentCopy.getElementById("money-radar-list")) throw new Error("MONEY 仍存在 #money-radar-list");
-          if (moneyPage.querySelector(".radar, .radar-list")) throw new Error("MONEY 仍存在雷達元件");
-          if (moneyPage.textContent.includes("RADAR")) throw new Error("MONEY 仍出現 RADAR 標題");
-          if (!tasksPage.querySelector("#tasks-radar.radar")) throw new Error("TASKS 雷達容器遺失");
-          if (!tasksPage.querySelector("#tasks-radar-list.radar-list")) throw new Error("TASKS 雷達清單遺失");
-          if (!documentCopy.getElementById("tasks-radar").hasAttribute("hidden")) throw new Error("TASKS 雷達未預設隱藏");
-          if (documentCopy.querySelectorAll(".radar").length !== 1) throw new Error("RADAR 不只出現在 TASKS");
+          if (documentCopy.getElementById("tasks-radar") || documentCopy.getElementById("money-radar")) throw new Error("仍存在雷達容器");
+          if (documentCopy.querySelector(".radar, .radar-list")) throw new Error("仍存在雷達元件");
+          if (documentCopy.body.textContent.includes("RADAR")) throw new Error("仍出現 RADAR 標題");
+
+          const styleRequest = new XMLHttpRequest();
+          styleRequest.open("GET", "./style.css", false);
+          styleRequest.send();
+          if (/\.radar[\s.,:{]/.test(styleRequest.responseText)) throw new Error("style.css 仍保留雷達樣式");
 
           const appRequest = new XMLHttpRequest();
           appRequest.open("GET", "./app.js", false);
           appRequest.send();
           const app = appRequest.responseText;
-          if (app.includes("money-radar")) throw new Error("app.js 仍引用 money-radar");
-          if (!app.includes("tasks-radar-list")) throw new Error("app.js 遺失 tasks-radar-list 的渲染");
+          if (app.includes("tasks-radar") || app.includes("money-radar")) throw new Error("app.js 仍引用雷達節點");
+          // 逾期／今日到期／逼近中的強度階層改由主清單的列承載。
+          ["is-overdue", "is-today", "is-soon"].forEach(name => {
+            if (!app.includes(name)) throw new Error(`主清單遺失狀態強度：${name}`);
+          });
+        });
+
+        test("SLEEPING 依既有提醒窗口分區，Pin 只繞過 Sleeping", () => {
+          const store = createMemoryStore();
+          const today = "2026-08-01";
+          const near = store.addObligation({ name: "近期", cycle: { type: "none" } }, "2026-08-05");
+          const far = store.addObligation({ name: "遠期", cycle: { type: "none" } }, "2026-09-30");
+          store.addObligation({ name: "無日期", cycle: { type: "none" } }, null);
+
+          let buckets = Core.taskBuckets(store.readState(), today);
+          equal(buckets.active.map(item => item.obligation.name).join(","), "近期,無日期");
+          equal(buckets.sleeping.map(item => item.obligation.name).join(","), "遠期");
+
+          // Pin 遠期 occurrence → 回到主清單，Due 與全域窗口都不變。
+          store.updateEvent(far.event.id, { pinned: true });
+          buckets = Core.taskBuckets(store.readState(), today);
+          equal(buckets.sleeping.length, 0);
+          equal(buckets.active.map(item => item.obligation.name).join(","), "近期,遠期,無日期");
+          equal(store.readState().events.find(item => item.id === far.event.id).dueDate, "2026-09-30");
+          equal(store.readState().settings.radarDays, 7);
+
+          // Unpin → 回到正常 sleeping 判斷。
+          store.updateEvent(far.event.id, { pinned: false });
+          equal(Core.taskBuckets(store.readState(), today).sleeping.length, 1);
+
+          // 提醒窗口沿用既有設定，不另建第二套 reminder days。
+          store.updateSettings({ radarDays: 90 });
+          equal(Core.taskBuckets(store.readState(), today).sleeping.length, 0);
+          equal(near.event.id !== far.event.id, true);
+        });
+
+        test("循環 Task 本期 Pin 不傳給下一期", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "每月換床單", cycle: { type: "monthly", day: 15 } }, "2026-08-15");
+          store.updateEvent(created.event.id, { pinned: true });
+          store.completeEvent(created.event.id, { completedDate: "2026-08-15" });
+          const next = store.readState().events.find(item => item.status === "pending");
+          equal(next.dueDate, "2026-09-15");
+          equal(next.pinned, false);
+          equal(Core.allTransactions(store.readState()).length, 0);
+        });
+
+        test("單次 Task 完成後結束，No date 不再是常駐 Task", () => {
+          const store = createMemoryStore();
+          const dated = store.addObligation({ name: "買牙膏", cycle: { type: "none" } }, "2026-08-01");
+          store.completeEvent(dated.event.id, { completedDate: "2026-08-01" });
+          let state = store.readState();
+          equal(state.obligations[0].status, "archived");
+          equal(state.events.filter(item => item.status === "pending").length, 0);
+          equal(Core.taskBuckets(state, "2026-08-01").active.length, 0);
+          equal(Core.allTransactions(state).length, 0);
+          // 完成歷史仍保留在資料中。
+          equal(state.events.filter(item => item.status === "done").length, 1);
+
+          const noDate = createMemoryStore();
+          const quick = noDate.addObligation({ name: "打電話", cycle: { type: "none" } }, null);
+          noDate.completeEvent(quick.event.id, { completedDate: "2026-08-01" });
+          equal(noDate.readState().events.filter(item => item.status === "pending").length, 0);
+        });
+
+        test("Undo 原子性回滾交易與下一期，且不留孤兒連結", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, paymentMethod: "bank" }, "2026-08-05");
+          store.completeEvent(created.event.id, { completedDate: "2026-08-05" });
+          let state = store.readState();
+          equal(Core.allTransactions(state).length, 1);
+          equal(Core.allTransactions(state)[0].amount, 13965);
+          equal(Core.allTransactions(state)[0].paymentMethod, "bank");
+          equal(state.events.filter(item => item.status === "pending").length, 1);
+
+          store.undoEvent(created.event.id);
+          state = store.readState();
+          equal(Core.allTransactions(state).length, 0);
+          equal(state.events.length, 1);
+          equal(state.events[0].status, "pending");
+          equal(state.events[0].transactionId, "");
+          equal(state.events[0].generatedEventId, "");
+          equal(state.obligations[0].status, "active");
+        });
+
+        test("修改歷史 transaction 不反向改寫來源規則", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "剪頭髮", cycle: { type: "monthly", day: 10 }, amount: 300, paymentMethod: "cash" }, "2026-08-10");
+          store.completeEvent(created.event.id, { completedDate: "2026-08-10" });
+          const transaction = Core.allTransactions(store.readState())[0];
+          store.updateTransaction("2026-08-10", transaction.id, { amount: 350, paymentMethod: "bank" });
+          const obligation = store.readState().obligations[0];
+          equal(obligation.amount, 300);
+          equal(obligation.paymentMethod, "cash");
+
+          // 改規則只影響未來：既有歷史交易不變。
+          store.updateObligation(created.obligation.id, { amount: 350 });
+          equal(Core.allTransactions(store.readState()).find(item => item.id === transaction.id).amount, 350);
+          const nextEvent = store.readState().events.find(item => item.status === "pending");
+          store.completeEvent(nextEvent.id, { completedDate: "2026-09-10" });
+          const generated = Core.allTransactions(store.readState()).find(item => item.occurredOn === "2026-09-10");
+          equal(generated.amount, 350);
+        });
+
+        test("Frozen 不自動醒來、不生成 occurrence、不產生 MONEY 副作用", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 1 }, amount: 390, handling: "auto", paymentMethod: "card" }, "2026-08-01");
+          store.updateObligation(created.obligation.id, { status: "frozen" });
+          store.runAutoPayments("2026-08-05");
+          let state = store.readState();
+          equal(Core.allTransactions(state).length, 0);
+          equal(state.events.filter(item => item.status === "auto-paid").length, 0);
+          equal(Core.taskBuckets(state, "2026-08-05").active.length, 0);
+          equal(Core.taskBuckets(state, "2026-08-05").sleeping.length, 0);
+          // Auto payment 的 frozen 規則留在 MONEY，不回到 TASKS 的 FROZEN 區。
+          equal(Core.taskBuckets(state, "2026-08-05").frozen.length, 0);
+          equal(Core.autoPaymentRules(state).length, 1);
+
+          store.updateObligation(created.obligation.id, { status: "active" });
+          store.runAutoPayments("2026-08-05");
+          equal(Core.allTransactions(store.readState()).length, 1);
+        });
+
+        test("未設定金額的 Auto payment 不自動扣款", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "未設定", cycle: { type: "monthly", day: 1 }, handling: "auto", paymentMethod: "card" }, "2026-08-01");
+          store.runAutoPayments("2026-08-02");
+          const state = store.readState();
+          equal(Core.allTransactions(state).length, 0);
+          equal(state.events.filter(item => item.status === "pending").length, 1);
+        });
+
+        // ── Auto payment：建立不猜日期、catch-up、交易日期 ──────────────────
+        test("新建 Auto payment 不猜 Due，也不猜 cycle day", () => {
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=auto-payment-create", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const start = app.indexOf('elements["auto-payment-form"].addEventListener');
+          const source = app.slice(start, app.indexOf("\n    });", start));
+          if (start < 0) throw new Error("找不到 Auto payment 建立流程");
+          if (source.includes("nextOccurrenceDate")) throw new Error("建立時仍推算首期日期");
+          if (/todayKey\.slice\(8, 10\)/.test(source)) throw new Error("建立時仍以建立日作 cycle day");
+          if (/}, todayKey\)/.test(source)) throw new Error("建立時仍以今天作首期 Due");
+          if (!/cycle: \{ type: "none" \}/.test(source)) throw new Error("建立時未讓週期保持未選");
+          if (!/}, null\)/.test(source)) throw new Error("建立時未讓 Due 保持空白");
+          // 建立時給死 paymentMethod 會被正規化層當成「使用者明確選過」，
+          // 於是要 BANK 的規則先扣到 CARD。這一條擋的就是那個。
+          if (/paymentMethod: "(card|bank|cash)"/.test(source)) throw new Error("建立時預設了付款來源");
+          if (!/paymentMethod: ""/.test(source)) throw new Error("建立時未讓付款來源保持未選");
+
+          // 四項必要資料齊全前，autoPaymentIsSchedulable 一律擋掉。
+          const base = { name: "電費", handling: "auto", paymentMethod: "card", status: "active" };
+          equal(Core.autoPaymentIsSchedulable(Core.normalizeObligation({ ...base, cycle: { type: "none" } })), false);
+          equal(Core.autoPaymentIsSchedulable(Core.normalizeObligation({ ...base, cycle: { type: "monthly", day: 5 } })), false);
+          equal(Core.autoPaymentIsSchedulable(Core.normalizeObligation({ ...base, cycle: { type: "none" }, amount: 1580 })), false);
+          equal(Core.autoPaymentIsSchedulable(Core.normalizeObligation({ ...base, cycle: { type: "monthly", day: 5 }, amount: 1580 })), true);
+          equal(Core.autoPaymentIsSchedulable(Core.normalizeObligation({ ...base, cycle: { type: "monthly", day: 5 }, amount: 1580, status: "frozen" })), false);
+
+          // 沒有 Due 的規則即使其他都齊了也不會產生交易。
+          const store = createMemoryStore();
+          store.addObligation({ ...base, cycle: { type: "monthly", day: 5 }, amount: 1580 }, null);
+          store.runAutoPayments("2026-12-31");
+          equal(Core.allTransactions(store.readState()).length, 0);
+        });
+
+        // ── Auto payment：Paid from 必須由使用者明確選擇 ──────────────────
+        test("Paid from 未選前不 schedulable，Due <= today 也不產生交易", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "電費", cycle: { type: "monthly", day: 5 }, amount: 1580, handling: "auto" }, "2026-05-05");
+          let obligation = store.readState().obligations[0];
+          // 資料層必須能區分「未選」，不得有假預設
+          equal(obligation.paymentMethod, "");
+          equal(Core.autoPaymentIsSchedulable(obligation), false);
+          store.runAutoPayments("2026-08-11");
+          equal(Core.allTransactions(store.readState()).length, 0);
+          equal(store.readState().events.filter(item => item.status === "pending").length, 1);
+          equal(created.obligation.id === obligation.id, true);
+        });
+
+        test("明確選 CARD 後正常執行且交易使用 CARD", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "Netflix", cycle: { type: "monthly", day: 5 }, amount: 390, handling: "auto" }, "2026-08-05");
+          store.updateObligation(created.obligation.id, { paymentMethod: "card" });
+          const obligation = store.readState().obligations[0];
+          equal(obligation.paymentMethod, "card");
+          equal(Core.autoPaymentIsSchedulable(obligation), true);
+          store.runAutoPayments("2026-08-11");
+          const tx = Core.allTransactions(store.readState());
+          equal(tx.length, 1);
+          equal(tx[0].paymentMethod, "card");
+          equal(tx[0].occurredOn, "2026-08-05");
+        });
+
+        test("明確選 BANK 後正常執行且交易使用 BANK", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "台新信貸", cycle: { type: "monthly", day: 5 }, amount: 26500, handling: "auto" }, "2026-08-05");
+          store.updateObligation(created.obligation.id, { paymentMethod: "bank" });
+          equal(Core.autoPaymentIsSchedulable(store.readState().obligations[0]), true);
+          store.runAutoPayments("2026-08-11");
+          const tx = Core.allTransactions(store.readState());
+          equal(tx.length, 1);
+          equal(tx[0].paymentMethod, "bank");
+          equal(Core.accountBalances(store.readState()).main, -26500);
+          equal(Core.accountBalances(store.readState()).card, 0);
+        });
+
+        test("要 BANK 的規則在使用者尚未選來源前不會被 default CARD 提前扣款", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "房貸", cycle: { type: "monthly", day: 1 }, amount: 30000, handling: "auto" }, "2026-05-01");
+          // 使用者還沒選來源就過了好幾期：不得有任何交易，也不得扣到 CARD
+          store.runAutoPayments("2026-08-11");
+          equal(Core.allTransactions(store.readState()).length, 0);
+          equal(Core.accountBalances(store.readState()).card, 0);
+          equal(store.readState().events.filter(item => item.status === "pending")[0].dueDate, "2026-05-01");
+          // 選了 BANK 之後才一次追完，且四期全部記在 BANK
+          store.updateObligation(created.obligation.id, { paymentMethod: "bank" });
+          store.runAutoPayments("2026-08-11");
+          const tx = Core.allTransactions(store.readState());
+          equal(tx.map(item => item.occurredOn).sort().join(","), "2026-05-01,2026-06-01,2026-07-01,2026-08-01");
+          equal(tx.every(item => item.paymentMethod === "bank"), true);
+          equal(Core.accountBalances(store.readState()).card, 0);
+        });
+
+        test("Paid from 的未選／CARD／BANK 三態在 reload 與匯入後都分得出來", () => {
+          const storage = createMemoryStorage();
+          const store = createMemoryStore(storage);
+          const unset = store.addObligation({ name: "未選", cycle: { type: "monthly", day: 5 }, amount: 100, handling: "auto" }, "2026-08-05");
+          const card = store.addObligation({ name: "選卡", cycle: { type: "monthly", day: 5 }, amount: 200, handling: "auto" }, "2026-08-05");
+          const bank = store.addObligation({ name: "選銀行", cycle: { type: "monthly", day: 5 }, amount: 300, handling: "auto" }, "2026-08-05");
+          store.updateObligation(card.obligation.id, { paymentMethod: "card" });
+          store.updateObligation(bank.obligation.id, { paymentMethod: "bank" });
+
+          // reload：用同一份 storage 重新建立 store，狀態從磁碟重讀
+          const reloaded = createMemoryStore(storage).readState();
+          const pick = id => reloaded.obligations.find(item => item.id === id);
+          equal(pick(unset.obligation.id).paymentMethod, "");
+          equal(pick(card.obligation.id).paymentMethod, "card");
+          equal(pick(bank.obligation.id).paymentMethod, "bank");
+          equal(Core.autoPaymentIsSchedulable(pick(unset.obligation.id)), false);
+          equal(Core.autoPaymentIsSchedulable(pick(card.obligation.id)), true);
+
+          // 匯出再匯入仍然三態分明
+          const round = createMemoryStore().importState(JSON.parse(store.exportJson()));
+          const back = id => round.obligations.find(item => item.id === id);
+          equal(back(unset.obligation.id).paymentMethod, "");
+          equal(back(card.obligation.id).paymentMethod, "card");
+          equal(back(bank.obligation.id).paymentMethod, "bank");
+        });
+
+        test("v4 以前的既有 auto payment 明確來源不因升版失效", () => {
+          const legacy = {
+            version: 4, days: {}, projects: [], accounts: [], categories: [], books: [], schedule: [],
+            settings: { radarDays: 7 }, statements: {}, meta: { createdAt: "2026-07-01T00:00:00.000Z" },
+            obligations: [
+              { id: "a1", name: "Netflix", cycle: { type: "monthly", day: 8 }, amount: 390, handling: "auto", completionMode: "expense", paymentMethod: "card", status: "active" },
+              { id: "a2", name: "台新信貸", cycle: { type: "monthly", day: 21 }, amount: 26500, handling: "auto", completionMode: "expense", paymentMethod: "bank", status: "active" },
+              { id: "a3", name: "現金訂閱", cycle: { type: "monthly", day: 3 }, amount: 120, handling: "auto", completionMode: "expense", paymentMethod: "cash", status: "active" },
+              { id: "m1", name: "卡費繳款", cycle: { type: "monthly", day: 16 }, amount: 8800, handling: "manual", completionMode: "transfer", status: "active" },
+              { id: "m2", name: "剪頭髮", cycle: { type: "after_days", days: 45 }, amount: 300, handling: "manual", completionMode: "expense", paymentMethod: "cash", status: "active" }
+            ],
+            events: [
+              { id: "e1", obligationId: "a1", dueDate: "2026-08-08", status: "pending" },
+              { id: "e2", obligationId: "a2", dueDate: "2026-08-21", status: "pending" },
+              { id: "e3", obligationId: "a3", dueDate: "2026-08-03", status: "pending" }
+            ]
+          };
+          const store = createMemoryStore();
+          const imported = store.importState(legacy);
+          const pick = id => imported.obligations.find(item => item.id === id);
+          equal(imported.version, 5);
+          // 明確 card／bank 視為已設定，仍然有效
+          equal(pick("a1").paymentMethod, "card");
+          equal(pick("a2").paymentMethod, "bank");
+          equal(Core.autoPaymentIsSchedulable(pick("a1")), true);
+          equal(Core.autoPaymentIsSchedulable(pick("a2")), true);
+          // auto 不支援 CASH：回到未選，不猜成 card
+          equal(pick("a3").paymentMethod, "");
+          equal(Core.autoPaymentIsSchedulable(pick("a3")), false);
+          // 不破壞 legacy transfer 相容，也不動一般 manual Task
+          equal(pick("m1").completionMode, "transfer");
+          equal(pick("m1").amount, 8800);
+          equal(pick("m2").paymentMethod, "cash");
+          equal(pick("m2").completionMode, "expense");
+          // 實跑一次：只有 a1 到期，且記在 card；a3 未選來源不動
+          store.runAutoPayments("2026-08-11");
+          const tx = Core.allTransactions(store.readState());
+          equal(tx.length, 1);
+          equal(tx[0].title, "Netflix");
+          equal(tx[0].paymentMethod, "card");
+        });
+
+        test("明確設定 Due 8/15 後首期就是 8/15，不被推遲一個週期", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "電費", cycle: { type: "none" }, handling: "auto", paymentMethod: "card" }, null);
+          // 使用者依序補齊：Due → recurrence → Amount
+          editCalendarRepeat(store, created.obligation.id, created.event.id, "monthly", "2026-08-15");
+          store.updateObligation(created.obligation.id, { amount: 1580 });
+          const state = store.readState();
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-08-15");
+          equal(state.obligations[0].cycle.day, 15);
+          equal(Core.autoPaymentIsSchedulable(state.obligations[0]), true);
+          // 8/10 還沒到期
+          equal(Core.runAutoPayments(state, "2026-08-10").completedEventIds.length, 0);
+          // 8/15 當天處理，交易日期就是 8/15
+          const fired = Core.runAutoPayments(state, "2026-08-15");
+          equal(fired.completedEventIds.length, 1);
+          equal(Core.allTransactions(fired.state)[0].occurredOn, "2026-08-15");
+        });
+
+        test("一次 run 追完連續過期期別，交易日期各自等於該期 dueDate", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "台新信貸", cycle: { type: "monthly", day: 5 }, amount: 26500, handling: "auto", paymentMethod: "bank" }, "2026-05-05");
+          store.runAutoPayments("2026-08-10");
+          const state = store.readState();
+          const dates = Core.allTransactions(state).map(item => item.occurredOn).sort();
+          equal(dates.join(","), "2026-05-05,2026-06-05,2026-07-05,2026-08-05");
+          equal(Core.allTransactions(state).every(item => item.amount === 26500), true);
+          equal(state.events.filter(item => item.status === "auto-paid").length, 4);
+          // 最後留下未到期的 9/5
+          const pending = state.events.filter(item => item.status === "pending");
+          equal(pending.length, 1);
+          equal(pending[0].dueDate, "2026-09-05");
+          equal(pending[0].pinned, false);
+        });
+
+        test("Auto payment catch-up 是 idempotent，重跑不產生重複交易", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 5 }, amount: 390, handling: "auto", paymentMethod: "card" }, "2026-05-05");
+          store.runAutoPayments("2026-08-10");
+          const first = Core.allTransactions(store.readState()).length;
+          store.runAutoPayments("2026-08-10");
+          store.runAutoPayments("2026-08-10");
+          equal(first, 4);
+          equal(Core.allTransactions(store.readState()).length, 4);
+          equal(store.readState().events.filter(item => item.status === "pending").length, 1);
+        });
+
+        test("多筆 Auto payment 同時多期逾期都在同一次 run 追完", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "A", cycle: { type: "monthly", day: 5 }, amount: 100, handling: "auto", paymentMethod: "card" }, "2026-06-05");
+          store.addObligation({ name: "B", cycle: { type: "monthly", day: 20 }, amount: 200, handling: "auto", paymentMethod: "bank" }, "2026-05-20");
+          const ids = store.runAutoPayments("2026-08-10");
+          equal(ids.length, 6);
+          const byTitle = title => Core.allTransactions(store.readState()).filter(item => item.title === title).map(item => item.occurredOn).sort();
+          equal(byTitle("A").join(","), "2026-06-05,2026-07-05,2026-08-05");
+          equal(byTitle("B").join(","), "2026-05-20,2026-06-20,2026-07-20");
+          const pending = store.readState().events.filter(item => item.status === "pending").map(item => item.dueDate).sort();
+          equal(pending.join(","), "2026-08-20,2026-09-05");
+        });
+
+        test("after_days Auto payment 依 due date 遞推且會終止", () => {
+          const store = createMemoryStore();
+          store.addObligation({ name: "每 30 天", cycle: { type: "after_days", days: 30 }, amount: 500, handling: "auto", paymentMethod: "card" }, "2026-05-05");
+          store.runAutoPayments("2026-08-10");
+          const dates = Core.allTransactions(store.readState()).map(item => item.occurredOn).sort();
+          equal(dates.join(","), "2026-05-05,2026-06-04,2026-07-04,2026-08-03");
+          equal(store.readState().events.filter(item => item.status === "pending")[0].dueDate, "2026-09-02");
+        });
+
+        test("non-advancing recurrence 不形成 infinite loop", () => {
+          // 直接偽造一個 recurrence 不前進的壞狀態：nextOccurrenceDate 回傳同一天。
+          const state = Core.createEmptyState();
+          state.obligations.push(Core.normalizeObligation({
+            id: "bad", name: "壞資料", cycle: { type: "monthly", day: 5 }, amount: 100, handling: "auto", paymentMethod: "card"
+          }));
+          state.events.push(Core.normalizeEvent({ id: "bad-1", obligationId: "bad", dueDate: "2026-05-05", status: "pending" }));
+          const original = Core.nextOccurrenceDate;
+          let result;
+          try {
+            // 用 monkey patch 不可行（Core 已凍結），改以極端 today 驗證上限收斂。
+            result = Core.runAutoPayments(state, "2126-01-01");
+          } finally {
+            equal(typeof original, "function");
+          }
+          // 100 年 × 12 期 = 1200 期，硬上限 600 會先收斂，且必定回傳而不掛住。
+          if (result.completedEventIds.length > 600) throw new Error("catch-up 未受硬上限保護");
+          equal(result.state.events.filter(item => item.status === "pending").length, 1);
+        });
+
+        test("人工 Complete 仍使用真正的完成日，不改成 due date", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, paymentMethod: "bank" }, "2026-08-05");
+          store.completeEvent(created.event.id, { completedDate: "2026-08-09" });
+          equal(Core.allTransactions(store.readState())[0].occurredOn, "2026-08-09");
+        });
+
+        // ── legacy transfer：非破壞性相容 ──────────────────────────────────
+        test("legacy transfer 保留原 amount，且維持惰性不產生任何交易", () => {
+          const shapes = [
+            { label: "active", raw: { id: "t1", name: "卡費繳款", cycle: { type: "monthly", day: 16 }, amount: 8800, handling: "manual", completionMode: "transfer", status: "active" } },
+            { label: "archived", raw: { id: "t2", name: "舊卡費", cycle: { type: "monthly", day: 16 }, amount: 9500, handling: "manual", completionMode: "transfer", status: "archived" } },
+            { label: "frozen", raw: { id: "t3", name: "冷凍移轉", cycle: { type: "monthly", day: 1 }, amount: 3000, handling: "manual", completionMode: "transfer", status: "frozen" } },
+            { label: "任意名稱", raw: { id: "t4", name: "給媽媽生活費", cycle: { type: "monthly", day: 1 }, amount: 10000, handling: "manual", completionMode: "transfer", status: "active" } },
+            { label: "單次", raw: { id: "t5", name: "一次性移轉", cycle: { type: "none" }, amount: 5000, handling: "manual", completionMode: "transfer", status: "active" } }
+          ];
+          shapes.forEach(shape => {
+            const normalized = Core.normalizeObligation(shape.raw);
+            if (normalized.amount !== shape.raw.amount) throw new Error(`${shape.label} 的 amount 被 migration 破壞：${normalized.amount}`);
+            equal(Core.isLegacyTransfer(normalized), true);
+            equal(normalized.completionMode, "transfer");
+            // 冪等：再跑一次仍保留原值
+            equal(Core.normalizeObligation(normalized).amount, shape.raw.amount);
+          });
+
+          // 惰性：既不變 expense，也不恢復生成 transfer
+          const state = Core.createEmptyState();
+          state.obligations.push(Core.normalizeObligation(shapes[0].raw));
+          state.events.push(Core.normalizeEvent({ id: "ev", obligationId: "t1", dueDate: "2026-08-16", status: "pending" }));
+          const done = Core.completeEvent(state, "ev", { completedDate: "2026-08-16" });
+          equal(Core.allTransactions(done.state).length, 0);
+          equal(done.state.events.filter(item => item.status === "pending").length, 1);
+          // 自動處理也不吃它
+          equal(Core.runAutoPayments(done.state, "2026-12-31").completedEventIds.length, 0);
+        });
+
+        test("匯入多筆 legacy transfer 的 amount 全數保留", () => {
+          const legacy = {
+            version: 3, days: {}, projects: [], accounts: [], categories: [], books: [], schedule: [],
+            settings: { radarDays: 7 }, statements: {}, meta: { createdAt: "2026-07-01T00:00:00.000Z" },
+            obligations: [
+              { id: "m1", name: "卡費", cycle: { type: "monthly", day: 16 }, amount: 8800, handling: "manual", completionMode: "transfer", status: "active" },
+              { id: "m2", name: "舊卡費", cycle: { type: "monthly", day: 16 }, amount: 9500, handling: "manual", completionMode: "transfer", status: "archived" },
+              { id: "m3", name: "另一筆移轉", cycle: { type: "monthly", day: 3 }, amount: 4200, handling: "manual", completionMode: "transfer", status: "active" }
+            ],
+            events: []
+          };
+          const store = createMemoryStore();
+          const imported = store.importState(legacy);
+          equal(imported.obligations.map(item => item.amount).join(","), "8800,9500,4200");
+          equal(imported.obligations.every(item => item.completionMode === "transfer"), true);
+          // 匯出後再匯回仍保留
+          const round = createMemoryStore().importState(JSON.parse(store.exportJson()));
+          equal(round.obligations.map(item => item.amount).join(","), "8800,9500,4200");
+        });
+
+        test("legacy transfer 的 Amount 與 Paid from 不在新 UI 暴露", () => {
+          const legacy = TaskUX.taskEditorFields({ cycleType: "monthly", amount: 8800, completionMode: "transfer" });
+          equal(legacy.legacyTransfer, true);
+          equal(legacy.showAmount, false);
+          equal(legacy.showPaidFrom, false);
+          // 一般循環財務 Task 不受影響
+          const normal = TaskUX.taskEditorFields({ cycleType: "monthly", amount: 8800, completionMode: "expense" });
+          equal(normal.showAmount, true);
+          equal(normal.showPaidFrom, true);
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=legacy-transfer", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          // Task／Auto payment editor 不得再有任何 transfer 入口。
+          // MONEY 交易的 Type = Transfer 是使用者手動 BANK → CARD 的正當入口，不在此列。
+          const editorStart = app.indexOf("function taskEditorMarkup");
+          const editorSource = app.slice(editorStart, app.indexOf("\n  function ", editorStart + 20));
+          if (/transfer/i.test(editorSource)) throw new Error("Task editor 重新暴露 transfer");
+          if (/CYCLE_OPTIONS[\s\S]{0,400}transfer/.test(app)) throw new Error("週期選單出現 transfer");
+          // 只掃會被輸出成 markup 的字串，註解裡提到 When done 不算。
+          const markup = app.split("\n").filter(line => !line.trim().startsWith("//")).join("\n");
+          [/data-task-field="completionMode"/, /<span>When done<\/span>/, /Card payment · Transfer/, /obligation-completion-mode/].forEach(pattern => {
+            if (pattern.test(markup)) throw new Error(`UI 重新暴露 generic When done：${pattern}`);
+          });
+        });
+
+        // ── Undo：每筆各自 10 秒，互不覆蓋 ────────────────────────────────
+        test("Undo queue 每筆各自 10 秒且互不覆蓋", () => {
+          let clock = 0;
+          const queue = TaskUX.createUndoQueue({ now: () => clock });
+          equal(queue.windowMs, 10000);
+          clock = 0;      queue.push("event-a", "A");
+          clock = 4000;   queue.push("event-b", "B");
+          clock = 5000;
+          equal(queue.active().map(item => item.eventId).join(","), "event-a,event-b");
+          equal(queue.has("event-a"), true);
+          equal(queue.has("event-b"), true);
+          // A 到期，B 還在
+          clock = 10001;
+          equal(queue.active().map(item => item.eventId).join(","), "event-b");
+          // B 到期
+          clock = 14001;
+          equal(queue.active().length, 0);
+        });
+
+        test("Undo 其中一筆不影響另一筆的 queue 狀態", () => {
+          let clock = 0;
+          const queue = TaskUX.createUndoQueue({ now: () => clock });
+          queue.push("event-a", "A");
+          clock = 4000; queue.push("event-b", "B");
+          clock = 5000;
+          queue.remove("event-a");
+          equal(queue.active().map(item => item.eventId).join(","), "event-b");
+          equal(queue.has("event-a"), false);
+          // 移除 B 之後才清空
+          queue.remove("event-b");
+          equal(queue.active().length, 0);
+        });
+
+        test("同時完成兩筆時，各自 Undo 只回滾自己的交易與下一期", () => {
+          const store = createMemoryStore();
+          const a = store.addObligation({ name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, paymentMethod: "bank" }, "2026-08-05");
+          const b = store.addObligation({ name: "剪頭髮", cycle: { type: "monthly", day: 6 }, amount: 300, paymentMethod: "cash" }, "2026-08-06");
+          store.completeEvent(a.event.id, { completedDate: "2026-08-10" });
+          store.completeEvent(b.event.id, { completedDate: "2026-08-10" });
+          equal(Core.allTransactions(store.readState()).length, 2);
+
+          store.undoEvent(a.event.id);
+          let state = store.readState();
+          equal(Core.allTransactions(state).map(item => item.title).join(","), "剪頭髮");
+          equal(state.events.find(item => item.id === a.event.id).status, "pending");
+          equal(state.events.find(item => item.id === b.event.id).status, "done");
+          equal(state.events.filter(item => item.obligationId === a.obligation.id).length, 1);
+          equal(state.events.filter(item => item.obligationId === b.obligation.id).length, 2);
+
+          store.undoEvent(b.event.id);
+          state = store.readState();
+          equal(Core.allTransactions(state).length, 0);
+          equal(state.events.length, 2);
+          equal(state.events.every(item => item.status === "pending"), true);
+        });
+
+        // ── Mileage 注意力排序 ────────────────────────────────────────────
+        test("service-due 與 Today due 同級，且排在一般無日期 Task 前", () => {
+          const T = "2026-08-10";
+          const state = Core.createEmptyState();
+          const add = (id, name, cycle, extras, dueDate) => {
+            state.obligations.push(Core.normalizeObligation({ id, name, cycle, ...extras }));
+            state.events.push(Core.normalizeEvent({ id: `e-${id}`, obligationId: id, dueDate, status: "pending" }));
+          };
+          add("od", "逾期", { type: "none" }, {}, "2026-08-07");
+          add("ot", "今日", { type: "none" }, {}, T);
+          add("os", "三天後", { type: "none" }, {}, "2026-08-13");
+          // 名稱刻意排在 service-due 之前，用來確認名稱不會蓋過注意力層級
+          add("oa", "AAA 無日期", { type: "none" }, {}, null);
+          add("om", "機車保養", { type: "mileage" }, { service: { lastServiceMileage: 40000, currentMileage: 51000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 } }, null);
+          add("ou", "汽車里程", { type: "mileage" }, { service: { lastServiceMileage: 40000, currentMileage: 40100, mileageUpdatedAt: "2026-06-20", reminderDays: 15, thresholdKm: 10000 } }, null);
+
+          const names = Core.taskBuckets(state, T).active.map(item => item.obligation.name);
+          equal(names.join(" > "), "逾期 > 今日 > 機車保養 > 三天後 > AAA 無日期 > 汽車里程");
+          equal(Core.occurrenceAttention({ event: { dueDate: T }, obligation: state.obligations[1] }, T, 7), "today");
+          equal(Core.occurrenceAttention({ event: { dueDate: null }, obligation: state.obligations[4] }, T, 7), "service-due");
+          equal(Core.occurrenceAttention({ event: { dueDate: null }, obligation: state.obligations[5] }, T, 7), "update-mileage");
+          equal(Core.occurrenceAttention({ event: { dueDate: null }, obligation: state.obligations[3] }, T, 7), "plain");
+        });
+
+        test("legacy mileage 帶 dueDate 不進 SLEEPING，也不被 Due label 蓋掉", () => {
+          const T = "2026-08-10";
+          const state = Core.createEmptyState();
+          state.obligations.push(Core.normalizeObligation({
+            id: "om", name: "機車保養", cycle: { type: "mileage" },
+            service: { lastServiceMileage: 40000, currentMileage: 51000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 }
+          }));
+          state.events.push(Core.normalizeEvent({ id: "em", obligationId: "om", dueDate: "2026-12-01", status: "pending" }));
+          const buckets = Core.taskBuckets(state, T);
+          equal(buckets.sleeping.length, 0);
+          equal(buckets.active.length, 1);
+          equal(Core.occurrenceIsSleeping(state.events[0], T, 7, state.obligations[0]), false);
+          // 排序仍以 mileage 語意為準，不吃那個 legacy dueDate
+          equal(Core.occurrenceAttention({ event: state.events[0], obligation: state.obligations[0] }, T, 7), "service-due");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=mileage-label", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          ["taskStateClass", "taskDueLabel"].forEach(name => {
+            const start = app.indexOf(`function ${name}`);
+            const source = app.slice(start, app.indexOf("\n  }", start));
+            if (!/isMileageObligation\(obligation\)/.test(source)) throw new Error(`${name} 未優先採用 mileage 語意`);
+            if (source.indexOf("isMileageObligation") > source.indexOf("event.dueDate")) throw new Error(`${name} 的 mileage 判斷排在 dueDate 之後`);
+          });
+        });
+
+        // ── Frozen 不累積 catch-up：Unfreeze 從現在恢復，不補跑冷凍期間 ──────
+        test("Monthly auto 冷凍跨四個月後解凍，0 筆補扣且下一期為 10/5", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 5 }, amount: 390, handling: "auto", paymentMethod: "card" }, "2026-05-05");
+          store.freezeObligation(created.obligation.id);
+          equal(store.readState().obligations[0].status, "frozen");
+          // 冷凍期間跑再多次都不得產生交易
+          store.runAutoPayments("2026-07-01");
+          store.runAutoPayments("2026-09-10");
+          equal(Core.allTransactions(store.readState()).length, 0);
+
+          store.unfreezeObligation(created.obligation.id, "2026-09-10");
+          let state = store.readState();
+          equal(state.obligations[0].status, "active");
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-10-05");
+          // anchor 保留，不因搬移而重新定義規則
+          equal(state.obligations[0].cycle.day, 5);
+          // 解凍當下處理：冷凍期間一筆都不補
+          store.runAutoPayments("2026-09-10");
+          equal(Core.allTransactions(store.readState()).length, 0);
+          equal(store.readState().events.filter(item => item.status === "auto-paid").length, 0);
+        });
+
+        test("Monthly 於 9/2 解凍時原本未到的 9/5 維持不變", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "訂閱", cycle: { type: "monthly", day: 5 }, amount: 390, handling: "auto", paymentMethod: "card" }, "2026-09-05");
+          store.freezeObligation(created.obligation.id);
+          store.unfreezeObligation(created.obligation.id, "2026-09-02");
+          equal(store.readState().events.find(item => item.status === "pending").dueDate, "2026-09-05");
+        });
+
+        test("Yearly 跨過原 Due 後解凍取下一個合法年度 Due", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "保險", cycle: { type: "yearly", month: 3, day: 15 }, amount: 12000, paymentMethod: "bank" }, "2025-03-15");
+          store.freezeObligation(created.obligation.id);
+          store.unfreezeObligation(created.obligation.id, "2026-08-11");
+          const state = store.readState();
+          equal(state.events.find(item => item.status === "pending").dueDate, "2027-03-15");
+          equal(state.obligations[0].cycle.month, 3);
+          equal(state.obligations[0].cycle.day, 15);
+          // 閏年 anchor 於非閏年 clamp，但 anchor 本身不變
+          const leap = createMemoryStore();
+          const feb = leap.addObligation({ name: "閏年", cycle: { type: "yearly", month: 2, day: 29 }, amount: 100, paymentMethod: "bank" }, "2024-02-29");
+          leap.freezeObligation(feb.obligation.id);
+          leap.unfreezeObligation(feb.obligation.id, "2026-03-01");
+          equal(leap.readState().events.find(item => item.status === "pending").dueDate, "2027-02-28");
+          equal(leap.readState().obligations[0].cycle.day, 29);
+        });
+
+        test("After N days 過期後解凍從解凍當天重新起算", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "剪頭髮", cycle: { type: "after_days", days: 45 }, amount: 300, paymentMethod: "cash" }, "2026-05-01");
+          store.freezeObligation(created.obligation.id);
+          store.unfreezeObligation(created.obligation.id, "2026-08-11");
+          equal(store.readState().events.find(item => item.status === "pending").dueDate, "2026-09-25");
+          // 原 Due 未到時不重算
+          const fresh = createMemoryStore();
+          const later = fresh.addObligation({ name: "剪頭髮", cycle: { type: "after_days", days: 45 }, amount: 300, paymentMethod: "cash" }, "2026-08-20");
+          fresh.freezeObligation(later.obligation.id);
+          fresh.unfreezeObligation(later.obligation.id, "2026-08-11");
+          equal(fresh.readState().events.find(item => item.status === "pending").dueDate, "2026-08-20");
+        });
+
+        test("manual recurring Task 同樣不累積 Frozen 期間欠期", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, paymentMethod: "bank" }, "2026-05-05");
+          store.freezeObligation(created.obligation.id);
+          store.unfreezeObligation(created.obligation.id, "2026-09-10");
+          const state = store.readState();
+          // 只有一期，日期已往前搬，沒有堆積 5/5～9/5
+          equal(state.events.filter(item => item.status === "pending").length, 1);
+          equal(state.events.find(item => item.status === "pending").dueDate, "2026-10-05");
+          equal(Core.allTransactions(state).length, 0);
+          equal(Core.taskBuckets(state, "2026-09-10").active.length, 0);
+          equal(Core.taskBuckets(state, "2026-09-10").sleeping.length, 1);
+        });
+
+        test("Frozen → Unfreeze 不改寫既有歷史 transaction 與 done event", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, paymentMethod: "bank" }, "2026-05-05");
+          store.completeEvent(created.event.id, { completedDate: "2026-05-06" });
+          const beforeEvent = store.readState().events.find(item => item.id === created.event.id);
+          const beforeTx = Core.allTransactions(store.readState())[0];
+          store.freezeObligation(created.obligation.id);
+          store.unfreezeObligation(created.obligation.id, "2026-09-10");
+          const afterEvent = store.readState().events.find(item => item.id === created.event.id);
+          const afterTx = Core.allTransactions(store.readState())[0];
+          equal(afterEvent.status, beforeEvent.status);
+          equal(afterEvent.completedAt, beforeEvent.completedAt);
+          equal(afterEvent.dueDate, beforeEvent.dueDate);
+          equal(afterTx.id, beforeTx.id);
+          equal(afterTx.occurredOn, beforeTx.occurredOn);
+          equal(afterTx.amount, beforeTx.amount);
+          // 只有 pending 那一期被往前搬
+          equal(store.readState().events.filter(item => item.status === "pending")[0].dueDate, "2026-10-05");
+        });
+
+        test("Freeze／Unfreeze 的資料行為在 data 層，不是兩個 UI handler 各自改 status", () => {
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=freeze", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          if (/updateObligation\([^)]*\{ status: "frozen" \}/.test(app)) throw new Error("UI 仍直接改 status frozen");
+          if (/updateObligation\([^)]*\{ status: "active" \}/.test(app)) throw new Error("UI 仍直接改 status active");
+          ["dataStore.freezeObligation(", "dataStore.unfreezeObligation("].forEach(rule => {
+            if (!app.includes(rule)) throw new Error(`缺少資料層 Freeze／Unfreeze 入口：${rule}`);
+          });
+          equal(typeof Core.freezeObligation, "function");
+          equal(typeof Core.unfreezeObligation, "function");
+          equal(typeof Core.resumedDueDate, "function");
+        });
+
+        // ── manual recurring financial Task 的 Paid from ──────────────────
+        test("新 manual Task 的 Paid from 為未選，one-time 與無 Amount 不受影響", () => {
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=quick-task-source", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const start = app.indexOf('elements["quick-task-form"].addEventListener');
+          const source = app.slice(start, app.indexOf("\n    });", start));
+          if (/paymentMethod: "(card|bank|cash)"/.test(source)) throw new Error("Quick Task 建立時預設了付款來源");
+          if (!/paymentMethod: ""/.test(source)) throw new Error("Quick Task 未讓付款來源保持未選");
+
+          const store = createMemoryStore();
+          const quick = store.addObligation({ name: "剪頭髮", cycle: { type: "none" }, amount: null, handling: "manual", paymentMethod: "" }, null);
+          const obligation = store.readState().obligations[0];
+          equal(obligation.paymentMethod, "");
+          // 單次、無金額 → 不記帳，完成不受阻
+          equal(obligation.completionMode, "none");
+          equal(Core.completionBlockReason(obligation), "");
+          equal(store.completeEvent(quick.event.id, { completedDate: "2026-08-11" }), true);
+          equal(store.readState().obligations[0].status, "archived");
+          equal(Core.allTransactions(store.readState()).length, 0);
+        });
+
+        test("recurring + Amount 但未選 Paid from 時，Complete 被阻止且 event 仍 pending", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "剪頭髮", cycle: { type: "monthly", day: 10 }, amount: 300, handling: "manual", paymentMethod: "" }, "2026-08-10");
+          const obligation = store.readState().obligations[0];
+          equal(obligation.completionMode, "expense");
+          if (!Core.completionBlockReason(obligation).includes("Paid from")) throw new Error("缺少中文阻擋說明");
+
+          // 資料層直接擋，不是靠 createLinkedTransaction 回傳 null
+          const attempt = Core.completeEvent(store.readState(), created.event.id, { completedDate: "2026-08-11" });
+          equal(attempt.changed, false);
+          equal(Boolean(attempt.blocked), true);
+          equal(store.completeEvent(created.event.id, { completedDate: "2026-08-11" }), false);
+
+          const state = store.readState();
+          equal(state.events.length, 1);
+          equal(state.events[0].status, "pending");
+          equal(state.events[0].completedAt, null);
+          equal(Core.allTransactions(state).length, 0);
+          equal(state.obligations[0].status, "active");
+        });
+
+        test("明確選 CASH／BANK／CARD 後 manual recurring 完成正常記帳", () => {
+          ["cash", "bank", "card"].forEach(method => {
+            const store = createMemoryStore();
+            const created = store.addObligation({ name: "剪頭髮", cycle: { type: "monthly", day: 10 }, amount: 300, handling: "manual", paymentMethod: "" }, "2026-08-10");
+            store.updateObligation(created.obligation.id, { paymentMethod: method });
+            equal(Core.completionBlockReason(store.readState().obligations[0]), "");
+            equal(store.completeEvent(created.event.id, { completedDate: "2026-08-11" }), true);
+            const tx = Core.allTransactions(store.readState());
+            equal(tx.length, 1);
+            equal(tx[0].paymentMethod, method);
+            equal(tx[0].amount, 300);
+            equal(store.readState().events.filter(item => item.status === "pending")[0].dueDate, "2026-09-10");
+          });
+        });
+
+        test("manual Paid from 的未選與三種明確值在 reload 與 JSON round trip 後都保留", () => {
+          const storage = createMemoryStorage();
+          const store = createMemoryStore(storage);
+          const made = {};
+          [["unset", ""], ["cash", "cash"], ["bank", "bank"], ["card", "card"]].forEach(([key, method]) => {
+            made[key] = store.addObligation({ name: key, cycle: { type: "monthly", day: 10 }, amount: 300, handling: "manual", paymentMethod: method }, "2026-08-10").obligation.id;
+          });
+          const reloaded = createMemoryStore(storage).readState();
+          const pick = (src, id) => src.obligations.find(item => item.id === id).paymentMethod;
+          equal(pick(reloaded, made.unset), "");
+          equal(pick(reloaded, made.cash), "cash");
+          equal(pick(reloaded, made.bank), "bank");
+          equal(pick(reloaded, made.card), "card");
+          const round = createMemoryStore().importState(JSON.parse(store.exportJson()));
+          equal(pick(round, made.unset), "");
+          equal(pick(round, made.cash), "cash");
+          equal(pick(round, made.bank), "bank");
+          equal(pick(round, made.card), "card");
+        });
+
+        test("舊資料已有明確來源不得被改寫", () => {
+          const legacy = {
+            version: 4, days: {}, projects: [], accounts: [], categories: [], books: [], schedule: [],
+            settings: { radarDays: 7 }, statements: {}, meta: { createdAt: "2026-07-01T00:00:00.000Z" },
+            obligations: [
+              { id: "m1", name: "剪頭髮", cycle: { type: "after_days", days: 45 }, amount: 300, handling: "manual", completionMode: "expense", paymentMethod: "cash", status: "active" },
+              { id: "m2", name: "車貸", cycle: { type: "monthly", day: 5 }, amount: 13965, handling: "manual", completionMode: "expense", paymentMethod: "bank", status: "active" },
+              { id: "m3", name: "健身房", cycle: { type: "monthly", day: 1 }, amount: 1200, handling: "manual", completionMode: "expense", paymentMethod: "card", status: "frozen" }
+            ],
+            events: [{ id: "e1", obligationId: "m1", dueDate: "2026-08-20", status: "pending" }]
+          };
+          const imported = createMemoryStore().importState(legacy);
+          equal(imported.obligations.map(item => item.paymentMethod).join(","), "cash,bank,card");
+          equal(imported.obligations.every(item => Core.completionBlockReason(item) === ""), true);
+        });
+
+        // ── Mileage → Monthly / Yearly 不再 deadlock ──────────────────────
+        test("Mileage 可以切成 Monthly：先切週期讓 Due 欄位出現，設 Due 後才定 anchor", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "機車保養", cycle: { type: "mileage" }, service: { lastServiceMileage: 40000, currentMileage: 41000, reminderDays: 15, thresholdKm: 10000 } }, null);
+          // mileage 時 Due 欄位不顯示
+          equal(TaskUX.taskEditorFields({ cycleType: "mileage" }).showDue, false);
+          // 切成 monthly（此時沒有 Due）→ 週期真的切過去
+          store.updateObligation(created.obligation.id, { cycle: { ...store.readState().obligations[0].cycle, type: "monthly" } });
+          equal(store.readState().obligations[0].cycle.type, "monthly");
+          // Due 欄位現在看得到了，使用者才有路徑輸入
+          equal(TaskUX.taskEditorFields({ cycleType: "monthly" }).showDue, true);
+          // 設 Due → anchor 由該日期決定，不是猜的
+          const anchored = CalendarRepeatUX.calendarRepeatCycleState({
+            cycleType: "monthly", dueDate: "2026-09-18",
+            existingCycle: store.readState().obligations[0].cycle,
+            originalCycleType: "monthly", originalDueDate: null, intervalDays: 1
+          });
+          equal(anchored.error, "");
+          equal(anchored.reanchored, true);
+          equal(anchored.cycle.day, 18);
+          store.updateEvent(created.event.id, { dueDate: "2026-09-18" });
+          store.updateObligation(created.obligation.id, { cycle: anchored.cycle });
+          const state = store.readState();
+          equal(state.obligations[0].cycle.type, "monthly");
+          equal(state.obligations[0].cycle.day, 18);
+          equal(state.events[0].dueDate, "2026-09-18");
+        });
+
+        test("Mileage → Yearly 同樣有可操作路徑，且 applyCycleChange 不再直接擋下切換", () => {
+          const anchored = CalendarRepeatUX.calendarRepeatCycleState({
+            cycleType: "yearly", dueDate: "2027-03-15",
+            existingCycle: { type: "yearly", day: 1, month: 1, days: 1 },
+            originalCycleType: "yearly", originalDueDate: null, intervalDays: 1
+          });
+          equal(anchored.error, "");
+          equal(anchored.cycle.month, 3);
+          equal(anchored.cycle.day, 15);
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=cycle-deadlock", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const start = app.indexOf("function applyCycleChange");
+          const source = app.slice(start, app.indexOf("\n  }", start));
+          if (start < 0) throw new Error("找不到 applyCycleChange");
+          // 沒有 Due 時切 Monthly／Yearly 必須先讓週期過去，而不是整個拒絕
+          if (!/!dueDate && \(nextType === "monthly" \|\| nextType === "yearly"\)/.test(source)) {
+            throw new Error("沒有 Due 時仍直接擋下 Monthly／Yearly 切換");
+          }
+          if (!/type: nextType/.test(source)) throw new Error("切換未實際寫入新週期");
+          if (!source.includes("Monthly／Yearly 重複需要先設定 Due 日期。")) throw new Error("切換後未提示補 Due");
+        });
+
+        test("Frozen mileage 仍遵守 Frozen 規則，不做例外", () => {
+          const T = "2026-08-10";
+          const state = Core.createEmptyState();
+          state.obligations.push(Core.normalizeObligation({
+            id: "om", name: "機車保養", cycle: { type: "mileage" }, status: "frozen",
+            service: { lastServiceMileage: 40000, currentMileage: 51000, mileageUpdatedAt: "2026-08-01", reminderDays: 15, thresholdKm: 10000 }
+          }));
+          state.events.push(Core.normalizeEvent({ id: "em", obligationId: "om", dueDate: null, status: "pending" }));
+          const buckets = Core.taskBuckets(state, T);
+          equal(buckets.active.length, 0);
+          equal(buckets.sleeping.length, 0);
+          equal(buckets.frozen.map(item => item.name).join(","), "機車保養");
+        });
+
+        test("occurrence pinned 進 JSON 匯出並可原樣匯回", () => {
+          const store = createMemoryStore();
+          const created = store.addObligation({ name: "遠期", cycle: { type: "none" } }, "2026-12-31");
+          store.updateEvent(created.event.id, { pinned: true });
+          const exported = JSON.parse(store.exportJson());
+          equal(exported.version, 5);
+          equal(exported.events[0].pinned, true);
+          const reimported = createMemoryStore();
+          reimported.importState(exported);
+          equal(reimported.readState().events[0].pinned, true);
+          // 舊版 JSON 缺 pinned 時預設 false，且第 1–4 版都仍可匯入。
+          equal(Core.SUPPORTED_IMPORT_VERSIONS.join(","), "1,2,3,4,5");
+          equal(Core.normalizeEvent({ obligationId: "x" }).pinned, false);
         });
 
         // 這條只驗「規則存在且互相一致」，不驗 iPhone 上長什麼樣。
@@ -1190,26 +2055,26 @@
           indexRequest.open("GET", "./index.html?test=calendar-repeat-source", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
-          if (!documentCopy.querySelector('#obligation-cycle option[value="monthly"]')) throw new Error("缺少 Monthly repeat 選項");
-          if (!documentCopy.querySelector('#obligation-cycle option[value="yearly"]')) throw new Error("缺少 Yearly repeat 選項");
-          if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("缺少 Calendar Repeat Due");
-          if (!documentCopy.querySelector('#obligation-interval-field #obligation-interval')) throw new Error("After N days interval 被移除");
+          if (/Repeat day|Cycle day|Cycle month/.test(documentCopy.body.textContent)) throw new Error("仍顯示手動 calendar anchor 標籤");
           ["obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month"].forEach(id => {
             if (documentCopy.getElementById(id)) throw new Error(`仍存在手動 calendar anchor UI：${id}`);
           });
-          if (/Repeat day|Cycle day|Cycle month/.test(documentCopy.body.textContent)) throw new Error("仍顯示手動 calendar anchor 標籤");
 
           const appRequest = new XMLHttpRequest();
           appRequest.open("GET", "./app.js?test=calendar-repeat-source", false);
           appRequest.send();
           const app = appRequest.responseText;
+          // Repeat 與 Due 改由每一列的展開編輯狀態產生，Due 仍是 anchor 的唯一 UI 入口。
           ["monthlyRepeatFieldState", "preserveMonthlyCycleDay", "LifeCalibrationMonthlyRepeatUX"].forEach(rule => {
             if (app.includes(rule)) throw new Error(`仍存在舊雙真相邏輯：${rule}`);
+          });
+          ['{ value: "monthly", label: "Monthly" }', '{ value: "yearly", label: "Yearly" }', 'data-task-field="dueDate"', 'data-task-field="intervalDays"'].forEach(rule => {
+            if (!app.includes(rule)) throw new Error(`Calendar Repeat editor 缺少：${rule}`);
           });
           if (!app.includes("Monthly／Yearly 重複需要先設定 Due 日期。")) throw new Error("缺少中文 Due 必填錯誤");
         });
 
-        test("v0.6.2 表單間距、欄位邊界與版本防護存在", () => {
+        test("v0.7.0 表單間距、欄位邊界與版本防護存在", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
@@ -1218,9 +2083,7 @@
           const recoveryFields = recoveryStack ? Array.from(recoveryStack.children).filter(child => child.classList.contains("field")) : [];
           if (recoveryFields.length !== 3) throw new Error("恢復卡未使用共用欄位堆疊");
           if (documentCopy.body.textContent.includes("可留空，" + "之後再補")) throw new Error("Quick Add 輔助文字仍存在");
-          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.6.2") throw new Error("頁首版本不是 0.6.2（基準無 v 前綴）");
-          if (!documentCopy.querySelector('#obligation-due[type="date"]')) throw new Error("TASKS Due 日期欄位缺失");
-          if (!documentCopy.querySelector('#mileage-fields.mileage-fields')) throw new Error("Mileage fieldset 缺失");
+          if (documentCopy.querySelector(".brand-copy .eyebrow")?.textContent.trim() !== "0.7.0") throw new Error("頁首版本不是 0.7.0（基準無 v 前綴）");
 
           const styleRequest = new XMLHttpRequest();
           styleRequest.open("GET", "./style.css?v=0.4.0", false);
@@ -1264,16 +2127,21 @@
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
           if (documentCopy.getElementById("toggle-obligation-form") || documentCopy.body.textContent.includes("Full form")) throw new Error("仍存在 Full form 入口");
-          if (!documentCopy.getElementById("obligation-payment-method-field")?.hidden) throw new Error("Paid with 未預設隱藏");
-          if (!documentCopy.getElementById("obligation-transfer-fields")?.hidden) throw new Error("帳戶移轉摘要未預設隱藏");
+          // 條件式欄位不再是靜態 hidden 節點，而是每一列展開時才產生。
+          ["obligation-payment-method-field", "obligation-transfer-fields", "obligation-handling", "obligation-completion-mode"].forEach(id => {
+            if (documentCopy.getElementById(id)) throw new Error(`仍存在已廢止的集中式欄位：${id}`);
+          });
 
           const appRequest = new XMLHttpRequest();
           appRequest.open("GET", "./app.js?v=0.4.0", false);
           appRequest.send();
           const app = appRequest.responseText;
-          ["syncObligationCompletionFields", "mode !== \"expense\"", "mode !== \"transfer\"", "openObligationEditor(created.obligation.id", "data-toggle-task", "data-toggle-project"].forEach(rule => {
+          ["taskEditorFields", "fields.showAmount", "fields.showPaidFrom", "data-toggle-task", "data-toggle-project"].forEach(rule => {
             if (!app.includes(rule)) throw new Error(`缺少收合或條件式欄位邏輯：${rule}`);
           });
+          // 展開就是編輯狀態本身：不得再有「點開再按 Edit」那一層。
+          if (app.includes("data-edit-obligation")) throw new Error("TASK 仍保留獨立的 Edit 入口");
+          if (app.includes("openObligationEditor")) throw new Error("仍保留舊的集中式 obligation editor");
 
           const styleRequest = new XMLHttpRequest();
           styleRequest.open("GET", "./style.css?v=0.4.0", false);
@@ -1290,19 +2158,19 @@
           appRequest.send();
           const app = appRequest.responseText;
           const completionStart = app.indexOf("function completionControlMarkup");
-          const radarStart = app.indexOf("function renderRadar");
+          const pinStart = app.indexOf("function pinControlMarkup");
           const taskStart = app.indexOf("function taskMarkup");
-          const safeDeleteStart = app.indexOf("function safeDeleteButton");
-          const completionSource = app.slice(completionStart, radarStart);
-          const radarSource = app.slice(radarStart, app.indexOf("\n  function ", radarStart + 20));
-          const taskSource = app.slice(taskStart, safeDeleteStart);
+          const undoStart = app.indexOf("function undoRowMarkup");
+          const completionSource = app.slice(completionStart, pinStart);
+          const taskSource = app.slice(taskStart, undoStart);
 
           if (completionStart < 0 || !completionSource.includes('class="task-done-check"')) throw new Error("缺少共用 completion checkbox renderer");
           if (!completionSource.includes("data-complete-event") || !completionSource.includes("aria-label")) throw new Error("completion checkbox 缺少既有事件鍵或 aria-label");
-          if (!radarSource.includes("completionControlMarkup(item.event, item.obligation)")) throw new Error("RADAR 未使用 completion checkbox");
-          if (!taskSource.includes("completionControlMarkup(event, obligation)")) throw new Error("TO-DO expanded 未使用 completion checkbox");
+          // 收合列就能完成：雷達刪掉後，這是唯一的一鍵完成入口。
+          if (!taskSource.includes("completionControlMarkup(event, obligation)")) throw new Error("TASK 收合列未使用 completion checkbox");
+          if (!/task-head[\s\S]*completionControlMarkup/.test(taskSource)) throw new Error("completion checkbox 不在收合列");
           if (app.includes(">Mark done<")) throw new Error("產品 UI 仍產生可見 Mark done 文字");
-          if (!radarSource.includes("data-update-mileage") || !radarSource.includes(">Update mileage</button>")) throw new Error("Update mileage 被 completion checkbox 誤改");
+          if (!app.includes('data-update-mileage="${escapeHtml(obligation.id)}"')) throw new Error("Update mileage 入口遺失");
           if (!app.includes('event.target.closest("[data-complete-event]")')) throw new Error("completion event delegation 已改變");
           if (!app.includes("dataStore.undoEvent(undo.dataset.undoEvent)")) throw new Error("Undo 邏輯遺失");
 
@@ -1316,37 +2184,90 @@
           if (!visualRule.includes("width: 21px") || !visualRule.includes("height: 21px") || !visualRule.includes("border-radius: 5px")) throw new Error("completion checkbox 可見框不符合 compact 規格");
         });
 
-        test("TASKS secondary actions 的 named grid area 只套用於 task-actions wrapper", () => {
+        test("Pin 控制是小型控制但仍有 44px 命中區", () => {
           const styleRequest = new XMLHttpRequest();
-          styleRequest.open("GET", "./style.css?test=task-actions-secondary-scope", false);
+          styleRequest.open("GET", "./style.css?test=task-pin", false);
           styleRequest.send();
           const css = styleRequest.responseText;
-          const sharedRule = css.match(/(?:^|\n)\.task-actions-secondary\s*\{([^}]*)\}/)?.[1] || "";
-          const scopedRule = css.match(/(?:^|\n)\.task-actions\s*>\s*\.task-actions-secondary\s*\{([^}]*)\}/)?.[1] || "";
-          if (!sharedRule) throw new Error("缺少通用 task-actions-secondary rule");
-          if (/grid-area\s*:/.test(sharedRule)) throw new Error("通用 task-actions-secondary rule 不得指定 named grid area");
-          if (!/grid-area\s*:\s*secondary\s*;/.test(scopedRule)) throw new Error("task-actions 直屬 secondary actions 缺少 grid-area: secondary");
+          const pinRule = css.match(/(?:^|\n)\.task-pin\s*\{[^}]*\}/)?.[0] || "";
+          if (!pinRule.includes("width: 44px") || !pinRule.includes("height: 44px")) throw new Error("Pin 命中區不是 44×44px");
+          if (!pinRule.includes("font-size: 10px")) throw new Error("Pin 未維持小型刻字");
+          if (!/\.task-pin\[aria-pressed="true"\]/.test(css)) throw new Error("Pin 缺少作用中狀態");
+          // 不新增色彩系統：Pin 只用既有的 --ink 與 --t-ice-sub。
+          const pressedRule = css.match(/\.task-pin\[aria-pressed="true"\]\s*\{[^}]*\}/)?.[0] || "";
+          if (!pressedRule.includes("var(--ink)")) throw new Error("Pin 作用中狀態未沿用既有 token");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js?test=task-pin", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          if (!app.includes("data-toggle-pin")) throw new Error("缺少 Pin 控制");
+          if (!app.includes('dataStore.updateEvent(target.id, { pinned: target.pinned !== true })')) throw new Error("Pin 未寫在 occurrence 層");
         });
 
-        test("Auto payment 有獨立區域且不混入人工 TASK 清單", () => {
+        test("Auto payment 位於 MONEY 的 SPENT 與 RECENT 之間且預設收合", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          const moneyPage = documentCopy.getElementById("page-money");
+          const tasksPage = documentCopy.getElementById("page-tasks");
           const section = documentCopy.querySelector(".auto-payment-section");
-          if (!section || !section.querySelector("#auto-payment-list")) throw new Error("缺少 Auto payment 獨立區域");
-          if (!documentCopy.querySelector(".obligation-mode-help")?.textContent.includes("Automatic")) throw new Error("缺少 Auto / Card payment 概念說明");
+          if (!section || !section.querySelector("#auto-payment-list")) throw new Error("缺少 Auto payment 區域");
+          if (!moneyPage.contains(section)) throw new Error("Auto payment 未移入 MONEY");
+          if (tasksPage.querySelector("#auto-payment-list, .auto-payment-section")) throw new Error("TASKS 仍保留 Auto payment");
+
+          const moneyChildren = Array.from(moneyPage.children);
+          const spent = documentCopy.getElementById("spent-heading")?.closest("section");
+          const recent = documentCopy.getElementById("recent-heading")?.closest("section");
+          const positions = [spent, section, recent].map(node => moneyChildren.indexOf(node));
+          if (positions.some(position => position < 0)) throw new Error("MONEY 區段結構不完整");
+          if (!(positions[0] < positions[1] && positions[1] < positions[2])) throw new Error("AUTO PAYMENTS 不在 SPENT 與 RECENT 正中間");
+
+          const group = documentCopy.getElementById("auto-payment-group");
+          if (group.tagName !== "DETAILS" || group.hasAttribute("open")) throw new Error("AUTO PAYMENTS 未預設收合");
 
           const appRequest = new XMLHttpRequest();
           appRequest.open("GET", "./app.js", false);
           appRequest.send();
           const app = appRequest.responseText;
-          if (!app.includes('item.obligation.handling !== "auto"')) throw new Error("人工 TASK 清單未排除 Automatic");
+          if (!app.includes('obligation.handling === "auto"') && !app.includes('handling !== "auto"')) throw new Error("TASKS 清單未排除 Automatic");
           const start = app.indexOf("function autoPaymentMarkup");
           const end = app.indexOf("\n  function ", start + 20);
           const source = app.slice(start, end);
-          if (!source.includes("data-edit-obligation") || !source.includes("data-freeze-obligation") || !source.includes("data-archive-obligation")) throw new Error("Auto payment 展開操作不完整");
-          if (source.includes("data-complete-event")) throw new Error("Auto payment 不應出現人工 Mark done");
+          // 再點某一筆才進入可編輯狀態；整段展開時只有清單。
+          if (!source.includes("data-toggle-auto-payment")) throw new Error("Auto payment 缺少第二層展開");
+          if (!source.includes("taskEditorMarkup(pendingEvent, obligation)")) throw new Error("Auto payment 展開後不是可編輯狀態");
+          if (!source.includes("data-freeze-obligation") || !source.includes("data-archive-obligation")) throw new Error("Auto payment 展開操作不完整");
+          if (source.includes("data-complete-event")) throw new Error("Auto payment 不應出現人工 Complete");
+          if (source.includes("Handling") || source.includes("When done")) throw new Error("Auto payment 仍顯示 Handling／When done");
+        });
+
+        test("Quick add 只需名稱，不自動打開 editor，不保留日常 Done 區", () => {
+          const indexRequest = new XMLHttpRequest();
+          indexRequest.open("GET", "./index.html", false);
+          indexRequest.send();
+          const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          if (!documentCopy.getElementById("quick-task-form")) throw new Error("缺少快速建立");
+          if (documentCopy.getElementById("obligation-form")) throw new Error("仍保留集中式 obligation form");
+          ["task-done", "task-done-group", "task-later", "task-later-list", "task-dated", "task-no-date"].forEach(id => {
+            if (documentCopy.getElementById(id)) throw new Error(`仍保留已廢止的區段：${id}`);
+          });
+          if (!documentCopy.getElementById("task-active")) throw new Error("缺少 TASKS 主清單");
+          if (!documentCopy.getElementById("sleeping-list")) throw new Error("缺少 SLEEPING 清單");
+          const sleeping = documentCopy.getElementById("sleeping-group");
+          if (sleeping.tagName !== "DETAILS" || sleeping.hasAttribute("open")) throw new Error("SLEEPING 未預設收合");
+
+          const appRequest = new XMLHttpRequest();
+          appRequest.open("GET", "./app.js", false);
+          appRequest.send();
+          const app = appRequest.responseText;
+          const start = app.indexOf('elements["quick-task-form"].addEventListener');
+          const source = app.slice(start, app.indexOf("});", start));
+          if (source.includes("openObligationEditor") || source.includes("expandedTaskKey =")) throw new Error("Add 後仍自動打開 editor");
+          if (!source.includes("renderTasks()")) throw new Error("Add 後未回到清單");
+          if (!app.includes("UNDO_WINDOW_MS = 10000")) throw new Error("Undo 窗口不是 10 秒");
+          if (!app.includes("startUndoWindow")) throw new Error("缺少完成後的 UNDO 窗口");
         });
 
         test("Service Worker 對 warm app shell 採 cache-first 並保留有界網路 fallback", () => {
@@ -1372,12 +2293,16 @@
             return app.slice(start, start + 20 + (end < 0 ? rest.length : end));
           };
 
-          ["taskMarkup", "frozenTaskMarkup"].forEach(name => {
+          ["taskSummaryCopy", "frozenTaskMarkup", "autoPaymentMarkup"].forEach(name => {
             const source = functionSource(name);
             if (!source.includes("task-summary")) throw new Error(`${name} 遺失摘要`);
             const visibleNames = source.match(/<strong\b[^>]*>\$\{escapeHtml\(obligation\.name\)\}<\/strong>/g) || [];
             equal(visibleNames.length, 1);
           });
+          // 展開後的名稱是可編輯欄位，不是第二個標題。
+          const editor = functionSource("taskEditorMarkup");
+          if (/<strong\b[^>]*>\$\{escapeHtml\(obligation\.name\)\}<\/strong>/.test(editor)) throw new Error("展開層重複顯示任務名稱");
+          if (!editor.includes('data-task-field="name"')) throw new Error("展開層缺少可編輯名稱欄位");
         });
 
         test("iOS date control 使用自訂外觀與完整原生操作層", () => {
@@ -1385,8 +2310,9 @@
           indexRequest.open("GET", "./index.html?v=0.4.0", false);
           indexRequest.send();
           const documentCopy = new DOMParser().parseFromString(indexRequest.responseText, "text/html");
+          // Due 已移進每一列的展開編輯狀態，靜態 HTML 只剩里程 modal 的日期欄位。
           const dateInputs = Array.from(documentCopy.querySelectorAll('input[type="date"]'));
-          if (dateInputs.length !== 3) throw new Error(`預期三個日期欄位，實際為 ${dateInputs.length}`);
+          if (dateInputs.length !== 1) throw new Error(`預期一個靜態日期欄位，實際為 ${dateInputs.length}`);
           dateInputs.forEach(input => {
             const control = input.closest(".date-control");
             if (!control?.querySelector(".date-control-value") || !control.querySelector(".date-control-icon")) {

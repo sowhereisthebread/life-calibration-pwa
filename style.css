@@ -227,9 +227,10 @@ h3 {
 .ice,
 .card,
 .notice,
-.radar-list,
 .modal-panel,
 .frozen-section,
+.sleeping-section,
+.auto-payment-section,
 .review-day {
   background: var(--m-ice);
   border: 1px solid rgba(255,255,255,.5);
@@ -249,7 +250,6 @@ h3 {
 .glass,
 .stat,
 .account-item,
-.transfer-summary,
 .statement-compare > div,
 .metric,
 .button-secondary,
@@ -444,7 +444,6 @@ h3 {
 /* 直接躺在銀底上的標籤。.content-section 沒有 card class，
    它的標題與收合列不在 ICE 面上，不能用 ICE 情境的 token。 */
 .page-heading .eyebrow,
-.radar .section-heading h3,
 .content-section .section-heading h3 {
   color: var(--t-ground-label);
 }
@@ -884,8 +883,7 @@ input[type="date"] {
 .project-list,
 .project-status-list,
 .book-status-list,
-.review-list,
-.radar-list-inner {
+.review-list {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -893,8 +891,7 @@ input[type="date"] {
 
 .record-row,
 .session-row,
-.manager-row,
-.task-item.is-done {
+.manager-row {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -1668,102 +1665,6 @@ input[type="date"] {
   max-inline-size: 100%;
 }
 
-/* ══ 到期雷達 ══════════════════════════════════════
-   整條雷達是一張 ICE 卡片，列之間只用 --line 分隔。
-   「需要你動手」靠排序，不用顏色。                    */
-.radar {
-  margin-bottom: var(--block-gap);
-}
-
-.radar .section-heading {
-  margin-bottom: 8px;
-}
-
-.radar-list {
-  display: flex;
-  flex-direction: column;
-  padding: 2px 18px;
-}
-
-.radar-list:empty {
-  display: none;
-}
-
-.radar-item {
-  display: flex;
-  position: relative;
-  min-height: 56px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-}
-
-.radar-list > .radar-item + .radar-item {
-  border-top: 1px solid var(--line);
-}
-
-.radar-item div {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.radar-item strong {
-  font-size: 14px;
-}
-
-.radar-item span {
-  color: var(--t-ice-sub);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-}
-
-/* 44px 觸控面以負 margin 吸收既有列內距，RADAR 列高仍維持 56px。 */
-.radar-item .task-done-check {
-  margin-block: -4px;
-}
-
-/* 要動手的（逾期、今日到期、該保養）— 排在最上層 */
-.radar-item.is-overdue { order: -3; }
-.radar-item.is-today,
-.radar-item.is-service-due { order: -2; }
-
-.radar-item.is-overdue strong,
-.radar-item.is-today strong,
-.radar-item.is-service-due strong {
-  font-weight: 500;
-}
-
-.radar-item.is-overdue span,
-.radar-item.is-today span {
-  color: var(--ink);
-}
-
-/* 逼近中（即將到期）— 琥珀珠 */
-.radar-item.is-soon { order: 0; }
-
-.radar-item.is-soon strong::before {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 7px;
-  border-radius: 50%;
-  background: var(--dew);
-  content: "";
-}
-
-/* 資料缺口（更新里程）— 排最後，灰字，無標記 */
-.radar-item.is-update-mileage {
-  order: 2;
-  min-height: 44px;
-}
-
-.radar-item.is-update-mileage strong {
-  color: var(--t-ice-sub);
-  font-weight: 400;
-}
-
 /* Auto-paid：純文字，不加底色 */
 .auto-tag {
   margin-left: 8px;
@@ -2107,56 +2008,10 @@ input[type="date"] {
 }
 
 .content-section,
-.frozen-section {
+.frozen-section,
+.sleeping-section,
+.auto-payment-section {
   margin-bottom: var(--block-gap);
-}
-
-.obligation-form {
-  padding-top: 15px;
-  border-top: 1px solid var(--line);
-}
-
-.obligation-form h4 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.transfer-summary {
-  display: grid;
-  gap: 5px;
-  padding: 11px 12px;
-}
-
-.transfer-summary > span,
-.transfer-summary small {
-  color: var(--t-ice-label);
-  font-size: 11.5px;
-}
-
-.transfer-summary strong {
-  font-size: 13.5px;
-}
-
-.mileage-fields {
-  display: grid;
-  min-width: 0;
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  gap: var(--space-field-group);
-  margin: 0;
-  padding: 15px 0 0;
-  border: 0;
-  border-top: 1px solid var(--line);
-}
-
-.mileage-fields legend {
-  padding: 0;
-  color: var(--t-ice-label);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: .18em;
-  text-transform: uppercase;
 }
 
 input[type="time"] {
@@ -2282,8 +2137,50 @@ input[type="time"] {
   padding: 8px 0;
 }
 
-.task-summary-copy,
-.task-main {
+/* 收合列 ＝ 完成勾選框｜摘要（點了就展開成編輯狀態）｜Pin。
+   三者都是卡片內的列，沒有材質，只用 --line 分隔。 */
+.task-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.task-head > .task-summary {
+  flex: 1 1 auto;
+  border-top: 0;
+}
+
+.task-list > :first-child > .task-head {
+  border-top: 0;
+}
+
+/* Pin 是小型控制：可見的只有 10px 刻字，命中區仍然是 44×44。 */
+.task-pin {
+  display: inline-grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t-ice-sub);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: .12em;
+  touch-action: manipulation;
+}
+
+.task-pin[aria-pressed="true"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.task-summary-copy {
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -2338,8 +2235,7 @@ input[type="time"] {
   font-size: 14px;
 }
 
-.task-details-meta span,
-.task-main span {
+.task-details-meta span {
   color: var(--t-ice-sub);
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -2347,12 +2243,12 @@ input[type="time"] {
   font-variant-numeric: tabular-nums;
 }
 
-.task-actions {
+/* 里程欄位是卡內列，不另套材質 */
+.task-mileage {
   display: grid;
-  grid-template-areas: "secondary complete";
-  grid-template-columns: minmax(0, 1fr) 44px;
-  align-items: start;
-  gap: 8px;
+  gap: var(--space-field-group);
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .task-done-check {
@@ -2384,28 +2280,16 @@ input[type="time"] {
   transform: scale(.9);
 }
 
-.task-actions > .task-done-check {
-  grid-area: complete;
-}
-
 .task-actions-secondary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-}
-
-.task-actions > .task-actions-secondary {
-  grid-area: secondary;
 }
 
 .task-actions-secondary .button {
   min-width: 0;
   padding: 0 6px;
   font-size: 12.5px;
-}
-
-.task-actions-secondary.has-delete {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .auto-payment-status {
@@ -2416,21 +2300,54 @@ input[type="time"] {
   text-align: right;
 }
 
-.obligation-mode-help {
-  color: var(--t-ice-sub);
-  font-size: 12px;
-  line-height: 1.5;
+/* 需要現在動手的（逾期、今日到期、該保養）用字重與字色；
+   逼近中的只有琥珀珠。強度階層與原雷達相同，只是改由主清單本身承載。 */
+.task-item.is-overdue .task-summary strong,
+.task-item.is-today .task-summary strong,
+.task-item.is-service-due .task-summary strong {
+  font-weight: 500;
 }
 
-.task-item.is-done {
-  grid-template-columns: minmax(0,1fr) auto;
+/* service-due 與 Today due 同一注意力級別，因此字重與字色都比照辦理。
+   update-mileage 不給 class，維持 --t-ice-sub 灰字、字重 400 的最低強度。 */
+.task-item.is-overdue .task-summary-meta > span:first-child,
+.task-item.is-today .task-summary-meta > span:first-child,
+.task-item.is-service-due .task-summary-meta > span:first-child {
+  color: var(--ink);
+}
+
+.task-item.is-soon .task-summary strong::before {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--dew);
+  content: "";
+}
+
+/* 完成後的 10 秒復原窗口：一列文字加一顆次要按鈕，不是新的區段。 */
+.task-undo-row {
+  display: grid;
+  min-height: 46px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  color: var(--t-ice-sub);
+  padding: 8px 0;
 }
 
-.task-item.is-done strong {
+.task-undo-row > span {
+  min-width: 0;
+  overflow: hidden;
   color: var(--t-ice-sub);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list > .task-undo + .task-item > .task-head {
+  border-top: 1px solid var(--line);
 }
 
 /* 收合群組：卡片內部，無材質，用分隔線與間距 */
@@ -2450,25 +2367,6 @@ input[type="time"] {
   font-weight: 500;
   letter-spacing: .12em;
   line-height: 44px;
-  text-transform: uppercase;
-}
-
-/* 無日期待辦：獨立在後、不混排。虛線框只是線，不是材質 —
-   不加背景色，否則卡片內就多出一層。 */
-.no-date-group {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-sm);
-}
-
-.no-date-group h4 {
-  margin: 0;
-  color: var(--t-ice-label);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: .18em;
   text-transform: uppercase;
 }
 
@@ -2513,6 +2411,42 @@ input[type="time"] {
   border-radius: 50%;
   background: var(--dew);
   content: "";
+}
+
+/* SLEEPING：事情有效，只是時間還沒到。預設收合，與 FROZEN 同一個區段模式。 */
+.sleeping-section,
+.auto-payment-section {
+  padding: 14px 18px;
+}
+
+.sleeping-group,
+.auto-payment-group {
+  border-top: 0;
+}
+
+.sleeping-group > summary,
+.auto-payment-group > summary {
+  min-height: 0;
+  color: var(--t-ice-label);
+  font-size: 10px;
+  letter-spacing: .2em;
+  line-height: 1.6;
+}
+
+.sleeping-group[open] > summary,
+.auto-payment-group[open] > summary {
+  margin-bottom: 4px;
+}
+
+.sleeping-group .group-count,
+.auto-payment-group .group-count {
+  color: var(--t-ice-sub);
+}
+
+/* AUTO PAYMENTS 存在感要低：使用者平常只需要知道規則存在。 */
+.auto-payment-body {
+  display: grid;
+  gap: 10px;
 }
 
 /* 冷凍項目：唯一允許低於 4.5:1 的元素 */
@@ -2633,10 +2567,6 @@ input[type="time"] {
     padding-right: 5px;
     padding-left: 5px;
     font-size: 16px;
-  }
-
-  .task-actual {
-    grid-column: 1;
   }
 
   .modal {

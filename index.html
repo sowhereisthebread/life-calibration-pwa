@@ -13,11 +13,11 @@
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./icons/icon-192.png?v=0.3.4" sizes="192x192">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png" sizes="180x180">
-    <link rel="stylesheet" href="./style.css?v=0.4.14">
+    <link rel="stylesheet" href="./style.css?v=0.4.15">
     <script src="./data-core.js" defer></script>
     <script src="./data-store.js" defer></script>
     <link rel="preload" href="./fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-    <script src="./app.js?v=0.4.14" defer></script>
+    <script src="./app.js?v=0.4.15" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -26,7 +26,7 @@
       <header class="app-header">
         <div class="brand-copy">
           <h1>TAKO</h1>
-          <p class="eyebrow">0.6.2</p>
+          <p class="eyebrow">0.7.0</p>
         </div>
         <div id="today-date" class="header-date" aria-label="Today's date"></div>
         <img class="brand-icon" src="./icons/brand-mark.png" width="38" height="38" alt="">
@@ -115,6 +115,21 @@
               <div id="spending-chart" class="chart-wrap"></div>
               <div id="category-ranking" class="category-ranking"></div>
             </div>
+          </section>
+          <!-- AUTO PAYMENTS 位於 SPENT 與 RECENT 正中間，預設收合。
+               第一層點擊只展開清單；再點某一筆才進入該筆的可編輯狀態。 -->
+          <section class="auto-payment-section" aria-labelledby="auto-payment-heading">
+            <details id="auto-payment-group" class="recess-group auto-payment-group">
+              <summary id="auto-payment-heading">AUTO PAYMENTS<span id="auto-payment-count" class="group-count"></span></summary>
+              <div class="auto-payment-body">
+                <form id="auto-payment-form" class="input-action-row" novalidate>
+                  <label class="visually-hidden" for="auto-payment-name">Auto payment name</label>
+                  <input id="auto-payment-name" class="record-input" type="text" autocomplete="off">
+                  <button type="submit" class="button button-primary">Add</button>
+                </form>
+                <div id="auto-payment-list" class="task-list" aria-live="polite"></div>
+              </div>
+            </details>
           </section>
           <section class="card" aria-labelledby="recent-heading">
             <div class="section-heading"><h3 id="recent-heading">RECENT</h3></div>
@@ -298,11 +313,8 @@
             </div>
           </div>
 
-          <section id="tasks-radar" class="radar" aria-labelledby="tasks-radar-heading" hidden>
-            <div class="section-heading"><h3 id="tasks-radar-heading">RADAR</h3></div>
-            <div id="tasks-radar-list" class="radar-list"></div>
-          </section>
-
+          <!-- 主清單本身就是注意力入口：需要現在注意的在這裡，未進提醒窗口的在 SLEEPING。
+               點 Task 直接展開成可編輯狀態，不再有「點開再按 Edit」。 -->
           <section class="card" aria-labelledby="todo-heading">
             <div class="section-heading"><h3 id="todo-heading">TO-DO</h3></div>
             <form id="quick-task-form" class="input-action-row" novalidate>
@@ -310,63 +322,14 @@
               <input id="quick-task-name" class="record-input" type="text" autocomplete="off">
               <button type="submit" class="button button-primary">Add</button>
             </form>
-            <form id="obligation-form" class="stack-form obligation-form" hidden novalidate>
-              <div class="section-heading compact-heading"><h4 id="obligation-form-title">Task details</h4><button id="cancel-obligation-edit" type="button" class="button button-quiet">Close</button></div>
-              <label class="field"><span>Name</span><input id="obligation-name" type="text" autocomplete="off"></label>
-              <div class="two-column">
-                <label class="field"><span>Repeats</span><select id="obligation-cycle"><option value="none">None</option><option value="once">Once</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option><option value="after_days">After N days</option><option value="mileage">By mileage</option></select></label>
-                <label class="field">
-                  <span>Due</span>
-                  <span class="date-control">
-                    <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">Select date</span>
-                    <span class="date-control-icon" aria-hidden="true"></span>
-                    <input id="obligation-due" type="date" data-date-control>
-                  </span>
-                </label>
-              </div>
-              <div class="two-column">
-                <label id="obligation-interval-field" class="field" hidden><span>Days / interval</span><input id="obligation-interval" type="number" min="1" step="1" inputmode="numeric" value="1"></label>
-                <label class="field"><span>Amount</span><input id="obligation-amount" type="number" min="0" step="1" inputmode="decimal"></label>
-              </div>
-              <div class="two-column">
-                <label class="field"><span>Handling</span><select id="obligation-handling"><option value="manual">Manual</option><option value="auto">Automatic</option></select></label>
-                <label class="field"><span>When done</span><select id="obligation-completion-mode"><option value="none">No transaction</option><option value="expense">Expense</option><option value="transfer">Card payment · Transfer</option></select></label>
-              </div>
-              <p class="helper obligation-mode-help">Automatic = recurring card expense. Card payment = manual account transfer.</p>
-              <div class="two-column">
-                <label id="obligation-payment-method-field" class="field" hidden><span>Paid with</span><select id="obligation-payment-method"><option value="bank">Bank</option><option value="card">Card</option><option value="cash">Cash</option></select></label>
-                <label class="field"><span>Status</span><select id="obligation-status"><option value="active">Active</option><option value="frozen">Frozen</option></select></label>
-              </div>
-              <div id="obligation-transfer-fields" class="transfer-summary" role="note" hidden>
-                <span>Account transfer</span>
-                <strong>Main account → Credit card</strong>
-                <small>Card payment transfers between accounts and is not counted as an expense.</small>
-              </div>
-              <label class="field"><span>Note</span><input id="obligation-note" type="text" autocomplete="off"></label>
-              <fieldset id="mileage-fields" class="mileage-fields" hidden>
-                <legend>Mileage</legend>
-                <div class="two-column"><label class="field"><span>Last service</span><input id="obligation-last-mileage" type="number" min="0" step="1" inputmode="numeric"></label><label class="field"><span>Current</span><input id="obligation-current-mileage" type="number" min="0" step="1" inputmode="numeric"></label></div>
-                <label class="field">
-                  <span>Mileage updated</span>
-                  <span class="date-control">
-                    <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">Select date</span>
-                    <span class="date-control-icon" aria-hidden="true"></span>
-                    <input id="obligation-mileage-updated" type="date" data-date-control>
-                  </span>
-                </label>
-                <div class="two-column"><label class="field"><span>Update reminder days</span><input id="obligation-reminder-days" type="number" min="1" step="1" value="15"></label><label class="field"><span>Service threshold km</span><input id="obligation-threshold" type="number" min="1" step="1" value="10000"></label></div>
-              </fieldset>
-              <button id="obligation-submit" type="submit" class="button button-primary button-full">Add obligation</button>
-            </form>
-            <div id="task-dated" class="task-list"></div>
-            <details id="task-later" class="recess-group"><summary>Later</summary><div id="task-later-list" class="task-list"></div></details>
-            <section class="no-date-group"><h4>No date</h4><div id="task-no-date" class="task-list"></div></section>
-            <details id="task-done-group" class="recess-group"><summary>Done</summary><div id="task-done" class="task-list"></div></details>
+            <div id="task-active" class="task-list"></div>
           </section>
 
-          <section class="card auto-payment-section" aria-labelledby="auto-payment-heading">
-            <div class="section-heading"><h3 id="auto-payment-heading">AUTO PAYMENT</h3></div>
-            <div id="auto-payment-list" class="task-list" aria-live="polite"></div>
+          <section id="sleeping-section" class="sleeping-section" aria-labelledby="sleeping-heading" hidden>
+            <details id="sleeping-group" class="recess-group sleeping-group">
+              <summary id="sleeping-heading">SLEEPING<span id="sleeping-count" class="group-count"></span></summary>
+              <div id="sleeping-list" class="task-list"></div>
+            </details>
           </section>
 
           <section class="frozen-section" aria-labelledby="frozen-heading">
@@ -438,9 +401,9 @@
           <article class="card data-card" aria-labelledby="settings-heading">
             <h3 id="settings-heading">SETTINGS</h3>
             <div class="two-column">
-              <label class="field"><span>Radar days ahead</span><input id="settings-radar-days" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label class="field"><span>Reminder days ahead</span><input id="settings-radar-days" type="number" min="0" step="1" inputmode="numeric"></label>
             </div>
-            <p class="helper">Mileage reminders and service thresholds are saved with each mileage obligation.</p>
+            <p class="helper">Tasks due beyond this window stay in SLEEPING. Mileage reminders and service thresholds are saved with each mileage task.</p>
           </article>
 
           <article class="card data-card" aria-labelledby="accounts-manage-heading">

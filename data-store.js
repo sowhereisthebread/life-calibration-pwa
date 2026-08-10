@@ -178,7 +178,6 @@
 
     function addObligation(obligation, dueDate = null) {
       const entry = core.normalizeObligation({ ...obligation, id: obligation.id || core.uid("obligation"), createdAt: obligation.createdAt || timestamp(), updatedAt: timestamp() });
-      assertUniqueTransferObligation(entry);
       state.obligations.push(entry);
       const event = core.normalizeEvent({ id: core.uid("event"), obligationId: entry.id, dueDate, status: "pending" });
       state.events.push(event);
@@ -198,20 +197,27 @@
         service: incoming.service ? { ...current.service, ...incoming.service } : current.service,
         updatedAt: timestamp()
       });
-      assertUniqueTransferObligation(next, obligationId);
       state.obligations[index] = next;
       persist();
       return true;
     }
 
-    function assertUniqueTransferObligation(candidate, excludedId = "") {
-      if (candidate.completionMode !== "transfer" || candidate.status === "archived") return;
-      const duplicate = state.obligations.some(item =>
-        item.id !== excludedId && item.completionMode === "transfer" && item.status !== "archived"
-      );
-      if (duplicate) {
-        throw new Error("目前卡費繳款是唯一的帳戶移轉義務；自動扣款請使用 Automatic + Expense。");
-      }
+    // Freeze／Unfreeze 走資料層，不讓兩個 UI click handler 各自改 status。
+    // Unfreeze 會把落後的 pending occurrence 往前搬，避免冷凍期間被補扣。
+    function freezeObligation(obligationId) {
+      const result = core.freezeObligation(state, obligationId, now());
+      if (!result.changed) return false;
+      state = result.state;
+      persist();
+      return true;
+    }
+
+    function unfreezeObligation(obligationId, todayKey) {
+      const result = core.unfreezeObligation(state, obligationId, todayKey, now());
+      if (!result.changed) return false;
+      state = result.state;
+      persist();
+      return true;
     }
 
     function deleteObligationSafely(obligationId) {
@@ -222,12 +228,15 @@
       return { deleted: true, reason: "" };
     }
 
+    // pinned 只在 occurrence 層改動，且只有 pending occurrence 能改：
+    // 已完成的歷史事件不接受反向改寫。
     function updateEvent(eventId, changes) {
       const event = state.events.find(item => item.id === eventId);
       if (!event || event.status !== "pending") return false;
       ["dueDate", "actualAmount"].forEach(field => {
         if (Object.prototype.hasOwnProperty.call(changes, field)) event[field] = changes[field];
       });
+      if (Object.prototype.hasOwnProperty.call(changes, "pinned")) event.pinned = changes.pinned === true;
       persist();
       return true;
     }
@@ -441,6 +450,8 @@
       deleteProject,
       addObligation,
       updateObligation,
+      freezeObligation,
+      unfreezeObligation,
       deleteObligationSafely,
       updateEvent,
       updateMileage,

@@ -47,24 +47,62 @@
 
   globalThis.LifeCalibrationCalendarRepeatUX = { calendarDueAnchor, calendarRepeatCycleState };
 
-  function resolveObligationFormMode({ handling, completionMode, paymentMethod, changedField = "" }) {
-    let nextHandling = handling === "auto" ? "auto" : "manual";
-    let nextCompletionMode = ["none", "expense", "transfer"].includes(completionMode) ? completionMode : "none";
-    let nextPaymentMethod = ["card", "cash", "bank"].includes(paymentMethod) ? paymentMethod : "bank";
-    if (changedField === "completion" && nextCompletionMode === "transfer") nextHandling = "manual";
-    if (nextHandling === "auto") {
-      nextCompletionMode = "expense";
-      nextPaymentMethod = "card";
-    }
+  // Task／Auto payment editor 的欄位可見性由前面的使用者意圖唯一推導，不再用
+  // Handling／When done 這類自由選單把刪掉的複雜度偷偷加回來（架構.md 第三章）。
+  function taskEditorFields({ cycleType = "none", amount = null, handling = "manual", completionMode = "" } = {}) {
+    const repeats = Boolean(globalThis.LifeCalibrationCore?.isRepeatCycle(cycleType));
+    const auto = handling === "auto";
+    const hasAmount = amount !== null && amount !== undefined && amount !== "";
+    // 廢止的 legacy transfer 規則保持惰性：資料裡的 amount 完整保留，但不在新 UI 暴露，
+    // 否則會出現一個看起來能用、實際上不產生任何交易的金額欄位。
+    const legacyTransfer = completionMode === "transfer";
     return {
-      handling: nextHandling,
-      completionMode: nextCompletionMode,
-      paymentMethod: nextPaymentMethod,
-      transferDisabled: nextHandling === "auto"
+      repeats,
+      legacyTransfer,
+      showDue: cycleType !== "mileage",
+      showInterval: cycleType === "after_days",
+      showMileage: cycleType === "mileage",
+      // 單次 Task 不顯示 Amount：金額是循環 Task 與 Auto payment 才有的財務能力。
+      showAmount: !legacyTransfer && (auto || repeats),
+      // 有 Amount 才需要一次設定付款來源；沒有金額就不問。
+      showPaidFrom: !legacyTransfer && (auto || repeats) && hasAmount,
+      // Auto payment 不支援 CASH。
+      paidFromOptions: auto ? ["bank", "card"] : ["bank", "cash", "card"]
     };
   }
 
-  globalThis.LifeCalibrationObligationUX = { resolveObligationFormMode };
+  // 完成後的快速復原窗口。10 秒只是日常 UI 的復原窗口，不代表完成歷史之後被刪除。
+  const UNDO_WINDOW_MS = 10000;
+
+  // 每一次 Complete 都有自己的 10 秒窗口，彼此不覆蓋。
+  // 以到期時間戳判定而不是靠單一 timer，因此可注入時鐘、可測，也不會互相回滾錯項目。
+  function createUndoQueue({ windowMs = UNDO_WINDOW_MS, now = () => Date.now() } = {}) {
+    let entries = [];
+    function prune(at) {
+      entries = entries.filter(entry => entry.expiresAt > at);
+      return entries;
+    }
+    return {
+      windowMs,
+      push(eventId, name, at = now()) {
+        prune(at);
+        entries.push({ eventId, name, expiresAt: at + windowMs });
+        return entries.slice();
+      },
+      remove(eventId) {
+        entries = entries.filter(entry => entry.eventId !== eventId);
+        return entries.slice();
+      },
+      active(at = now()) {
+        return prune(at).slice();
+      },
+      has(eventId, at = now()) {
+        return prune(at).some(entry => entry.eventId === eventId);
+      }
+    };
+  }
+
+  globalThis.LifeCalibrationTaskUX = Object.freeze({ taskEditorFields, createUndoQueue, UNDO_WINDOW_MS });
 
   function dateKeyParts(dateKey) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || ""));
@@ -183,14 +221,15 @@
   let modalAction = null;
   let modalStep = 1;
   let modalReturnFocus = null;
-  let editingObligationId = null;
-  let editingEventId = null;
   let mileageObligationId = null;
   let mileageReturnFocus = null;
   let expandedProjectId = null;
   let expandedTaskKey = null;
+  let expandedAutoPaymentId = null;
   let expandedBookId = null;
   let expandedSessionId = null;
+  // 完成後的 10 秒復原窗口只存在記憶體，不落地；完成歷史本身仍在 events／transactions。
+  const undoQueue = createUndoQueue();
 
   function queryElements() {
     [
@@ -204,12 +243,10 @@
       "month-spent", "spending-chart", "category-ranking", "recent-transactions",
       "recovery-activity", "recovery-effect", "daily-note", "toggle-project-form", "project-form", "project-name",
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
-      "tasks-radar", "tasks-radar-list", "quick-task-form", "quick-task-name", "obligation-form",
-      "obligation-form-title", "cancel-obligation-edit", "obligation-submit", "obligation-name", "obligation-cycle", "obligation-due",
-      "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
-      "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
-      "obligation-last-mileage", "obligation-current-mileage", "obligation-mileage-updated", "obligation-reminder-days", "obligation-threshold",
-      "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "auto-payment-list", "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
+      "quick-task-form", "quick-task-name", "task-active",
+      "sleeping-section", "sleeping-group", "sleeping-list", "sleeping-count",
+      "auto-payment-group", "auto-payment-count", "auto-payment-form", "auto-payment-name", "auto-payment-list",
+      "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
       "toggle-schedule", "schedule-section", "schedule-form", "schedule-weekday", "schedule-start", "schedule-end", "schedule-name", "schedule-list",
       "metric-days", "review-list", "review-month-income", "review-month-expense", "review-month-net", "statement-amount", "statement-recorded", "statement-gap",
       "backup-reminder", "skip-backup-reminder", "export-json", "export-csv", "import-json", "last-export",
@@ -320,7 +357,7 @@
     }
     if (pageName === "money") renderMoney();
     if (pageName === "review") renderReview();
-    if (pageName === "tasks") renderCommitments();
+    if (pageName === "tasks") renderTasks();
     if (pageName === "data") renderDataPage();
     window.scrollTo({ top: 0, behavior: "smooth" });
     document.getElementById(`page-${pageName}`)?.focus({ preventScroll: true });
@@ -583,34 +620,6 @@
     }
   }
 
-  // 到期雷達只出現在 TASKS。MONEY 不顯示任何待辦到期雷達（Tako 2026-08-06 裁決）。
-  // 資料來源、排序與完成行為不變，只是少了一個顯示點。
-  function completionControlMarkup(event, obligation) {
-    return `<button type="button" class="task-done-check" data-complete-event="${escapeHtml(event.id)}" aria-label="${escapeHtml(`Mark ${obligation.name} done`)}"></button>`;
-  }
-
-  function renderRadar() {
-    const items = RuntimeCore.radarItems(state, todayKey);
-    elements["tasks-radar"].hidden = !items.length;
-    if (!items.length) {
-      elements["tasks-radar-list"].innerHTML = "";
-      return;
-    }
-    const label = { overdue: "Overdue", today: "Due today", soon: "Due soon", "service-due": "Service due", "update-mileage": "Update mileage" };
-    // 相對天數：架構.md 第二章要求「逾期 N 天」。diff 由 radarItems() 依既有的到期日算出，純衍生。
-    const relativeLabel = item => {
-      if (item.kind === "overdue") return `Overdue ${Math.abs(item.diff)}d`;
-      if (item.kind === "soon") return `Due in ${item.diff}d`;
-      return label[item.kind];
-    };
-    const markup = items.map(item => `
-      <article class="radar-item is-${escapeHtml(item.kind)}">
-        <div><strong>${escapeHtml(item.obligation.name)}</strong><span>${escapeHtml(relativeLabel(item))}${item.event?.dueDate ? ` · ${escapeHtml(formatDisplayDate(item.event.dueDate))}` : ""}</span></div>
-        ${item.event ? completionControlMarkup(item.event, item.obligation) : `<button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(item.obligation.id)}">Update mileage</button>`}
-      </article>`).join("");
-    elements["tasks-radar-list"].innerHTML = markup;
-  }
-
   function renderAccounts() {
     const balances = RuntimeCore.accountBalances(state);
     elements["account-balances"].innerHTML = state.accounts.filter(account => account.active).map(account => `
@@ -672,9 +681,9 @@
 
   function renderMoney() {
     renderTransactionForm();
-    renderRadar();
     renderAccounts();
     renderSpending();
+    renderAutoPayments();
     renderTransactions();
   }
 
@@ -715,26 +724,169 @@
       ${collapsedGroup("paused", "PAUSED", paused)}`;
   }
 
-  function taskMarkup(event, obligation) {
-    const expanded = expandedTaskKey === event.id;
-    const dueLabel = event.dueDate ? `Due ${formatDisplayDate(event.dueDate)}` : "";
+  // ── TASKS ────────────────────────────────────────────────────────────────
+  // 收合 ＝ 快速掃描；展開 ＝ 查看 ＋ 直接修改。沒有「點開再按 Edit」這一層。
+
+  const CYCLE_OPTIONS = [
+    { value: "none", label: "No repeat" },
+    { value: "monthly", label: "Monthly" },
+    { value: "yearly", label: "Yearly" },
+    { value: "after_days", label: "After N days" },
+    { value: "mileage", label: "By mileage" }
+  ];
+  // Auto payment 是「依穩定規則自動發生」的財務規則，因此只提供循環週期。
+  const AUTO_CYCLE_OPTIONS = CYCLE_OPTIONS.filter(option => ["monthly", "yearly", "after_days"].includes(option.value));
+  const PAID_FROM_LABELS = { bank: "Bank", cash: "Cash", card: "Card" };
+
+  function completionControlMarkup(event, obligation) {
+    return `<button type="button" class="task-done-check" data-complete-event="${escapeHtml(event.id)}" aria-label="${escapeHtml(`Mark ${obligation.name} done`)}"></button>`;
+  }
+
+  // Pin 只做一件事：繞過 Sleeping，把該 occurrence 留在主要 TASKS。
+  // 已經在提醒窗口內的項目不顯示這個控制 —— 那裡按下去沒有任何作用。
+  // 里程義務永遠不沉睡，即使 legacy 資料留了 dueDate，Pin 對它也沒有意義。
+  function pinControlMarkup(event, obligation, windowDays) {
+    if (RuntimeCore.isMileageObligation(obligation) || !event.dueDate) return "";
+    const pinned = event.pinned === true;
+    if (!pinned && RuntimeCore.daysUntil(event.dueDate, todayKey) <= windowDays) return "";
+    return `<button type="button" class="task-pin" data-toggle-pin="${escapeHtml(event.id)}" aria-pressed="${pinned}" aria-label="${escapeHtml(`${pinned ? "Unpin" : "Pin"} ${obligation.name}`)}">PIN</button>`;
+  }
+
+  // 逾期／今日到期的強度靠字重與字色，逼近中的用琥珀珠 —— 沿用原雷達的強度階層，
+  // 只是改由主清單本身承載，同一件事不再出現在兩個地方。
+  // 里程義務一律以里程語意為準：legacy／匯入資料就算在 event 上留了 dueDate，
+  // 也不得用一般的 Due 顯示蓋掉 mileage status。
+  function taskStateClass(event, obligation, windowDays) {
+    if (RuntimeCore.isMileageObligation(obligation)) {
+      return RuntimeCore.mileageStatus(obligation, todayKey) === "service-due" ? "is-service-due" : "";
+    }
+    if (event.dueDate) {
+      const diff = RuntimeCore.daysUntil(event.dueDate, todayKey);
+      if (diff < 0) return "is-overdue";
+      if (diff === 0) return "is-today";
+      return diff <= windowDays ? "is-soon" : "";
+    }
+    return "";
+  }
+
+  function taskDueLabel(event, obligation) {
+    if (RuntimeCore.isMileageObligation(obligation)) {
+      const mileage = RuntimeCore.mileageStatus(obligation, todayKey);
+      if (mileage === "service-due") return "Service due";
+      if (mileage === "update-mileage") return "Update mileage";
+      return "";
+    }
+    if (event.dueDate) {
+      const diff = RuntimeCore.daysUntil(event.dueDate, todayKey);
+      const date = formatDisplayDate(event.dueDate);
+      if (diff < 0) return `Overdue ${Math.abs(diff)}d · ${date}`;
+      if (diff === 0) return `Due today · ${date}`;
+      return `Due ${date}`;
+    }
+    return "";
+  }
+
+  function taskSummaryCopy(event, obligation) {
+    const dueLabel = taskDueLabel(event, obligation);
     const note = obligation.note || "";
+    const meta = dueLabel || note
+      ? `<span class="task-summary-meta ${dueLabel ? "has-due" : ""}">${dueLabel ? `<span>${escapeHtml(dueLabel)}</span>` : ""}${note ? `<span class="task-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>` : ""}</span>`
+      : "";
+    return `<span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong>${meta}</span>`;
+  }
+
+  function selectFieldMarkup(field, value, options) {
+    return `<select class="record-input" data-task-field="${escapeHtml(field)}">${options
+      .map(option => `<option value="${escapeHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
+      .join("")}</select>`;
+  }
+
+  function dueControlMarkup(event) {
+    const value = event?.dueDate || "";
+    return `<span class="date-control ${value ? "" : "is-empty"}">
+      <span class="date-control-value" data-date-placeholder="Select date" aria-hidden="true">${escapeHtml(value || "Select date")}</span>
+      <span class="date-control-icon" aria-hidden="true"></span>
+      <input type="date" value="${escapeHtml(value)}" data-date-control data-task-field="dueDate" aria-label="Due date">
+    </span>`;
+  }
+
+  function mileageEditorMarkup(obligation) {
+    const service = obligation.service;
+    return `<div class="task-mileage">
+      <div class="two-column">
+        <label class="field"><span>Last service</span><input class="record-input" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(service.lastServiceMileage ?? "")}" data-task-field="lastServiceMileage"></label>
+        <label class="field"><span>Current</span><input class="record-input" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(service.currentMileage ?? "")}" data-task-field="currentMileage"></label>
+      </div>
+      <div class="two-column">
+        <label class="field"><span>Reminder days</span><input class="record-input" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(service.reminderDays)}" data-task-field="reminderDays"></label>
+        <label class="field"><span>Threshold km</span><input class="record-input" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(service.thresholdKm)}" data-task-field="thresholdKm"></label>
+      </div>
+      <button type="button" class="button button-quiet" data-update-mileage="${escapeHtml(obligation.id)}">Update mileage</button>
+    </div>`;
+  }
+
+  // 展開後就是編輯狀態本身。欄位依 taskEditorFields() 逐步揭露，沒啟用的能力不顯示。
+  function taskEditorMarkup(event, obligation) {
+    const fields = taskEditorFields({
+      cycleType: obligation.cycle.type,
+      amount: obligation.amount,
+      handling: obligation.handling,
+      completionMode: obligation.completionMode
+    });
+    const paidFrom = fields.paidFromOptions.map(value => ({ value, label: PAID_FROM_LABELS[value] }));
+    // 付款來源沒被明確選過時同樣給空的佔位選項 —— 絕不預選一個帳戶讓它看起來像已設定。
+    const paidFromChosen = fields.paidFromOptions.includes(obligation.paymentMethod);
+    const paidFromOptions = paidFromChosen ? paidFrom : [{ value: "", label: "Select source" }, ...paidFrom];
+    // Auto payment 的週期沒被明確選過時給一個空的佔位選項 —— 不預選任何週期。
+    const autoCycleChosen = AUTO_CYCLE_OPTIONS.some(option => option.value === obligation.cycle.type);
+    const isAuto = obligation.handling === "auto";
+    const cycleValue = isAuto && !autoCycleChosen ? "" : obligation.cycle.type;
+    const cycleOptions = !isAuto
+      ? CYCLE_OPTIONS
+      : (autoCycleChosen ? AUTO_CYCLE_OPTIONS : [{ value: "", label: "Select repeat" }, ...AUTO_CYCLE_OPTIONS]);
+    return `
+      <label class="field"><span>Name</span><input class="record-input" type="text" value="${escapeHtml(obligation.name)}" data-task-field="name"></label>
+      <div class="two-column">
+        <label class="field"><span>Repeat</span>${selectFieldMarkup("cycle", cycleValue, cycleOptions)}</label>
+        ${fields.showDue ? `<label class="field"><span>Due</span>${dueControlMarkup(event)}</label>` : ""}
+      </div>
+      ${fields.showInterval ? `<label class="field"><span>Days / interval</span><input class="record-input" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(obligation.cycle.days || 1)}" data-task-field="intervalDays"></label>` : ""}
+      ${fields.showAmount ? `<div class="two-column">
+        <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(obligation.amount ?? "")}" data-task-field="amount"></label>
+        ${fields.showPaidFrom ? `<label class="field"><span>Paid from</span>${selectFieldMarkup("paymentMethod", paidFromChosen ? obligation.paymentMethod : "", paidFromOptions)}</label>` : ""}
+      </div>` : ""}
+      <label class="field"><span>Note</span><input class="record-input" type="text" value="${escapeHtml(obligation.note || "")}" data-task-field="note"></label>
+      ${fields.showMileage ? mileageEditorMarkup(obligation) : ""}`;
+  }
+
+  function taskMarkup(item, windowDays) {
+    const { event, obligation } = item;
+    const expanded = expandedTaskKey === event.id;
     const detailId = `task-details-${event.id}`;
-    const cycleLabel = { none: "None", once: "Once", monthly: "Monthly", yearly: "Yearly", after_days: "After N days", mileage: "By mileage" }[obligation.cycle.type] || "None";
-    const completionLabel = { none: "No transaction", expense: "Expense", transfer: "Account transfer" }[obligation.completionMode] || "No transaction";
     const deleteButton = safeDeleteButton(obligation);
     return `
-      <article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
-        <button type="button" class="task-summary" data-toggle-task="${escapeHtml(event.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
-          <span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong>${dueLabel || note ? `<span class="task-summary-meta ${dueLabel ? "has-due" : ""}">${dueLabel ? `<span>${escapeHtml(dueLabel)}</span>` : ""}${note ? `<span class="task-note" title="${escapeHtml(note)}">${escapeHtml(note)}</span>` : ""}</span>` : ""}</span>
-          <span class="task-chevron" aria-hidden="true"></span>
-        </button>
+      <article class="task-item ${taskStateClass(event, obligation, windowDays)} ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(event.id)}">
+        <div class="task-head">
+          ${completionControlMarkup(event, obligation)}
+          <button type="button" class="task-summary" data-toggle-task="${escapeHtml(event.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+            ${taskSummaryCopy(event, obligation)}
+            <span class="task-chevron" aria-hidden="true"></span>
+          </button>
+          ${pinControlMarkup(event, obligation, windowDays)}
+        </div>
         ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
-          <div class="task-details-meta"><span>Repeats <strong>${escapeHtml(cycleLabel)}</strong></span><span>When done <strong>${escapeHtml(completionLabel)}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div>
-          <label class="field task-actual"><span>Actual amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(event.actualAmount ?? obligation.amount ?? "")}" data-event-field="actualAmount"></label>
-          <div class="task-actions">${completionControlMarkup(event, obligation)}<div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>
+          ${taskEditorMarkup(event, obligation)}
+          <div class="task-actions-secondary"><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div>
         </div>` : ""}
       </article>`;
+  }
+
+  // 完成後的 `Completed · UNDO`：不保留日常可見的 Done 區，只留 10 秒的復原窗口。
+  // 同時可以有多筆，最近完成的在最上面，各自獨立到期、獨立回滾。
+  function undoRowMarkup() {
+    return undoQueue.active().reverse().map(entry => `<article class="task-item task-undo">
+      <div class="task-undo-row"><span>Completed · ${escapeHtml(entry.name)}</span><button type="button" class="button button-quiet" data-undo-event="${escapeHtml(entry.eventId)}">UNDO</button></div>
+    </article>`).join("");
   }
 
   function safeDeleteButton(obligation) {
@@ -742,6 +894,34 @@
     return policy.allowed
       ? `<button type="button" class="button button-danger" data-delete-obligation="${escapeHtml(obligation.id)}">Delete</button>`
       : "";
+  }
+
+  // Safe Delete：只有全部事件仍未處理、且沒有任何連結交易的規則能永久刪除。
+  function confirmObligationDelete(trigger, afterDelete) {
+    const obligationId = trigger.dataset.deleteObligation;
+    const obligation = state.obligations.find(item => item.id === obligationId);
+    const policy = RuntimeCore.obligationDeletionPolicy(state, obligationId);
+    if (!policy.allowed) {
+      showToast(policy.reason, 5000);
+      return;
+    }
+    openConfirmation({
+      title: "DELETE TASK",
+      message: `「${obligation?.name || "UNNAMED"}」尚未有歷史紀錄；刪除後，未處理事件也會一併移除。`,
+      finalLabel: "DELETE",
+      trigger,
+      action: () => {
+        let deletion = null;
+        const saved = runDataChange(() => { deletion = dataStore.deleteObligationSafely(obligationId); });
+        if (!saved) return;
+        if (!deletion?.deleted) {
+          showToast(deletion?.reason || "這筆待辦目前不能刪除；請改用 Archive。", 5000);
+          return;
+        }
+        afterDelete?.();
+        showToast("Task deleted");
+      }
+    });
   }
 
   function latestAutoPayment(obligationId) {
@@ -756,73 +936,89 @@
     };
   }
 
+  function pendingEventFor(obligationId) {
+    return state.events
+      .filter(event => event.obligationId === obligationId && event.status === "pending")
+      .sort((a, b) => String(a.dueDate || "9999-12-31").localeCompare(String(b.dueDate || "9999-12-31")))[0] || null;
+  }
+
+  // Auto payment 住在 MONEY：設定一次、之後自動運作的財務規則。
+  // 第一層點擊只展開清單；再點某一筆才進入該筆的可編輯狀態。
   function autoPaymentMarkup(obligation) {
-    const taskKey = `auto:${obligation.id}`;
-    const expanded = expandedTaskKey === taskKey;
+    const expanded = expandedAutoPaymentId === obligation.id;
     const detailId = `auto-payment-details-${obligation.id}`;
-    const pendingEvent = state.events
-      .filter(event => event.obligationId === obligation.id && event.status === "pending")
-      .sort((a, b) => String(a.dueDate || "9999-12-31").localeCompare(String(b.dueDate || "9999-12-31")))[0];
+    const pendingEvent = pendingEventFor(obligation.id);
     const latest = latestAutoPayment(obligation.id);
-    const dueLabel = pendingEvent?.dueDate ? `Next ${formatDisplayDate(pendingEvent.dueDate)}` : "No next date";
-    const amountLabel = obligation.amount !== null ? `<span>${escapeHtml(formatCurrency(obligation.amount))}</span>` : "";
+    const frozen = obligation.status === "frozen";
+    // 規則四項必要資料沒齊就不會自動扣款，摘要要直說，別讓半成品看起來像正常規則。
+    const schedulable = RuntimeCore.autoPaymentIsSchedulable(obligation);
+    const dueLabel = frozen
+      ? "Paused"
+      : (!schedulable ? "Not scheduled" : (pendingEvent?.dueDate ? `Next ${formatDisplayDate(pendingEvent.dueDate, false)}` : "No next date"));
+    // 付款來源沒選就直說，不要用 fallback 讓它看起來已經設定好。
+    const sourceLabel = obligation.amount === null
+      ? "No amount set"
+      : `${formatCurrency(obligation.amount)} · ${PAID_FROM_LABELS[obligation.paymentMethod] || "No source set"}`;
     const latestLabel = latest?.date
       ? `<span>Last paid <strong>${escapeHtml(formatDisplayDate(latest.date, false))}${latest.amount !== null && latest.amount !== undefined ? ` · ${escapeHtml(formatCurrency(latest.amount))}` : ""}</strong></span>`
       : "";
     const deleteButton = safeDeleteButton(obligation);
-    return `<article class="task-item auto-payment-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}">
-      <button type="button" class="task-summary" data-toggle-task="${escapeHtml(taskKey)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
-        <span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong><span class="task-summary-meta has-due"><span>${escapeHtml(dueLabel)}</span><span class="auto-payment-status">Automatic${amountLabel}</span></span></span><span class="task-chevron" aria-hidden="true"></span>
+    return `<article class="task-item auto-payment-item ${frozen ? "is-frozen-rule" : ""} ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(pendingEvent?.id || "")}">
+      <button type="button" class="task-summary" data-toggle-auto-payment="${escapeHtml(obligation.id)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+        <span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong><span class="task-summary-meta has-due"><span>${escapeHtml(dueLabel)}</span><span class="auto-payment-status">${escapeHtml(sourceLabel)}</span></span></span><span class="task-chevron" aria-hidden="true"></span>
       </button>
-      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details"><div class="task-details-meta"><span>Status <strong>Automatic</strong></span><span>Next due <strong>${escapeHtml(pendingEvent?.dueDate ? formatDisplayDate(pendingEvent.dueDate, false) : "—")}</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}${latestLabel}</div><div class="task-actions-secondary ${deleteButton ? "has-delete" : ""}"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div></div>` : ""}
+      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
+        ${taskEditorMarkup(pendingEvent, obligation)}
+        ${latestLabel ? `<div class="task-details-meta">${latestLabel}</div>` : ""}
+        <div class="task-actions-secondary">${frozen
+          ? `<button type="button" class="button button-primary" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button>`
+          : `<button type="button" class="button button-quiet" data-freeze-obligation="${escapeHtml(obligation.id)}">Freeze</button>`}<button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button>${deleteButton}</div>
+      </div>` : ""}
     </article>`;
   }
 
+  // Frozen ＝ 使用者主動 Pause：不自動醒來、不提醒、不生成新的 occurrence、不產生交易。
   function frozenTaskMarkup(obligation) {
     const taskKey = `frozen:${obligation.id}`;
     const expanded = expandedTaskKey === taskKey;
     const detailId = `frozen-details-${obligation.id}`;
-    return `<article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}">
+    const pendingEvent = pendingEventFor(obligation.id);
+    return `<article class="task-item ${expanded ? "is-expanded" : ""}" data-obligation-id="${escapeHtml(obligation.id)}" data-event-id="${escapeHtml(pendingEvent?.id || "")}">
       <button type="button" class="task-summary" data-toggle-task="${escapeHtml(taskKey)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}"><span class="task-summary-copy"><strong title="${escapeHtml(obligation.name)}">${escapeHtml(obligation.name)}</strong>${obligation.note ? `<span class="task-summary-meta"><span class="task-note" title="${escapeHtml(obligation.note)}">${escapeHtml(obligation.note)}</span></span>` : ""}</span><span class="task-chevron" aria-hidden="true"></span></button>
-      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details"><div class="task-details-meta"><span>Status <strong>Frozen</strong></span>${obligation.amount !== null ? `<span>Amount <strong>${escapeHtml(formatCurrency(obligation.amount))}</strong></span>` : ""}</div><div class="task-actions-secondary"><button type="button" class="button button-quiet" data-edit-obligation="${escapeHtml(obligation.id)}">Edit</button><button type="button" class="button button-primary" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button></div></div>` : ""}
+      ${expanded ? `<div id="${escapeHtml(detailId)}" class="task-details">
+        ${taskEditorMarkup(pendingEvent, obligation)}
+        <div class="task-actions-secondary"><button type="button" class="button button-primary" data-unfreeze-obligation="${escapeHtml(obligation.id)}">Unfreeze</button><button type="button" class="button button-quiet" data-archive-obligation="${escapeHtml(obligation.id)}">Archive</button></div>
+      </div>` : ""}
     </article>`;
   }
 
-  function renderCommitments() {
-    renderRadar();
-    const pending = state.events.filter(event => event.status === "pending").map(event => ({
-      event,
-      obligation: state.obligations.find(item => item.id === event.obligationId)
-    })).filter(item => item.obligation && item.obligation.status === "active");
-    const cutoff = new Date(RuntimeCore.dateFromKey(todayKey));
-    cutoff.setDate(cutoff.getDate() + 30);
-    const cutoffKey = RuntimeCore.localDateKey(cutoff);
-    const manualPending = pending.filter(item => item.obligation.handling !== "auto");
-    const dated = manualPending.filter(item => item.event.dueDate && item.event.dueDate <= cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
-    const later = manualPending.filter(item => item.event.dueDate && item.event.dueDate > cutoffKey).sort((a, b) => a.event.dueDate.localeCompare(b.event.dueDate));
-    const noDate = manualPending.filter(item => !item.event.dueDate);
-    const empty = '<div class="empty-state compact-empty">Nothing due.</div>';
-    elements["task-dated"].innerHTML = dated.length ? dated.map(item => taskMarkup(item.event, item.obligation)).join("") : empty;
-    elements["task-later"].hidden = !later.length;
-    elements["task-later-list"].innerHTML = later.map(item => taskMarkup(item.event, item.obligation)).join("");
-    elements["task-no-date"].innerHTML = noDate.length ? noDate.map(item => taskMarkup(item.event, item.obligation)).join("") : '<div class="empty-state compact-empty">Nothing here.</div>';
-
-    const autoPayments = state.obligations
-      .filter(item => item.handling === "auto" && item.status === "active")
-      .sort((a, b) => a.name.localeCompare(b.name, "zh-TW"));
-    elements["auto-payment-list"].innerHTML = autoPayments.length
-      ? autoPayments.map(autoPaymentMarkup).join("")
+  function renderAutoPayments() {
+    const rules = RuntimeCore.autoPaymentRules(state);
+    elements["auto-payment-count"].textContent = rules.length ? ` · ${rules.length}` : "";
+    elements["auto-payment-list"].innerHTML = rules.length
+      ? rules.map(autoPaymentMarkup).join("")
       : '<div class="empty-state compact-empty">No automatic payments.</div>';
+    syncDateControls();
+  }
 
-    const done = state.events.filter(event => event.status !== "pending").sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
-    elements["task-done"].innerHTML = done.length ? done.map(event => {
-      const obligation = state.obligations.find(item => item.id === event.obligationId);
-      return `<article class="task-item is-done"><div class="task-main"><strong>${escapeHtml(obligation?.name || "Archived item")}</strong><span>${event.status === "auto-paid" ? "Auto-paid" : "Done"} · ${escapeHtml(event.completedAt?.slice(0, 10) || "")}</span></div><button type="button" class="button button-quiet" data-undo-event="${escapeHtml(event.id)}">Undo</button></article>`;
-    }).join("") : empty;
+  function renderTasks() {
+    const windowDays = RuntimeCore.reminderWindowDays(state);
+    const buckets = RuntimeCore.taskBuckets(state, todayKey);
+    const activeRows = `${undoRowMarkup()}${buckets.active.map(item => taskMarkup(item, windowDays)).join("")}`;
+    elements["task-active"].innerHTML = activeRows || '<div class="empty-state compact-empty">Nothing to handle right now.</div>';
 
-    const frozen = state.obligations.filter(item => item.status === "frozen");
-    elements["frozen-list"].innerHTML = frozen.length ? frozen.map(frozenTaskMarkup).join("") : '<div class="empty-state compact-empty">Nothing frozen.</div>';
-    elements["frozen-count"].textContent = frozen.length ? ` · ${frozen.length}` : "";
+    // SLEEPING：事情有效，只是時間還沒到。預設收合，空的時候整段不佔位置。
+    // 正在編輯的那一列若因為改了 Due 而沉睡，區段跟著展開，不讓編輯狀態憑空消失。
+    elements["sleeping-section"].hidden = !buckets.sleeping.length;
+    elements["sleeping-count"].textContent = buckets.sleeping.length ? ` · ${buckets.sleeping.length}` : "";
+    elements["sleeping-list"].innerHTML = buckets.sleeping.map(item => taskMarkup(item, windowDays)).join("");
+    if (buckets.sleeping.some(item => item.event.id === expandedTaskKey)) elements["sleeping-group"].open = true;
+
+    elements["frozen-list"].innerHTML = buckets.frozen.length
+      ? buckets.frozen.map(frozenTaskMarkup).join("")
+      : '<div class="empty-state compact-empty">Nothing frozen.</div>';
+    elements["frozen-count"].textContent = buckets.frozen.length ? ` · ${buckets.frozen.length}` : "";
+    syncDateControls();
     renderBooks();
   }
 
@@ -909,7 +1105,7 @@
     renderMoney();
     renderToday();
     renderProjects();
-    renderCommitments();
+    renderTasks();
     renderReview();
     renderDataPage();
     updateBackupReminder();
@@ -1004,81 +1200,121 @@
     syncDateControls();
   }
 
-  function syncObligationCycleFields() {
-    const cycle = elements["obligation-cycle"].value;
-    elements["mileage-fields"].hidden = cycle !== "mileage";
-    elements["obligation-due"].disabled = cycle === "none" || cycle === "mileage";
-    elements["obligation-interval-field"].hidden = cycle !== "after_days";
-    syncDateControls();
+  // ── 展開即編輯的寫入路徑 ────────────────────────────────────────────────
+  // input 只寫值不重繪（保住游標）；change 才重繪，因為欄位可見性、排序與分區可能改變。
+
+  // Repeat 與 Due 只在 change 時寫入：它們會重設 recurrence anchor 與分區，
+  // 邊輸入邊寫會在使用者還沒選完時就重繪。其餘欄位邊打邊存。
+  function isLiveTaskField(target) {
+    const field = target?.dataset?.taskField;
+    return Boolean(field) && field !== "cycle" && field !== "dueDate";
   }
 
-  function syncObligationCompletionFields(changedField = "") {
-    const resolved = resolveObligationFormMode({
-      handling: elements["obligation-handling"].value,
-      completionMode: elements["obligation-completion-mode"].value,
-      paymentMethod: elements["obligation-payment-method"].value,
-      changedField
+  function taskRowIds(target) {
+    const row = target.closest("[data-obligation-id]");
+    return { obligationId: row?.dataset.obligationId || "", eventId: row?.dataset.eventId || "" };
+  }
+
+  function numberFieldValue(value, { min = 0, fallback = null } = {}) {
+    if (value === "") return fallback;
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, number) : fallback;
+  }
+
+  // Monthly／Yearly 的 Due 同時是 calendar recurrence anchor 的唯一 UI 入口。
+  // 只有真正切換週期或真正改 Due 時才重設 anchor；沒動就不動。
+  function resolveCycleFor(obligation, event, { cycleType, dueDate }) {
+    return calendarRepeatCycleState({
+      cycleType,
+      dueDate,
+      existingCycle: obligation.cycle,
+      originalCycleType: obligation.cycle.type,
+      originalDueDate: event?.dueDate || null,
+      intervalDays: obligation.cycle.days
     });
-    elements["obligation-handling"].value = resolved.handling;
-    elements["obligation-completion-mode"].value = resolved.completionMode;
-    elements["obligation-payment-method"].value = resolved.paymentMethod;
-    const transferOption = elements["obligation-completion-mode"].querySelector('option[value="transfer"]');
-    if (transferOption) transferOption.disabled = resolved.transferDisabled;
-    const mode = resolved.completionMode;
-    elements["obligation-payment-method-field"].hidden = mode !== "expense";
-    elements["obligation-transfer-fields"].hidden = mode !== "transfer";
   }
 
-  function resetObligationForm({ close = false } = {}) {
-    editingObligationId = null;
-    editingEventId = null;
-    elements["obligation-form"].reset();
-    elements["obligation-interval"].value = "1";
-    elements["obligation-reminder-days"].value = "15";
-    elements["obligation-threshold"].value = "10000";
-    elements["obligation-payment-method"].value = "bank";
-    elements["obligation-form-title"].textContent = "Task details";
-    elements["obligation-submit"].textContent = "Save task";
-    elements["cancel-obligation-edit"].hidden = false;
-    syncObligationCycleFields();
-    syncObligationCompletionFields();
-    if (close) {
-      elements["obligation-form"].hidden = true;
-      expandedTaskKey = null;
+  function applyCycleChange(obligation, event, nextType) {
+    const dueDate = nextType === "mileage" ? null : (event?.dueDate || null);
+    // 從沒有 Due 的狀態（Mileage、No repeat）切到 Monthly／Yearly：先讓週期切過去，
+    // Due 欄位才會出現，使用者填了 Due 之後才定 anchor。
+    // 舊做法是直接擋下切換，但 Mileage 的 Due 欄位本來就不顯示，使用者因此沒有任何
+    // 路徑可以先填 Due —— 那是個死結。這裡不猜日期，只是不把人鎖在原本的週期裡。
+    if (!dueDate && (nextType === "monthly" || nextType === "yearly")) {
+      const switched = runDataChange(() => {
+        dataStore.updateObligation(obligation.id, { cycle: { ...obligation.cycle, type: nextType } });
+        if (event?.dueDate) dataStore.updateEvent(event.id, { dueDate: null });
+      });
+      if (switched) showToast("Monthly／Yearly 重複需要先設定 Due 日期。", 5000);
+      return switched;
     }
+    const result = resolveCycleFor(obligation, event, { cycleType: nextType, dueDate });
+    if (result.error) {
+      showToast(result.error, 5000);
+      return false;
+    }
+    return runDataChange(() => {
+      dataStore.updateObligation(obligation.id, { cycle: result.cycle });
+      if (event && nextType === "mileage" && event.dueDate) dataStore.updateEvent(event.id, { dueDate: null });
+    });
   }
 
-  function openObligationEditor(obligationId, eventId = null) {
+  function applyDueChange(obligation, event, value) {
+    if (!event) return false;
+    const dueDate = value || null;
+    const result = resolveCycleFor(obligation, event, { cycleType: obligation.cycle.type, dueDate });
+    if (result.error) {
+      showToast(result.error, 5000);
+      return false;
+    }
+    return runDataChange(() => {
+      dataStore.updateEvent(event.id, { dueDate });
+      dataStore.updateObligation(obligation.id, { cycle: result.cycle });
+    });
+  }
+
+  // 回傳 true 代表這次變更需要重繪。
+  function writeTaskField(target) {
+    const field = target.dataset.taskField;
+    if (!field) return false;
+    const { obligationId, eventId } = taskRowIds(target);
     const obligation = state.obligations.find(item => item.id === obligationId);
-    if (!obligation) return;
-    const currentEvent = state.events.find(item => item.id === eventId && item.status === "pending")
-      || state.events.find(item => item.obligationId === obligationId && item.status === "pending")
-      || null;
-    editingObligationId = obligation.id;
-    editingEventId = currentEvent?.id || null;
-    elements["obligation-name"].value = obligation.name;
-    elements["obligation-cycle"].value = obligation.cycle.type;
-    elements["obligation-due"].value = currentEvent?.dueDate || "";
-    elements["obligation-interval"].value = String(obligation.cycle.days || 1);
-    elements["obligation-amount"].value = obligation.amount ?? "";
-    elements["obligation-handling"].value = obligation.handling;
-    elements["obligation-completion-mode"].value = obligation.completionMode;
-    elements["obligation-payment-method"].value = obligation.paymentMethod;
-    elements["obligation-status"].value = obligation.status === "frozen" ? "frozen" : "active";
-    elements["obligation-note"].value = obligation.note || "";
-    elements["obligation-last-mileage"].value = obligation.service.lastServiceMileage ?? "";
-    elements["obligation-current-mileage"].value = obligation.service.currentMileage ?? "";
-    elements["obligation-mileage-updated"].value = obligation.service.mileageUpdatedAt ? String(obligation.service.mileageUpdatedAt).slice(0, 10) : "";
-    elements["obligation-reminder-days"].value = String(obligation.service.reminderDays || 15);
-    elements["obligation-threshold"].value = String(obligation.service.thresholdKm || 10000);
-    elements["obligation-form-title"].textContent = "Edit task";
-    elements["obligation-submit"].textContent = "Save changes";
-    elements["cancel-obligation-edit"].hidden = false;
-    elements["obligation-form"].hidden = false;
-    syncObligationCycleFields();
-    syncObligationCompletionFields();
-    elements["obligation-form"].scrollIntoView({ behavior: "smooth", block: "start" });
-    elements["obligation-name"].focus({ preventScroll: true });
+    if (!obligation) return false;
+    const event = state.events.find(item => item.id === eventId && item.status === "pending") || null;
+    const value = target.value;
+    // 空值＝Auto payment 的「尚未選擇週期」佔位選項，不寫入任何東西。
+    if (field === "cycle") return value ? applyCycleChange(obligation, event, value) : false;
+    if (field === "dueDate") return applyDueChange(obligation, event, value);
+    if (field === "name") {
+      // 名稱清空時不寫入，避免中途存成預設名；重繪會把原名補回欄位。
+      if (!value.trim()) return false;
+      return runDataChange(() => dataStore.updateObligation(obligationId, { name: value }));
+    }
+    if (field === "note") return runDataChange(() => dataStore.updateObligation(obligationId, { note: value }));
+    if (field === "amount") return runDataChange(() => dataStore.updateObligation(obligationId, { amount: numberFieldValue(value) }));
+    // 空值＝「Select source」佔位選項，不寫入；規則維持未設定狀態。
+    if (field === "paymentMethod") return value ? runDataChange(() => dataStore.updateObligation(obligationId, { paymentMethod: value })) : false;
+    if (field === "intervalDays") {
+      return runDataChange(() => dataStore.updateObligation(obligationId, { cycle: { ...obligation.cycle, days: numberFieldValue(value, { min: 1, fallback: 1 }) } }));
+    }
+    if (["lastServiceMileage", "currentMileage"].includes(field)) {
+      return runDataChange(() => dataStore.updateObligation(obligationId, { service: { [field]: numberFieldValue(value) } }));
+    }
+    if (["reminderDays", "thresholdKm"].includes(field)) {
+      const fallback = field === "reminderDays" ? 15 : 10000;
+      return runDataChange(() => dataStore.updateObligation(obligationId, { service: { [field]: numberFieldValue(value, { min: 1, fallback }) } }));
+    }
+    return false;
+  }
+
+  // 每筆各自排一個重繪 timer；到期與否仍由 queue 的時間戳決定，timer 只負責把列收掉。
+  function startUndoWindow(eventId, name) {
+    undoQueue.push(eventId, name);
+    setTimeout(renderTasks, UNDO_WINDOW_MS + 50);
+  }
+
+  function clearUndoWindow(eventId) {
+    undoQueue.remove(eventId);
   }
 
   function openMileageEditor(obligationId, trigger) {
@@ -1153,7 +1389,7 @@
 
     elements["settings-radar-days"].addEventListener("input", event => {
       runDataChange(() => dataStore.updateSettings({ radarDays: Math.max(0, Number(event.target.value) || 0) }));
-      renderRadar();
+      renderTasks();
     });
     elements["toggle-schedule"].addEventListener("click", () => {
       const open = elements["schedule-section"].hidden;
@@ -1388,20 +1624,7 @@
       });
     });
 
-    elements["cancel-obligation-edit"].addEventListener("click", () => {
-      resetObligationForm({ close: true });
-      renderCommitments();
-    });
-
-    elements["obligation-cycle"].addEventListener("change", syncObligationCycleFields);
-    elements["obligation-completion-mode"].addEventListener("change", () => syncObligationCompletionFields("completion"));
-    elements["obligation-amount"].addEventListener("input", () => {
-      if (elements["obligation-completion-mode"].value === "transfer") return;
-      elements["obligation-completion-mode"].value = elements["obligation-amount"].value === "" ? "none" : "expense";
-      syncObligationCompletionFields("amount");
-    });
-    elements["obligation-handling"].addEventListener("change", () => syncObligationCompletionFields("handling"));
-
+    // 輸入名稱並 Add 就是一個完整合法的建立動作：不自動打開 editor，直接回到清單。
     elements["quick-task-form"].addEventListener("submit", event => {
       event.preventDefault();
       const name = elements["quick-task-name"].value.trim();
@@ -1410,100 +1633,124 @@
         elements["quick-task-name"].focus();
         return;
       }
-      let created = null;
-      const saved = runDataChange(() => {
-        created = dataStore.addObligation({ name, cycle: { type: "none" }, amount: null, handling: "manual", completionMode: "none", paymentMethod: "bank", status: "active", note: "" }, null);
-      });
-      if (!saved || !created) return;
+      const saved = runDataChange(() => dataStore.addObligation({
+        // 付款來源刻意留空：這個 Task 之後若變成 recurring + Amount，來源必須由使用者自己選。
+        name, cycle: { type: "none" }, amount: null, handling: "manual", paymentMethod: "", status: "active", note: ""
+      }, null));
+      if (!saved) return;
       elements["quick-task-name"].value = "";
-      renderCommitments();
-      openObligationEditor(created.obligation.id, created.event.id);
-      showToast("Task added — add details");
+      renderTasks();
+      showToast("Task added");
     });
 
-    elements["obligation-form"].addEventListener("submit", event => {
+    // Auto payment 建立時就要設定穩定規則，因此新增後直接展開該筆的 editor。
+    elements["auto-payment-form"].addEventListener("submit", event => {
       event.preventDefault();
-      syncObligationCycleFields();
-      const cycleType = elements["obligation-cycle"].value;
-      const dueDate = elements["obligation-due"].value || null;
-      const completionMode = elements["obligation-completion-mode"].value;
-      if (completionMode === "transfer" && state.obligations.some(item => item.id !== editingObligationId && item.completionMode === "transfer" && item.status !== "archived")) {
-        showToast("目前卡費繳款是唯一的帳戶移轉義務；自動扣款請使用 Automatic + Expense。", 5000);
+      const name = elements["auto-payment-name"].value.trim();
+      if (!name) {
+        showToast("Enter an auto payment name");
+        elements["auto-payment-name"].focus();
         return;
       }
-      const existingObligation = state.obligations.find(item => item.id === editingObligationId) || null;
-      const originalEvent = state.events.find(item => item.id === editingEventId && item.status === "pending") || null;
-      const cycleResult = calendarRepeatCycleState({
-        cycleType,
-        dueDate,
-        existingCycle: existingObligation?.cycle || null,
-        originalCycleType: existingObligation?.cycle.type || "",
-        originalDueDate: originalEvent?.dueDate || null,
-        intervalDays: elements["obligation-interval"].value
+      // 建立時不猜任何日期：週期未選、Due 為空、金額為空。
+      // 規則要能自動扣款，Amount／recurrence／Due 都必須由使用者在下面的 editor 明確設定，
+      // 在那之前 autoPaymentIsSchedulable() 會擋掉所有自動交易。
+      let created = null;
+      const saved = runDataChange(() => {
+        created = dataStore.addObligation({
+          name,
+          cycle: { type: "none" },
+          amount: null,
+          handling: "auto",
+          // 付款來源刻意不給值：空字串＝使用者還沒選。給 "card" 會被正規化層當成明確選擇，
+          // 然後在使用者其實要 BANK 的情況下先扣到 CARD。
+          paymentMethod: "",
+          status: "active",
+          note: ""
+        }, null);
       });
-      if (cycleResult.error) {
-        showToast(cycleResult.error, 5000);
-        elements["obligation-due"].focus();
+      if (!saved || !created) return;
+      elements["auto-payment-name"].value = "";
+      elements["auto-payment-group"].open = true;
+      expandedAutoPaymentId = created.obligation.id;
+      renderAutoPayments();
+      showToast("Auto payment added — set the rule");
+    });
+
+    const moneyPage = document.getElementById("page-money");
+    moneyPage.addEventListener("input", event => {
+      if (!isLiveTaskField(event.target)) return;
+      writeTaskField(event.target);
+    });
+    moneyPage.addEventListener("change", event => {
+      if (!event.target.dataset.taskField) return;
+      writeTaskField(event.target);
+      // 使用者把規則補齊、而 Due 已經 <= 今天時，本 session 就處理掉，不用等 reload。
+      // runAutoPayments 本身是 idempotent 的，欄位每次變更都跑也不會產生重複交易。
+      runDataChange(() => dataStore.runAutoPayments(todayKey));
+      renderMoney();
+    });
+    moneyPage.addEventListener("click", event => {
+      const toggle = event.target.closest("[data-toggle-auto-payment]");
+      const freeze = event.target.closest("[data-freeze-obligation]");
+      const unfreeze = event.target.closest("[data-unfreeze-obligation]");
+      const archive = event.target.closest("[data-archive-obligation]");
+      const deleteObligation = event.target.closest("[data-delete-obligation]");
+      if (toggle) {
+        expandedAutoPaymentId = expandedAutoPaymentId === toggle.dataset.toggleAutoPayment ? null : toggle.dataset.toggleAutoPayment;
+        renderAutoPayments();
         return;
       }
-      const cycle = cycleResult.cycle;
-      const amount = elements["obligation-amount"].value === "" ? null : Math.max(0, Number(elements["obligation-amount"].value) || 0);
-      const obligation = {
-        name: elements["obligation-name"].value.trim() || "UNNAMED",
-        cycle,
-        amount,
-        handling: elements["obligation-handling"].value,
-        completionMode,
-        paymentMethod: elements["obligation-payment-method"].value,
-        transferFromAccountId: "main",
-        transferToAccountId: "card",
-        status: elements["obligation-status"].value,
-        note: elements["obligation-note"].value.trim(),
-        service: {
-          lastServiceMileage: elements["obligation-last-mileage"].value || null,
-          currentMileage: elements["obligation-current-mileage"].value || null,
-          mileageUpdatedAt: elements["obligation-mileage-updated"].value || null,
-          reminderDays: Number(elements["obligation-reminder-days"].value) || 15,
-          thresholdKm: Number(elements["obligation-threshold"].value) || 10000
-        }
-      };
-      const wasEditing = Boolean(editingObligationId);
-      if (wasEditing) {
-        const obligationId = editingObligationId;
-        const eventId = editingEventId;
-        runDataChange(() => {
-          dataStore.updateObligation(obligationId, obligation);
-          if (eventId) dataStore.updateEvent(eventId, { dueDate: cycleType === "none" || cycleType === "mileage" ? null : dueDate });
+      if (deleteObligation) {
+        confirmObligationDelete(deleteObligation, () => {
+          expandedAutoPaymentId = null;
+          renderAutoPayments();
+          renderTasks();
         });
-      } else {
-        runDataChange(() => dataStore.addObligation(obligation, cycleType === "none" || cycleType === "mileage" ? null : dueDate));
+        return;
       }
-      resetObligationForm({ close: true });
-      renderCommitments();
-      renderMoney();
-      showToast(wasEditing ? "Obligation updated" : "Obligation added");
+      if (freeze) runDataChange(() => dataStore.freezeObligation(freeze.dataset.freezeObligation));
+      else if (unfreeze) {
+        // 解凍後 occurrence 會被搬到第一個 >= today 的合法日期；剛好等於今天就在本 session 執行。
+        runDataChange(() => {
+          dataStore.unfreezeObligation(unfreeze.dataset.unfreezeObligation, todayKey);
+          dataStore.runAutoPayments(todayKey);
+        });
+      }
+      else if (archive) {
+        runDataChange(() => dataStore.updateObligation(archive.dataset.archiveObligation, { status: "archived" }));
+        expandedAutoPaymentId = null;
+      } else return;
+      renderAutoPayments();
+      renderTasks();
     });
 
     const tasksPage = document.getElementById("page-tasks");
     tasksPage.addEventListener("input", event => {
-      const row = event.target.closest("[data-event-id]");
-      if (row && event.target.dataset.eventField === "actualAmount") {
-        const value = event.target.value === "" ? null : Math.max(0, Number(event.target.value) || 0);
-        runDataChange(() => dataStore.updateEvent(row.dataset.eventId, { actualAmount: value }));
+      if (isLiveTaskField(event.target)) {
+        writeTaskField(event.target);
+        return;
       }
+      if (event.target.dataset.taskField) return;
       const book = event.target.closest("[data-book-id]");
       if (book && event.target.dataset.bookField) {
         runDataChange(() => dataStore.updateBook(book.dataset.bookId, { [event.target.dataset.bookField]: event.target.value }));
       }
     });
     tasksPage.addEventListener("change", event => {
+      if (event.target.dataset.taskField) {
+        writeTaskField(event.target);
+        renderTasks();
+        renderMoney();
+        return;
+      }
       if (event.target.dataset.bookField === "status") renderBooks();
     });
     tasksPage.addEventListener("click", event => {
       const toggleTask = event.target.closest("[data-toggle-task]");
+      const togglePin = event.target.closest("[data-toggle-pin]");
       const toggleBook = event.target.closest("[data-toggle-book]");
       const complete = event.target.closest("[data-complete-event]");
-      const edit = event.target.closest("[data-edit-obligation]");
       const mileage = event.target.closest("[data-update-mileage]");
       const freeze = event.target.closest("[data-freeze-obligation]");
       const archive = event.target.closest("[data-archive-obligation]");
@@ -1511,9 +1758,16 @@
       const deleteObligation = event.target.closest("[data-delete-obligation]");
       const undo = event.target.closest("[data-undo-event]");
       const removeBook = event.target.closest("[data-remove-book]");
+      if (togglePin) {
+        const target = state.events.find(item => item.id === togglePin.dataset.togglePin);
+        if (!target) return;
+        runDataChange(() => dataStore.updateEvent(target.id, { pinned: target.pinned !== true }));
+        renderTasks();
+        return;
+      }
       if (toggleTask) {
         expandedTaskKey = expandedTaskKey === toggleTask.dataset.toggleTask ? null : toggleTask.dataset.toggleTask;
-        renderCommitments();
+        renderTasks();
         return;
       }
       if (toggleBook) {
@@ -1538,47 +1792,35 @@
         return;
       }
       if (deleteObligation) {
-        const obligation = state.obligations.find(item => item.id === deleteObligation.dataset.deleteObligation);
-        const policy = RuntimeCore.obligationDeletionPolicy(state, deleteObligation.dataset.deleteObligation);
-        if (!policy.allowed) {
-          showToast(policy.reason, 5000);
-          return;
-        }
-        openConfirmation({
-          title: "DELETE TASK",
-          message: `「${obligation?.name || "UNNAMED"}」尚未有歷史紀錄；刪除後，未處理事件也會一併移除。`,
-          finalLabel: "DELETE",
-          trigger: deleteObligation,
-          action: () => {
-            let deletion = null;
-            const saved = runDataChange(() => { deletion = dataStore.deleteObligationSafely(deleteObligation.dataset.deleteObligation); });
-            if (!saved) return;
-            if (!deletion?.deleted) {
-              showToast(deletion?.reason || "這筆待辦目前不能刪除；請改用 Archive。", 5000);
-              return;
-            }
-            expandedTaskKey = null;
-            renderCommitments();
-            showToast("Task deleted");
-          }
+        confirmObligationDelete(deleteObligation, () => {
+          expandedTaskKey = null;
+          renderTasks();
         });
         return;
       }
-      if (edit) {
-        openObligationEditor(edit.dataset.editObligation, edit.closest("[data-event-id]")?.dataset.eventId || null);
-        return;
-      } else if (mileage) {
+      if (mileage) {
         openMileageEditor(mileage.dataset.updateMileage, mileage);
         return;
       } else if (complete) {
-        const row = complete.closest("[data-event-id]");
-        const amountInput = row?.querySelector("[data-event-field='actualAmount']");
-        const actualAmount = amountInput?.value === "" ? null : Number(amountInput?.value);
-        runDataChange(() => dataStore.completeEvent(complete.dataset.completeEvent, { completedDate: todayKey, actualAmount }));
+        // 使用者只表達「這件事我完成了」；後果（結束或生下一期、記不記帳）由資料決定。
+        const eventId = complete.dataset.completeEvent;
+        const target = state.obligations.find(item =>
+          item.id === state.events.find(record => record.id === eventId)?.obligationId);
+        // 有金額卻還沒設付款來源時擋下整個完成動作，occurrence 維持 pending。
+        const blocked = RuntimeCore.completionBlockReason(target);
+        if (blocked) {
+          showToast(blocked, 5000);
+          expandedTaskKey = eventId;
+          renderTasks();
+          return;
+        }
+        const obligationName = target?.name || "Task";
+        const saved = runDataChange(() => dataStore.completeEvent(eventId, { completedDate: todayKey }));
+        if (!saved) return;
         expandedTaskKey = null;
-        showToast("Marked done");
+        startUndoWindow(eventId, obligationName);
       } else if (freeze) {
-        runDataChange(() => dataStore.updateObligation(freeze.dataset.freezeObligation, { status: "frozen" }));
+        runDataChange(() => dataStore.freezeObligation(freeze.dataset.freezeObligation));
         expandedTaskKey = null;
         showToast("Frozen");
       } else if (archive) {
@@ -1586,16 +1828,19 @@
         expandedTaskKey = null;
         showToast("Archived");
       } else if (unfreeze) {
-        runDataChange(() => dataStore.updateObligation(unfreeze.dataset.unfreezeObligation, { status: "active" }));
+        runDataChange(() => dataStore.unfreezeObligation(unfreeze.dataset.unfreezeObligation, todayKey));
         expandedTaskKey = null;
         showToast("Unfrozen");
       } else if (undo) {
+        // 原子性回滾整次 Complete：本期恢復、生成的下一期撤銷、連動交易移除。
+        // 只動這一筆，不影響同時存在於窗口內的其他 Undo。
         runDataChange(() => dataStore.undoEvent(undo.dataset.undoEvent));
+        clearUndoWindow(undo.dataset.undoEvent);
         showToast("Undone");
       } else {
         return;
       }
-      renderCommitments();
+      renderTasks();
       renderMoney();
     });
 
@@ -1610,7 +1855,7 @@
       const obligationId = mileageObligationId;
       runDataChange(() => dataStore.updateMileage(obligationId, mileage, date));
       closeMileageEditor();
-      renderCommitments();
+      renderTasks();
       renderMoney();
       showToast("Mileage updated");
     });

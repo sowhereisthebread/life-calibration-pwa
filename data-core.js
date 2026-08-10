@@ -1,8 +1,14 @@
 (() => {
   "use strict";
 
-  const DATA_VERSION = 3;
-  const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3];
+  const DATA_VERSION = 5;
+  const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3, 4, 5];
+  // 有 Repeat 才是循環 Task；沒有 Repeat（none／舊 once）＝單次 Task，完成即結束。
+  const REPEAT_CYCLE_TYPES = ["monthly", "yearly", "after_days", "mileage"];
+  // Auto payment 是「依穩定規則自動發生」的財務規則，因此只認這三種週期。
+  const AUTO_PAYMENT_CYCLE_TYPES = ["monthly", "yearly", "after_days"];
+  // catch-up 的硬上限：壞資料造成 recurrence 不前進時的最後一道防線。
+  const AUTO_PAYMENT_MAX_CATCHUP = 600;
   const STARTING_BALANCE_MIGRATION = "v3-starting-balance-to-income";
   const DEFAULT_CATEGORY_NAMES = ["吃飯", "咖啡", "加油", "交通", "衣物", "生活", "醫療", "其他"];
   const DEFAULT_ACCOUNTS = [
@@ -164,29 +170,49 @@
     };
   }
 
+  function isRepeatCycle(cycleType) {
+    return REPEAT_CYCLE_TYPES.includes(String(cycleType || ""));
+  }
+
+  // 完成時的財務後果由前面的意圖唯一推導，不再是自由選單（架構.md 第三章）：
+  //   Auto payment（handling=auto）與循環 Task：有 Amount → expense。
+  //   沒有 Amount → 不記帳（規則尚未設定完成時不生成 $0 交易）。
+  //   單次 Task → 永遠不記帳，即使舊資料留著金額。
+  //
+  // 舊的 `transfer`（manual Card payment）於 v4 廢止，但**不做破壞性改寫**：
+  // 原值 `"transfer"` 原封不動留在 completionMode 當作一個惰性的 legacy 狀態，
+  // 使用者原本填的 `amount` 也完整保留。所有會產生後果的地方都只認 `"expense"`，
+  // 因此 legacy transfer 既不會變成 expense、也不會恢復生成移轉交易；
+  // 新 UI 沒有任何入口能再選到它，`taskEditorFields()` 也不對它顯示 Amount／Paid from。
+  // 這個策略可逆：使用者的原始值一直在資料與匯出檔裡，隨時能還原。
+  function isLegacyTransfer(obligation) {
+    return obligation?.completionMode === "transfer";
+  }
+
   function normalizeObligation(raw) {
     const handling = raw?.handling === "auto" ? "auto" : "manual";
-    const requestedCompletionMode = ["none", "expense", "transfer"].includes(raw?.completionMode)
-      ? raw.completionMode
-      : (numberOrNull(raw?.amount) === null ? "none" : "expense");
-    // 自動扣款永遠是刷卡支出；帳戶移轉只代表人工卡費繳款。
-    // 在正規化層收斂舊資料或繞過 UI 的非法 auto + transfer 組合，不新增 schema。
-    const completionMode = handling === "auto" ? "expense" : requestedCompletionMode;
+    const cycle = normalizeCycle(raw?.cycle);
+    // Auto payment 一律走推導路徑；legacy transfer 只可能是舊的 manual 卡費繳款。
+    const legacyTransfer = raw?.completionMode === "transfer" && handling !== "auto";
+    const amount = numberOrNull(raw?.amount);
+    const completionMode = legacyTransfer
+      ? "transfer"
+      : (amount !== null && (handling === "auto" || isRepeatCycle(cycle.type)) ? "expense" : "none");
+    const requestedPaymentMethod = ["card", "cash", "bank"].includes(raw?.paymentMethod) ? raw.paymentMethod : "";
     return {
       ...(raw && typeof raw === "object" ? raw : {}),
       id: String(raw?.id || uid("obligation")),
       name: String(raw?.name || "未命名待辦"),
-      cycle: normalizeCycle(raw?.cycle),
-      amount: numberOrNull(raw?.amount),
+      cycle,
+      amount,
       handling,
       completionMode,
+      // 付款來源**沒有預設值**：空字串代表使用者還沒選過。系統不替使用者猜要從哪個帳戶付錢。
+      // Auto payment 只支援 BANK／CARD；人工 Task 三種都可以。
+      // 舊資料若已是明確的合法值一律原樣保留，不得被清掉。
       paymentMethod: handling === "auto"
-        ? "card"
-        : ["card", "cash", "bank"].includes(raw?.paymentMethod)
-        ? raw.paymentMethod
-        : "bank",
-      transferFromAccountId: String(raw?.transferFromAccountId || "main"),
-      transferToAccountId: String(raw?.transferToAccountId || "card"),
+        ? (["bank", "card"].includes(requestedPaymentMethod) ? requestedPaymentMethod : "")
+        : requestedPaymentMethod,
       category: String(raw?.category || "其他"),
       status: ["active", "frozen", "archived"].includes(raw?.status) ? raw.status : "active",
       note: String(raw?.note || ""),
@@ -209,6 +235,8 @@
       obligationId: String(raw?.obligationId || ""),
       dueDate: validDateKey(raw?.dueDate) ? raw.dueDate : null,
       status: ["pending", "done", "auto-paid"].includes(raw?.status) ? raw.status : "pending",
+      // Pin 屬 occurrence 層：只繞過 Sleeping，不改 Due、不改提醒窗口、不代表 Priority。
+      pinned: raw?.pinned === true,
       completedAt: raw?.completedAt || null,
       actualAmount: numberOrNull(raw?.actualAmount),
       transactionId: String(raw?.transactionId || ""),
@@ -432,35 +460,92 @@
     return null;
   }
 
+  // ── Freeze / Unfreeze ────────────────────────────────────────────────
+  // Frozen ＝ 使用者主動 Pause，**不累積等待日後 catch-up 的欠處理期別**。
+  // Unfreeze ＝ 從現在恢復規則，不是補跑 Frozen 期間。
+  // 因此解凍時把已經落後的 pending occurrence 往前搬到第一個 >= today 的合法日期，
+  // 但保留原本的 calendar anchor（cycle.day／cycle.month），不重新定義規則本身。
+
+  function firstMonthlyOnOrAfter(todayKey, day) {
+    const today = dateFromKey(todayKey);
+    for (let step = 0; step <= 2; step += 1) {
+      const candidate = dateWithClampedDay(today.getFullYear(), today.getMonth() + step, day);
+      if (candidate >= todayKey) return candidate;
+    }
+    return dateWithClampedDay(today.getFullYear(), today.getMonth() + 1, day);
+  }
+
+  function firstYearlyOnOrAfter(todayKey, month, day) {
+    const today = dateFromKey(todayKey);
+    for (let step = 0; step <= 2; step += 1) {
+      const candidate = dateWithClampedDay(today.getFullYear() + step, month - 1, day);
+      if (candidate >= todayKey) return candidate;
+    }
+    return dateWithClampedDay(today.getFullYear() + 1, month - 1, day);
+  }
+
+  // 回傳解凍後這個 occurrence 應該落在哪一天。原本就還沒到期的一律不動。
+  function resumedDueDate(obligation, dueDate, todayKey) {
+    if (!validDateKey(dueDate) || dueDate >= todayKey) return dueDate ?? null;
+    const cycle = normalizeCycle(obligation?.cycle);
+    if (cycle.type === "monthly") return firstMonthlyOnOrAfter(todayKey, cycle.day);
+    if (cycle.type === "yearly") return firstYearlyOnOrAfter(todayKey, cycle.month, cycle.day);
+    if (cycle.type === "after_days") return addDays(todayKey, cycle.days);
+    // mileage 依既有里程語意，不做日期 catch-up；單次 Task 正常恢復，日期不動。
+    return dueDate;
+  }
+
+  function freezeObligation(inputState, obligationId, now = new Date()) {
+    const state = normalizeState(inputState);
+    const obligation = state.obligations.find(item => item.id === obligationId);
+    if (!obligation || obligation.status === "frozen") return { state, changed: false };
+    obligation.status = "frozen";
+    obligation.updatedAt = (now instanceof Date ? now : new Date(now)).toISOString();
+    return { state, changed: true };
+  }
+
+  function unfreezeObligation(inputState, obligationId, todayKey = localDateKey(), now = new Date()) {
+    const state = normalizeState(inputState);
+    const obligation = state.obligations.find(item => item.id === obligationId);
+    if (!obligation || obligation.status !== "frozen") return { state, changed: false };
+    obligation.status = "active";
+    obligation.updatedAt = (now instanceof Date ? now : new Date(now)).toISOString();
+    state.events.forEach(event => {
+      if (event.obligationId !== obligationId || event.status !== "pending") return;
+      event.dueDate = resumedDueDate(obligation, event.dueDate, todayKey);
+    });
+    return { state, changed: true };
+  }
+
   function ensureDay(state, dayKey) {
     if (!state.days[dayKey]) state.days[dayKey] = createEmptyDay();
     return state.days[dayKey];
   }
 
+  // 只有 expense 一種後果。BANK → CARD 的卡費移轉改由使用者直接在 MONEY 操作，
+  // TASKS 不再為 Card payment 保留 transfer 例外（架構.md 第四章）。
   function createLinkedTransaction(obligation, event, completedDateKey, amount) {
-    if (obligation.completionMode === "none") return null;
-    if (obligation.completionMode === "transfer") {
-      return normalizeTransaction({
-        id: uid("transaction"),
-        type: "transfer",
-        amount,
-        title: obligation.name,
-        fromAccountId: obligation.transferFromAccountId || "main",
-        toAccountId: obligation.transferToAccountId || "card",
-        eventId: event.id,
-        occurredOn: completedDateKey
-      }, completedDateKey);
-    }
+    if (obligation.completionMode !== "expense") return null;
+    // 沒有明確的付款來源就不生成交易。寧可少一筆帳，也不替使用者猜一個帳戶去扣款。
+    if (!obligation.paymentMethod) return null;
     return normalizeTransaction({
       id: uid("transaction"),
       type: "expense",
       amount,
       category: obligation.category || "其他",
       title: obligation.name,
-      paymentMethod: obligation.paymentMethod || (obligation.handling === "auto" ? "card" : "bank"),
+      paymentMethod: obligation.paymentMethod,
       eventId: event.id,
       occurredOn: completedDateKey
     }, completedDateKey);
+  }
+
+  // 這一期完成會產生 expense，但付款來源還沒設定時，**整個完成動作必須被擋下**。
+  // 不能讓 event 變成 done 卻靜默不記帳 —— 那會產生一筆做完了、錢卻沒進帳本的紀錄。
+  function completionBlockReason(obligation) {
+    if (obligation?.completionMode !== "expense") return "";
+    if (!obligation.paymentMethod) return "這筆有金額的循環項目還沒設定 Paid from；請先選付款來源再完成。";
+    return "";
   }
 
   function completeEvent(inputState, eventId, options = {}) {
@@ -469,6 +554,8 @@
     if (!event || event.status !== "pending") return { state, changed: false };
     const obligation = state.obligations.find(item => item.id === event.obligationId);
     if (!obligation) return { state, changed: false };
+    const blocked = completionBlockReason(obligation);
+    if (blocked) return { state, changed: false, blocked };
 
     const completedDateKey = validDateKey(options.completedDate) ? options.completedDate : localDateKey(options.now || new Date());
     const completedAt = options.completedAt || `${completedDateKey}T12:00:00`;
@@ -487,19 +574,20 @@
       }
     }
 
+    // 下一期永遠從 pinned=false 開始：本期的 Pin 不傳給下一期（架構.md 第三章）。
     const nextDueDate = nextOccurrenceDate(obligation, event, completedDateKey);
     if (["monthly", "yearly", "after_days"].includes(obligation.cycle.type)) {
       const nextEvent = normalizeEvent({ obligationId: obligation.id, dueDate: nextDueDate, status: "pending" });
       state.events.push(nextEvent);
       event.generatedEventId = nextEvent.id;
-    } else if (obligation.cycle.type === "none" || obligation.cycle.type === "mileage") {
-      if (obligation.cycle.type === "mileage") {
-        obligation.service.lastServiceMileage = obligation.service.currentMileage;
-      }
+    } else if (obligation.cycle.type === "mileage") {
+      obligation.service.lastServiceMileage = obligation.service.currentMileage;
       const nextEvent = normalizeEvent({ obligationId: obligation.id, dueDate: null, status: "pending" });
       state.events.push(nextEvent);
       event.generatedEventId = nextEvent.id;
-    } else if (obligation.cycle.type === "once") {
+    } else {
+      // 沒有 Repeat（none 與舊 once）＝單次 Task：完成後從 TASKS 消失且不再回來。
+      // No date 也不再是常駐 Task。完成歷史仍留在 events 與 transactions。
       obligation.status = "archived";
     }
     obligation.updatedAt = completedAt;
@@ -531,18 +619,42 @@
     return { state, changed: true };
   }
 
+  // 一筆 Auto payment 規則要能自動扣款，每一項必要資料都得由使用者明確設定：
+  // Amount（→ completionMode 才會是 expense）、recurrence、Paid from（BANK／CARD，
+  // 空字串＝還沒選）、Due（在 event 上判斷），以及規則本身仍然啟用。
+  // 任何一項缺席就整筆不處理：不生成 $0 交易、不猜付款來源、也不把期別白白滾掉。
+  function autoPaymentIsSchedulable(obligation) {
+    return Boolean(obligation)
+      && obligation.status === "active"
+      && obligation.handling === "auto"
+      && obligation.completionMode === "expense"
+      && ["bank", "card"].includes(obligation.paymentMethod)
+      && AUTO_PAYMENT_CYCLE_TYPES.includes(obligation.cycle?.type);
+  }
+
+  // 一次 run 追到第一個未到期的 occurrence 為止。
+  // 每完成一期就重新掃描目前 state，因此新生成的下一期同一輪就會被看見 ——
+  // 不用 filter().forEach() 的 stale snapshot。
+  // Auto payment 的交易日期取該期自己的 dueDate（不是開 App 那天）；
+  // 人工 Complete 仍由呼叫端傳入真正的完成日，不受這裡影響。
   function runAutoPayments(inputState, todayKey = localDateKey()) {
     let state = normalizeState(inputState);
     const completedEventIds = [];
-    state.events
-      .filter(event => event.status === "pending" && event.dueDate && event.dueDate <= todayKey)
-      .forEach(event => {
-        const obligation = state.obligations.find(item => item.id === event.obligationId);
-        if (!obligation || obligation.status !== "active" || obligation.handling !== "auto") return;
-        const result = completeEvent(state, event.id, { completedDate: todayKey, autoPaid: true });
-        state = result.state;
-        if (result.changed) completedEventIds.push(event.id);
-      });
+    for (let guard = 0; guard < AUTO_PAYMENT_MAX_CATCHUP; guard += 1) {
+      const due = state.events
+        .filter(event => event.status === "pending" && event.dueDate && event.dueDate <= todayKey
+          && autoPaymentIsSchedulable(state.obligations.find(item => item.id === event.obligationId)))
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+      if (!due) break;
+      const dueDate = due.dueDate;
+      const result = completeEvent(state, due.id, { completedDate: dueDate, autoPaid: true });
+      if (!result.changed) break;
+      state = result.state;
+      completedEventIds.push(due.id);
+      // 不前進的 recurrence 是壞資料：下一期沒有比本期晚就立刻停，別讓它繞成無限迴圈。
+      const generated = state.events.find(item => item.id === result.event.generatedEventId);
+      if (generated && generated.dueDate && generated.dueDate <= dueDate) break;
+    }
     return { state, completedEventIds };
   }
 
@@ -763,29 +875,106 @@
     return { rows, averageSleep: sleepCount ? Math.round(sleepTotal / sleepCount) : null, totalWork, totalExpense, recordedDays };
   }
 
-  function radarItems(state, todayKey = localDateKey()) {
-    const today = dateFromKey(todayKey);
-    const ahead = Math.max(0, Number(state.settings?.radarDays) || 7);
-    const items = [];
-    state.events.filter(event => event.status === "pending").forEach(event => {
-      const obligation = state.obligations.find(item => item.id === event.obligationId);
-      if (!obligation || obligation.status !== "active" || obligation.handling === "auto" || !event.dueDate) return;
-      const diff = Math.round((dateFromKey(event.dueDate) - today) / 86400000);
-      if (diff < 0) items.push({ kind: "overdue", priority: 0, diff, event, obligation });
-      else if (diff === 0) items.push({ kind: "today", priority: 1, diff, event, obligation });
-      else if (diff <= ahead) items.push({ kind: "soon", priority: 2, diff, event, obligation });
+  // ── 注意力分區 ────────────────────────────────────────────────
+  // 獨立的到期雷達已廢止：TASKS 主清單本身就是注意力入口。
+  // 主清單 ＝ 現在需要注意；SLEEPING ＝ 有效但還沒進提醒窗口；FROZEN ＝ 使用者主動 Pause。
+  // 提醒窗口沿用既有 settings.radarDays，不另建第二套 reminder days。
+
+  function reminderWindowDays(state) {
+    return Math.max(0, Number(state?.settings?.radarDays) || 0);
+  }
+
+  function daysUntil(dueDate, todayKey) {
+    return Math.round((dateFromKey(dueDate) - dateFromKey(todayKey)) / 86400000);
+  }
+
+  function isMileageObligation(obligation) {
+    return obligation?.cycle?.type === "mileage";
+  }
+
+  // Pin 只做一件事：繞過 Sleeping。不改 Due、不改窗口、不改排序語意。
+  // 里程義務一律以里程語意為準：即使 legacy／匯入的 JSON 在它的 event 上留了 dueDate，
+  // 也不得因此沉睡（雷達廢止後，這是它唯一的可見面）。
+  function occurrenceIsSleeping(event, todayKey, windowDays, obligation) {
+    if (isMileageObligation(obligation)) return false;
+    if (!event?.dueDate || event.pinned === true) return false;
+    return daysUntil(event.dueDate, todayKey) > windowDays;
+  }
+
+  // 里程義務沒有 Due，狀態改由主清單的摘要列承載（原本掛在雷達上）。
+  function mileageStatus(obligation, todayKey = localDateKey()) {
+    if (obligation?.cycle?.type !== "mileage") return "";
+    const service = obligation.service || {};
+    if (service.currentMileage !== null && service.lastServiceMileage !== null
+      && service.currentMileage - service.lastServiceMileage >= service.thresholdKm) return "service-due";
+    if (service.mileageUpdatedAt) {
+      const updatedKey = localDateKey(new Date(service.mileageUpdatedAt));
+      if (Math.floor((dateFromKey(todayKey) - dateFromKey(updatedKey)) / 86400000) > service.reminderDays) return "update-mileage";
+    }
+    return "";
+  }
+
+  // 注意力層級，數字越小越上面。這是舊雷達 priority 的接手者：雷達沒了，
+  // 但它承載的「誰需要現在動手」語意必須留在主清單的排序裡。
+  //   0 逾期
+  //   1 今日到期／該保養（service-due 與 Today due 同級）
+  //   2 提醒窗口內即將到期
+  //   3 一般無日期
+  //   4 更新里程（低強度，排在所有需要立即處理的項目之後）
+  const OCCURRENCE_RANK = { overdue: 0, today: 1, "service-due": 1, soon: 2, plain: 3, "update-mileage": 4 };
+
+  function occurrenceAttention(item, todayKey, windowDays) {
+    if (isMileageObligation(item.obligation)) {
+      return mileageStatus(item.obligation, todayKey) || "plain";
+    }
+    if (!item.event.dueDate) return "plain";
+    const diff = daysUntil(item.event.dueDate, todayKey);
+    if (diff < 0) return "overdue";
+    if (diff === 0) return "today";
+    return diff <= windowDays ? "soon" : "plain";
+  }
+
+  // 先比注意力層級，同級才比日期，最後才比名稱 ——
+  // 這樣一般無日期 Task 不會靠名稱排到 service-due 前面。
+  function compareOccurrences(a, b, todayKey, windowDays) {
+    const rank = OCCURRENCE_RANK[occurrenceAttention(a, todayKey, windowDays)]
+      - OCCURRENCE_RANK[occurrenceAttention(b, todayKey, windowDays)];
+    if (rank) return rank;
+    // 里程以里程語意為準，它的 legacy dueDate 不參與排序。
+    const aDue = isMileageObligation(a.obligation) ? "" : (a.event.dueDate || "");
+    const bDue = isMileageObligation(b.obligation) ? "" : (b.event.dueDate || "");
+    if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
+    if (aDue && !bDue) return -1;
+    if (!aDue && bDue) return 1;
+    return String(a.obligation.name || "").localeCompare(String(b.obligation.name || ""), "zh-TW");
+  }
+
+  function taskBuckets(state, todayKey = localDateKey()) {
+    const windowDays = reminderWindowDays(state);
+    const obligationsById = new Map((state?.obligations || []).map(item => [item.id, item]));
+    const active = [];
+    const sleeping = [];
+    (state?.events || []).forEach(event => {
+      if (event.status !== "pending") return;
+      const obligation = obligationsById.get(event.obligationId);
+      // Auto payment 不進 TASKS、不進 Sleeping；Frozen 不自動醒來。
+      if (!obligation || obligation.handling === "auto" || obligation.status !== "active") return;
+      const item = { event, obligation };
+      if (occurrenceIsSleeping(event, todayKey, windowDays, obligation)) sleeping.push(item);
+      else active.push(item);
     });
-    state.obligations.filter(item => item.status === "active" && item.cycle.type === "mileage").forEach(obligation => {
-      const service = obligation.service;
-      if (service.currentMileage !== null && service.lastServiceMileage !== null && service.currentMileage - service.lastServiceMileage >= service.thresholdKm) {
-        items.push({ kind: "service-due", priority: 1, obligation });
-      } else if (service.mileageUpdatedAt) {
-        const updatedKey = localDateKey(new Date(service.mileageUpdatedAt));
-        const diff = Math.floor((today - dateFromKey(updatedKey)) / 86400000);
-        if (diff > service.reminderDays) items.push({ kind: "update-mileage", priority: 3, obligation, diff });
-      }
-    });
-    return items.sort((a, b) => a.priority - b.priority || String(a.event?.dueDate || "").localeCompare(String(b.event?.dueDate || "")));
+    const byAttention = (a, b) => compareOccurrences(a, b, todayKey, windowDays);
+    const frozen = (state?.obligations || [])
+      .filter(item => item.status === "frozen" && item.handling !== "auto")
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-TW"));
+    return { active: active.sort(byAttention), sleeping: sleeping.sort(byAttention), frozen };
+  }
+
+  // Auto payment 已移出 TASKS，改由 MONEY 承載；含 frozen 以便在 MONEY 內解凍。
+  function autoPaymentRules(state) {
+    return (state?.obligations || [])
+      .filter(item => item.handling === "auto" && item.status !== "archived")
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "zh-TW"));
   }
 
   function csvEscape(value) {
@@ -887,7 +1076,21 @@
     workMinutes,
     reviewDateKeys,
     summarizeReview,
-    radarItems,
+    isRepeatCycle,
+    isLegacyTransfer,
+    isMileageObligation,
+    completionBlockReason,
+    resumedDueDate,
+    freezeObligation,
+    unfreezeObligation,
+    reminderWindowDays,
+    daysUntil,
+    occurrenceIsSleeping,
+    occurrenceAttention,
+    mileageStatus,
+    taskBuckets,
+    autoPaymentRules,
+    autoPaymentIsSchedulable,
     csvEscape,
     buildCsv,
     formatMinutes

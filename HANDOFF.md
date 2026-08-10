@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（TASKS secondary action grid scope 修正已合併並完成規劃端驗收）
+更新：2026-08-10（TASKS × MONEY 核心邏輯重構完成，待 Tako 驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -53,19 +53,69 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 - **已授權，直接施工**：顏色、視覺、材質、UI、UX、頁面配置、介面文字。
 - **不在授權範圍**：資料模型、義務／事件結構、記帳規則、狀態機行為。動這些要先取得 Tako 裁決。
-- `data-store.js` 自視覺改版起全程未動。
+- 2026-08-10 的 TASKS × MONEY 重構是 Tako 明確交辦的產品邏輯變更，因此資料模型、狀態機與記帳規則本輪**已獲授權變更**；該次交辦以外的部分，上面兩條照舊。
 
 ---
 
 ## 1. 現行工程狀態
 
-- **功能版本號為 `0.6.2`**（Calendar Repeat 的 UI editing semantics 是正式產品行為變更）、正式 `master` 的**資產版本號為 `0.4.14`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 111／111 全綠。**
-- 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #12 已合併，merge commit 為 `724dbdaf8921ac2eda1cb77dd222eb9afc2b2bd0`；TASKS secondary action grid scope 修正與資產 `0.4.14` 已進正式 `master`。共用 `.task-actions-secondary` 不再指定 named grid area，只有 `.task-actions > .task-actions-secondary` 使用 `grid-area: secondary`；Auto payment／Frozen／Books 回到自然 grid placement。`app.js`、`data-core.js`、`data-store.js` 未修改。
-- Calendar Repeat 的 Monthly／Yearly 以 Due 為唯一 UI source of truth，不再顯示 Repeat day／Cycle day／Cycle month。使用者新建、切換進 calendar repeat 或真正修改 Due 時，分別同步內部 `cycle.day` 或 `cycle.month + cycle.day`；編輯器開啟後未修改系統 clamp 產生的 Due 時，既有 anchor 原樣保留。短月與閏年只改當期生成結果，不重新定義 anchor；`nextOccurrenceDate()`、schema v3、localStorage key 與 JSON 格式均未改。
+- **功能版本號為 `0.7.0`**（TASKS × MONEY 核心邏輯重構是正式產品行為變更）、**資產版本號為 `0.4.15`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 157／157 全綠。**
+- 頂層五頁維持 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 仍以單一 ICE 主卡在 WORK 的 SESSIONS 後、SLEEP 前。
+  - MONEY 依序為 QUICK ADD／ACCOUNTS／SPENT／**AUTO PAYMENTS**／RECENT。
+  - TASKS 依序為 **TO-DO／SLEEPING／FROZEN／BOOKS**；RADAR 與 AUTO PAYMENT 兩個區段已從 TASKS 移除。
+
+### 1.0 TASKS × MONEY 重構（本輪）
+
+產品條文全部寫進 repo 外的 `TAKO_架構.md`（第二、三、四、五章），本節只記工程現況：
+
+- **schema v3 → v5**，`SUPPORTED_IMPORT_VERSIONS` 為 `[1,2,3,4,5]`。沒有新資料表、沒有 Draft schema，只有兩處：
+  - v4：occurrence 層新增 `event.pinned`（boolean，預設 `false`）。
+  - v5：`obligation.paymentMethod` 對 **auto** 允許空字串＝「使用者尚未選擇付款來源」。這不是新欄位，是既有欄位新增一個合法值。
+- **migration 全部落在 `normalizeObligation()`／`normalizeEvent()`，天然 idempotent**，不需要 marker：
+  - 舊 JSON 缺 `pinned` 一律補 `false`。
+  - `handling: "auto"`：`bank`／`card` 視為使用者已明確選擇並原樣保留；`cash`（auto 不支援）與缺值一律回到 `""`＝未選，**不猜成 card**。人工 Task 的 `bank` 預設不變。
+  - `completionMode: "transfer"` → **不改寫**，見下一條。
+- **legacy transfer 的相容策略：惰性 legacy 狀態，零破壞。** 舊值 `"transfer"` 原封不動留在 `completionMode` 當作它自己的狀態，`amount` 也完整保留；`isLegacyTransfer()` 是它的判別式。所有會產生後果的地方（`createLinkedTransaction`、`runAutoPayments`）都只認 `"expense"`，因此它既不會變成 expense、也不會恢復生成移轉交易。`taskEditorFields()` 對它關掉 Amount 與 Paid from，避免出現一個看起來能用、實際上不生交易的欄位。**不使用名稱／狀態等 heuristic 猜哪一筆是 Card payment**，所有 legacy transfer 一視同仁。原始值一直在資料與匯出檔裡，處理可逆。
+  - `handling: "auto"` 的資料一律走推導路徑，不會被誤判為 legacy transfer。
+- **`completionMode` 對非 legacy 資料完全是推導結果**：`amount !== null && (handling === "auto" || isRepeatCycle(cycle.type))` 才是 `expense`，否則 `none`。UI 沒有任何入口能寫它。
+- **`cycle.type === "none"` 現在是終止型**：完成即封存，不再生成下一期無日期 occurrence。`"once"` 仍被 schema 接受，行為與 `none` 相同，UI 兩者都顯示為 `No repeat`，儲存一律寫 `none`。
+- `data-core.js` 移除 `radarItems()`，改為 `taskBuckets()`／`occurrenceIsSleeping()`／`occurrenceAttention()`／`mileageStatus()`／`autoPaymentRules()`／`autoPaymentIsSchedulable()`／`reminderWindowDays()`／`daysUntil()`／`isRepeatCycle()`／`isLegacyTransfer()`／`isMileageObligation()`。SLEEPING 沿用既有 `settings.radarDays`，**沒有第二套 reminder days**。
+- `data-store.js` 移除 `assertUniqueTransferObligation()`（單一移轉義務限制隨 Card payment 舊規則一起廢止）；`updateEvent()` 新增 `pinned`，且維持「只有 pending occurrence 能改」。
+
+#### Auto payment 的排程與 catch-up
+
+- **建立時不猜任何日期**：新建規則 `cycle.type = "none"`、`event.dueDate = null`、`amount = null`。Repeat 選單多一個空的佔位選項，選它不寫入任何東西。摘要顯示 `Not scheduled`。
+- `autoPaymentIsSchedulable()` 是唯一的成立判準：`status === "active"` ＋ `handling === "auto"` ＋ `completionMode === "expense"`（＝有 Amount）＋ `paymentMethod ∈ {bank, card}` ＋ `cycle.type ∈ {monthly, yearly, after_days}`。任何一項缺席就整筆不處理。`createLinkedTransaction()` 另有一道防線：付款來源為空一律不生成交易。
+  - **Paid from 也是硬 gate**（v5）。`paymentMethod` 對 auto 允許空字串，空＝未選，`autoPaymentIsSchedulable()` 直接擋掉。三態（未選／CARD／BANK）落在 localStorage 與匯出 JSON 裡，reload 與 import 之後仍分得出來，不靠任何 session memory。
+  - **人工 Task 的 Paid from 同樣沒有預設值**（v5）。舊版 Quick Task 建立時傳 `bank`、normalize 缺值也 fallback `bank`，等於系統替使用者選了付款來源；現在一律留空。有 Amount 的循環 Task 在來源未選前，`completionBlockReason()` 會擋下**整個完成動作**（`completeEvent()` 回 `{ changed:false, blocked }`），occurrence 維持 pending，UI 顯示中文提示。**不是只讓 `createLinkedTransaction()` 回 null** —— 那會留下 event 已 done、帳卻沒記的紀錄。
+  - **建立時 `paymentMethod` 必須傳空字串。** 傳 `"card"` 會被正規化層當成「使用者明確選過」，於是要 BANK 的規則先扣到 CARD —— 這個 bug 在本輪的 Browser smoke 實際重現過（4 期 × $30,000 扣進 CARD），單元測試抓不到，因為它們直接建 obligation、繞過建立流程。`test.html` 已加一條原始碼斷言擋住 `paymentMethod: "card|bank|cash"` 重新出現在建立流程裡。
+- **`runAutoPayments()` 改成迴圈，不再是 `.filter().forEach()` 的 stale snapshot**：每完成一期就重新掃描目前 state，因此新生成的 occurrence 同一輪就會被看見。多筆 obligation 同時多期逾期一併追完。
+- **Auto payment 的交易日期取該期自己的 `dueDate`**（`completeEvent(..., { completedDate: dueDate })`）；**人工 Complete 仍由呼叫端傳真正的完成日**，不受影響。
+- 兩道 infinite-loop 防護：硬上限 `AUTO_PAYMENT_MAX_CATCHUP = 600`，以及「下一期沒有比本期晚就立刻停」的 non-advancing 檢查。實測 100 年份的月繳規則在 437ms 內收斂於 600 期並正常回傳。
+- 使用者在 MONEY 補齊規則後，`change` handler 會就地再跑一次 `runAutoPayments(todayKey)`，**本 session 就處理掉已到期的期別，不必等 reload**。處理本身 idempotent，每次欄位變更都跑也不會重複。
+
+#### Freeze / Unfreeze
+
+- 資料行為集中在 `core.freezeObligation()` / `core.unfreezeObligation()` 與對應的 store 方法，**不再由兩個 UI click handler 各自改 `status`**。
+- **Frozen 期間不累積欠期。** Unfreeze 時 `resumedDueDate()` 會把已落後的 pending occurrence 搬到第一個 ≥ today 的合法日期：monthly／yearly 保留 calendar anchor 只換期別，after_days 從解凍當天重新起算，mileage 與單次不動。原本就還沒到期的一律不搬。
+- 沒有這一步的話，新的 catch-up engine 會把整段冷凍期補成歷史支出 —— 那正好與「Frozen ＝ 使用者主動 Pause」相反。
+- Unfreeze 後若新 Due 剛好等於今天，MONEY 的 handler 會在同一 session 跑一次 `runAutoPayments`；冷凍期間仍然一筆都不補。
+
+#### Undo queue
+
+- `createUndoQueue()`（`LifeCalibrationTaskUX`）以**到期時間戳**判定而非單一 timer，因此每一次 Complete 都有自己的 10 秒窗口，後一筆不覆蓋前一筆。時鐘可注入，測試不必真的等 10 秒。
+- app 端每筆各排一個 `setTimeout` 只負責觸發重繪；是否仍可 Undo 一律以 queue 的時間戳為準。
+- Undo 只回滾自己那一筆（`undoEvent(eventId)` → `core.undoEventCompletion`），實測 A／B 互不影響。
+- `app.js`：`renderRadar()`／`renderCommitments()`／`openObligationEditor()`／`resolveObligationFormMode()`／集中式 `#obligation-form` 全部刪除，改為 `renderTasks()` ＋ `renderAutoPayments()` ＋ 每一列自己的 `taskEditorMarkup()`。`LifeCalibrationObligationUX` 換成 `LifeCalibrationTaskUX`（`taskEditorFields`、`UNDO_WINDOW_MS`）。
+- **inline 編輯的寫入節奏**：`input` 只寫值不重繪（保住游標），`change` 才重繪；`cycle` 與 `dueDate` 只在 `change` 寫入，因為它們會重設 recurrence anchor 與分區。
+- **Mileage → Monthly／Yearly 的死結已解**：`showDue` 對 mileage 是 false，舊版又在切換當下就要求 Due，於是使用者沒有任何路徑可以先填 Due。現在沒有 Due 時切到 Monthly／Yearly 會**先把週期切過去**（Due 欄位因此出現）並提示補 Due，使用者填了 Due 才由 `calendarRepeatCycleState()` 定 anchor。不猜日期，也不把人鎖在原本的週期裡。
+- **Undo 窗口只存在記憶體**，10 秒後只是 UI 消失，完成歷史仍在 `events`／`transactions`。回滾直接沿用既有的 `core.undoEventCompletion()`。
+- **里程注意力**：`occurrenceAttention()` 給出 0 逾期／1 今日到期與 service-due／2 即將到期／3 一般無日期／4 update-mileage 的層級，`compareOccurrences()` 先比層級再比日期最後比名稱，所以一般無日期 Task 不會靠名稱排到 service-due 前面。`occurrenceIsSleeping()`、`taskStateClass()`、`taskDueLabel()` 都先判斷 `isMileageObligation()`，legacy／匯入資料在 mileage event 上留的 dueDate 既不會讓它沉睡，也不會用 Due label 蓋掉 mileage status。service-due 與今日到期共用同一條 `--ink` 規則，沒有新色。
+- CSS 刪除整個 `.radar*` 區塊、`.task-actions`（wrapper 已不存在，連帶 PR #12 的 `grid-area: secondary` scope 修正一併退役）、`.obligation-form`、`.transfer-summary`、`.mileage-fields`、`.no-date-group`、`.task-main`、`.task-item.is-done`、`.obligation-mode-help`、`.task-actual`。新增 `.task-head`、`.task-pin`、`.task-undo-row`、`.task-mileage`、`.sleeping-section`／`.sleeping-group`、`.auto-payment-group`／`.auto-payment-body`。沒有新 token、沒有新色。
+- Calendar Repeat 的 Monthly／Yearly 以 Due 為唯一 UI source of truth，不再顯示 Repeat day／Cycle day／Cycle month。使用者新建、切換進 calendar repeat 或真正修改 Due 時，分別同步內部 `cycle.day` 或 `cycle.month + cycle.day`；編輯器開啟後未修改系統 clamp 產生的 Due 時，既有 anchor 原樣保留。短月與閏年只改當期生成結果，不重新定義 anchor；`nextOccurrenceDate()`、localStorage key 與 JSON 格式均未改（schema 已於本輪升為 v5，見第 1.0 節）。
 - MONEY 的 RECENT 只顯示含今天在內最近 7 個日曆日；更舊交易依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY。RECENT／WEEKLY HISTORY／FUTURE 共用同一套 transaction editor；Date 資料與原生 input value 維持 `YYYY-MM-DD`，可見介面固定顯示 `YYYY/MM/DD`，並由 transaction 專用 wrapper 限制 iOS 原生 input 的 intrinsic width。日期變更後仍由 `occurredOn` 重新歸組；沒有 schema、刪除、匯出入、帳務或統計規則變更。
-- TASKS 的人工完成入口（RADAR 與 TO-DO expanded）維持 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。`Update mileage`、completion handler、recurrence、MONEY transaction、Done／Undo 與 schema 都未變。
+- TASKS 的人工完成入口維持 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。本輪把它從展開層移到**收合列**（雷達刪掉後那是唯一的一鍵完成入口），`Update mileage`、completion handler、recurrence 與 MONEY transaction 邏輯未變。
 - 同引擎 390×844 實測證明：最新 master 的 GROUND、ICE、GLASS、DEBOSS、ACT token 與 computed style 已對齊 Design 5a，GROUND 四點逐像素相同或只差 1 RGB；偏暖不是色票或 body 合成座標造成。
 - 可重現根因是舊 Service Worker／HTTP cache 混用資產：正式 GitHub Pages 的 `style.css` 為未版本化 URL，且回應 `Cache-Control: max-age=600`。現改為 `style.css?v=0.4.9`，與 cache／app 版本共用同一鍵；舊 origin 已實測由 `0.4.8` 更新到 `0.4.9`，離線 warm-cache 與新分頁啟動都成功。
 - Tako 已在 iPhone 真機確認銀灰頁面捲動正常，沒有背景跳動或接縫；`backdrop-filter` 與 fixed background 的捲動風險不再是 blocker。顏色後續主觀微調另案處理，不影響本輪 checkbox 驗收。
@@ -73,9 +123,21 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 ### 驗收怎麼做的
 
 - 環境：本機 `python -m http.server` + Browser runtime，非 `file://` 直開；Service Worker 測試要使用乾淨 origin，避免舊 localhost 快取混入不同資產版本。
+- **改完 `app.js` 後要重新驗證 runtime 時，`?v=` 沒跳號就會吃到瀏覽器 HTTP cache**，看起來像修改沒生效。本輪用一個加 `Cache-Control: no-store` 的臨時 `http.server` handler 跑第二輪驗證。這一步踩過一次，不要再花時間 debug 幻影。
 - 五個分頁 × 320／375／390／393／820 px 共 25 組：console 無 error、無水平捲動、bottom nav 五格完整。
-- TASKS secondary action scope 修正另以 320／375／390／393／820 px 實測：TO-DO completion checkbox 維持 44×44px hit target／21×21px visible box 與既有同列排列；Auto payment／Frozen／Books 的 actions computed `grid-area` 為 `auto`，metadata／fields 仍在 actions 前；completion、Done、Undo 操作正常，五頁全寬度無水平 overflow、console error 為 0。selector regression test 已加入 `test.html`。
-- TASKS completion checkbox 另以 320／375／390／393／820 px 實測：RADAR 與 TO-DO expanded 的按鈕皆為 44×44px、可見框 21×21px、沒有可見 `Mark done`，`Update mileage` 保留，五個寬度皆無水平 overflow。月循環完成後下一期、MONEY 交易、Done 與 Undo 已逐步操作通過，console error 為 0。
+- TASKS × MONEY 重構的 runtime 驗證（390×844 為主，五寬度掃描）：
+  - Quick add 只填名稱 → 不自動開 editor、輸入框清空、直接列在主清單；點 item 一次就進入可編輯狀態。
+  - Progressive disclosure 實測欄位：單次 `name/cycle/dueDate/note`、循環無金額多 `amount`、循環有金額再多 `paymentMethod`、mileage 換成里程欄位、after_days 出現 interval。
+  - SLEEPING：`today+45` 進 SLEEPING、`today+3` 留主清單；Pin 遠期 → 回主清單且 Due 與 `radarDays` 不變、`aria-pressed="true"`；Unpin → 回 SLEEPING。把主清單某列的 Due 改遠 → 該列即時沉睡，且因為它正被編輯，SLEEPING 區段自動展開。
+  - Complete／Undo：循環財務 Task 完成 → 生成 13965 BANK expense ＋ 下一期 `pinned:false`；`Completed · UNDO` 出現，10 秒後自動消失但 `events` 內完成歷史仍在；按 UNDO → 交易移除、下一期撤銷、`transactionId`／`generatedEventId` 清空、孤兒連結為 0。
+  - Card payment 完成 → 0 筆新交易、0 筆 transfer、下一期照生。單次 Task 完成 → obligation `archived`、pending 0、done 歷史保留。
+  - Frozen → 不在主清單、不在 SLEEPING、`runAutoPayments` 不產生交易；展開後仍可編輯，操作只有 Unfreeze／Archive；Unfreeze 回主清單。
+  - MONEY AUTO PAYMENTS：DOM 順序實測 `SPENT → AUTO PAYMENTS → RECENT`，`<details>` 預設收合；第一層展開只有清單，點某一筆才出現 editor；Repeat 只有 monthly／yearly／after_days、Paid from 只有 bank／card、沒有 Handling／When done、沒有 Complete。到期自動轉 Auto-paid 並生成 card expense，`AUTO` 標記只在交易列。
+  - 舊資料相容：以含 `manual + transfer` Card payment、已完成 event 與 transfer transaction 的 v3／v4 JSON 實跑 —— 歷史交易與 done event 逐欄位不變、帳戶餘額不變、legacy transfer 的 `completionMode` 與 `amount` 原封不動保留成惰性狀態、所有 event 補上 `pinned: false`、既有明確 `card`／`bank` 的 auto payment 仍有效、版本升為 5。
+  - 匯出／匯入 round trip：`version: 5`、`pinned` 進 JSON 也進 CSV、付款來源的未選／BANK／CASH／CARD 四態 re-import 後完全一致，events／obligations／transactions 數量與 pinned 標記亦一致。
+  - Regression：MONEY quick entry 新增一筆後餘額正確（main +42000／cash −120／card −1043）、SPENT 更新、RECENT 與 WEEKLY HISTORY 正常、transaction 可編輯、reload 後狀態不變、SW 以 `life-calibration-v0.4.15` 註冊且 app shell 全部進 warm cache。
+  - 觸控命中區：completion checkbox 與 Pin 在 320px 實測皆為 44×44px。
+- TASKS completion checkbox 以 320／375／390／393／820 px 實測：收合列上的按鈕皆為 44×44px、可見框 21×21px、沒有可見 `Mark done`，`Update mileage` 保留，五個寬度皆無水平 overflow。月循環完成後下一期、MONEY 交易與 10 秒 Undo 已逐步操作通過，console error 為 0。
 - Calendar Repeat 以 TASKS runtime 實際驗證 New／Existing Monthly、31 日短月 unchanged-save、Yearly re-anchor、缺 Due 中文阻擋、After N days 與 Auto payment；Auto-paid transaction 與下一期均保留。375／390／393 px 不顯示手動 anchor 欄位、水平 overflow 為 0、console error 為 0。
 - MONEY history 以含 RECENT／WEEKLY HISTORY／FUTURE 的實際 transaction fixture 驗證；375／390／393 px 共 9 個 transaction Date control 均顯示 `YYYY/MM/DD`、高度 44px、wrapper 與整頁水平 overflow 為 0，透明原生 input 仍為 `display:block`、`pointer-events:auto`。直接頁面把 `2026-08-03` 改為 `2026-08-10` 後移入 RECENT，再改為 `2026-08-20` 後移入 FUTURE；console error 為 0。
 - **寬度掃描一律要納入 390 與 393** —— 那是 iPhone 14／15／16（390）與 15 Pro／16 Pro（393、402）的實際寬度。批次 A 之前只掃 320／375／820，正好漏掉這一段。
@@ -86,20 +148,15 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 - **弱網啟動**：根因是舊 Service Worker 對所有 GET 採沒有 timeout 的 network-first；裝置仍顯示有網路但 request stalled 時，快取永遠輪不到。現行策略只對 App 入口 navigation 與版本化 app shell 採 cache-first；`style.css` 與 `app.js` 都帶資產版本 query，其他請求保留 3 秒 bounded network-first。新 `CACHE_NAME` 安裝時仍重建完整 app shell，舊 cache 由 activate 清掉，不會把新版本永久鎖死。`test.html` 不是 App 入口，不會被離線 navigation fallback 誤導到 `index.html`。
 - **Safe Delete**：只有「所有相關事件皆為 pending，且沒有 event／transaction 連結歷史」的 obligation 可永久刪除；刪除時只移除 obligation 與其 pending events。done、auto-paid 或任何 linked MONEY transaction 一律阻止 hard delete，介面不顯示 Delete 並保留 Archive。判斷與刪除都在 `data-core.js`／`data-store.js`，不只靠 DOM。
-- **Card payment / Auto payment**：Card payment 維持唯一一筆未封存的 manual transfer（主帳戶 → 信用卡）；Auto payment 正規化為 `handling=auto`、`completionMode=expense`、`paymentMethod=card`，可建立多筆。非法 Auto + Transfer 在 UI 與資料正規化層都會收斂；第二筆 Card payment 由資料層與中文錯誤訊息阻止。
-- **Auto payment 區**：TASKS 內的獨立區段只列 active automatic obligations；人工 dated／later／no-date TO-DO 不再重複列出。展開後可 Edit／Freeze／Archive，無歷史時才可 Safe Delete；最近一次 Auto-paid 日期／金額由既有 event 與 transaction 推導，沒有新增重複資料。
-- **資料模型**：schema 仍為 v3，`DATA_VERSION` 未變；MONEY 仍是 accounting 正典。多筆同日 Auto payment 各自生成 transaction、event link 與下一期 recurrence，交易 title 保留 obligation name。
-- **驗證**：PR #5 基線原有 regression 92／92；本次 IA 加測後為 95／95，四個 JS 檔 `node --check` 通過。弱網驗證數據維持：正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。
-- **功能版本已定案**：Tako 已裁決問題回報區功能版本為 `0.6.0`；PR #5 當時資產版為 `0.4.7`，本次 IA 因修改 JS／CSS 依規則升為 `0.4.8`。
-- **架構文件**：repo 外正式 `TAKO_架構.md` 已同步第二章 TASKS 的 Auto payment 獨立區、第三章 obligation/event（Safe Delete）及第四章自動扣款／卡費模型的現行條文。
+- **Card payment / Auto payment**：這兩條的舊規則已於 2026-08-10 的重構整段取代，現況只看第 1.0 節與 `TAKO_架構.md` 第四章，不要引用本節的舊描述。
+- **多筆 Auto payment**：同日多筆各自生成 transaction、event link 與下一期 recurrence，交易 title 保留 obligation name。這一條仍然成立。
+- **弱網驗證數據**：正常 online 170ms、warm-cache origin 不可達 115ms、伺服器每次 GET 延遲 20 秒時兩次啟動 127ms／125ms。
 
 ### 1.2 頂層 IA 重構現況
 
 - `page-projects`／`data-page="projects"`／第三格 `PROJ` 已退役，現為 `page-tasks`／`data-page="tasks"`／第三格 `TASKS`。
-- `setPage("work")` 的責任是 `renderToday()` + `renderProjects()`；`setPage("tasks")` 只呼叫 `renderCommitments()`。Project CRUD 與 commitment renderer 仍彼此獨立。
+- `setPage("work")` 的責任是 `renderToday()` + `renderProjects()`；`setPage("tasks")` 只呼叫 `renderTasks()`；`setPage("money")` 的 `renderMoney()` 內含 `renderAutoPayments()`。Project CRUD 與 task renderer 仍彼此獨立。
 - WORK 的 PROJECTS 主卡保留 ACTIVE／PAUSED、New project、Project form、收合／展開與 Delete；內層 form 和 expanded details 不再套第二張 `.card`。
-- Browser 已實際驗證 PROJECTS 新增／修改／PAUSED／Delete，以及 TASKS 的 RADAR／TO-DO／Mark done／Undo／AUTO PAYMENT／FROZEN／BOOKS。
-- schema 仍為 v3，沒有 migration；`data-core.js`／`data-store.js` 本次未修改。
 
 ---
 
@@ -161,6 +218,9 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 | 2 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
 | 3 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
 | 4 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
+| 5 | **Auto payment 的封存規則沒有專屬入口** | 本輪未做，刻意 | Auto payment 的 Archive 會讓它從 MONEY 的 AUTO PAYMENTS 消失，但 App 內沒有任何地方列出 archived 規則。既有 obligation 就是這個行為，本輪不擴張；若 Tako 需要「看得到封存的自動扣款」再另案 |
+| 6 | **本輪的 iOS 實機確認** | 待 Tako 實機 | Pin（10px 刻字 + 44px 命中區）、收合列的三段式 `.task-head`、SLEEPING／AUTO PAYMENTS 的 `<details>` 都只在本機 Chrome 量過。第 6 節那條「原生控制項與觸控只有實機能判定」同樣適用 |
+| 7 | **legacy transfer 規則沒有「轉成一般循環支出」的出口** | 刻意，待 Tako 裁決 | 舊 transfer 規則永久保持惰性、Amount 保值但不在 editor 顯示。若 Tako 想把某一筆改回會記帳的循環 Task，目前只能刪掉重建。給出口就要決定「怎樣算使用者明確要求轉換」，那是新的產品判斷，本輪不自行決定 |
 
 ---
 
@@ -264,3 +324,4 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - `.status-pill` 已於 2026-08-06 改名為 `.status-indicator`（`style.css`、`index.html`、`app.js` 三處引用全數更新，全 repo 程式碼零殘留）。它沒有容器，只有一顆 9px 琥珀珠加等寬小字，架構.md 第五章又明訂「狀態指示不是 chip」，所以不叫 pill 也不叫 chip。`classList.toggle("is-running")` 的行為與視覺都未改動。
   封存的 `_archive/SPEC.md` 仍有舊名，那是封存檔，不是現行入口，刻意不動。
 - `.card-accent`（`style.css`）在 HTML 中已無元素套用，CSS 規則保留為無作用的中性值，未清掉。
+- `obligation.transferFromAccountId`／`transferToAccountId` 在 2026-08-10 後已無任何讀取點（transfer 型完成已廢止），但 `normalizeObligation()` 的 `...raw` spread 仍會把舊資料的這兩個欄位原樣帶著走。**這是刻意的無損保留**，不是遺漏；不要為了「清乾淨」而在 migration 裡刪掉使用者既有 JSON 的欄位。
