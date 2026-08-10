@@ -1,10 +1,10 @@
-# TAKO v0.6.0｜現行狀態
+# TAKO v0.6.1｜現行狀態
 
 更新：2026-08-10
 
 ## 版本與 Git
 
-- 功能版本：**`0.6.0`**；本輪新增可見產品行為，但依規則留待 Tako／GPT 在 Draft PR 驗收時裁決，施工階段未自行升版。
+- 功能版本：**`0.6.1`**；Tako／GPT 已裁決 MONEY WEEKLY HISTORY 與 Date 重新歸組屬可見產品行為，因此由 `0.6.0` 升版。
 - 資產版本：**`0.4.11`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
 - 施工分支：`codex/money-weekly-transaction-history`；基線為最新 `master`：`942f17ba07ec968e2cad4584aea7e20a78f96b53`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。

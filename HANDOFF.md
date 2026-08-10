@@ -59,7 +59,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號維持 `0.6.0`**（`index.html` 頁首）、本任務 branch 的**資產版本號為 `0.4.11`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **功能版本號為 `0.6.1`**（`index.html` 頁首；Tako／GPT 已裁決本輪可見產品行為升版）、本任務 branch 的**資產版本號維持 `0.4.11`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
 - **`test.html` 102／102 全綠。**
 - 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
 - PR #8 已合併，merge commit 為 `942f17ba07ec968e2cad4584aea7e20a78f96b53`；TASKS completion checkbox 與資產 `0.4.10` 已進 `master`。本輪分支 `codex/money-weekly-transaction-history` 以該 commit 為基線，尚未 merge 或部署。
