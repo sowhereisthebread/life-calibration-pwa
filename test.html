@@ -28,6 +28,7 @@
         const MonthlyUX = window.LifeCalibrationMonthlyRepeatUX;
         const ObligationUX = window.LifeCalibrationObligationUX;
         const MoneyHistoryUX = window.LifeCalibrationMoneyHistoryUX;
+        const TransactionDateUX = window.LifeCalibrationTransactionDateUX;
         const results = [];
 
         function test(name, action) {
@@ -182,6 +183,50 @@
           if (!app.includes('data-transaction-field="occurredOn"')) throw new Error("history editor 缺少 Date 欄位");
           if (!app.includes('class="weekly-history-group"') || !app.includes("transactionDaysMarkup(week.transactions")) throw new Error("weekly group 未重用日／交易 renderer");
           if (!app.includes('class="auto-tag"') || !app.includes("RuntimeCore.transactionDisplayName(transaction)")) throw new Error("AUTO 或 expense display title 遺失");
+        });
+        test("transaction Date formatter 固定輸出 YYYY/MM/DD 且拒絕非法 date key", () => {
+          equal(TransactionDateUX.formatDateInputDisplay("2026-08-03"), "2026/08/03");
+          equal(TransactionDateUX.formatDateInputDisplay("2026-02-29"), "");
+          equal(TransactionDateUX.formatDateInputDisplay("03/08/2026"), "");
+        });
+        test("transaction Date 將固定顯示與原生 date input 分離", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./app.js?test=ios-transaction-date", false);
+          request.send();
+          const app = request.responseText;
+          const start = app.indexOf("function transactionMarkup");
+          const end = app.indexOf("\n  function transactionDaysMarkup", start);
+          const source = app.slice(start, end);
+          [
+            'class="transaction-date-control"',
+            'class="transaction-date-display" aria-hidden="true"',
+            'type="date"',
+            'value="${escapeHtml(occurredOn)}"',
+            'data-transaction-field="occurredOn"',
+            'aria-label="Date"',
+            "formatDateInputDisplay(occurredOn)"
+          ].forEach(rule => {
+            if (!source.includes(rule)) throw new Error(`transaction Date markup 缺少：${rule}`);
+          });
+          if (source.includes("formatDisplayDate(occurredOn)") || source.includes("toLocaleDateString")) {
+            throw new Error("transaction Date visible display 仍依賴 locale formatter");
+          }
+        });
+        test("transaction Date CSS containment 保留透明原生互動層", () => {
+          const request = new XMLHttpRequest();
+          request.open("GET", "./style.css?test=ios-transaction-date", false);
+          request.send();
+          const css = request.responseText;
+          const wrapper = css.match(/\.transaction-date-control\s*\{([^}]*)\}/s)?.[1] || "";
+          ["position: relative", "width: 100%", "min-width: 0", "max-width: 100%", "height: 44px", "min-height: 44px", "overflow: hidden", "box-sizing: border-box"].forEach(rule => {
+            if (!wrapper.includes(rule)) throw new Error(`transaction Date wrapper 缺少：${rule}`);
+          });
+          const input = css.match(/\.transaction-date-control input\[type="date"\]\s*\{([^}]*)\}/s)?.[1] || "";
+          ["position: absolute", "inset: 0", "display: block", "width: 100%", "min-width: 0", "max-width: 100%", "height: 100%", "box-sizing: border-box", "margin: 0", "padding: 0", "opacity: 0", "cursor: pointer"].forEach(rule => {
+            if (!input.includes(rule)) throw new Error(`transaction native Date input 缺少：${rule}`);
+          });
+          if (/display:\s*none|visibility:\s*hidden|pointer-events:\s*none/.test(input)) throw new Error("transaction native Date input 不再可互動");
+          if (!css.includes(".transaction-date-control:focus-within")) throw new Error("transaction Date 缺少 focus indicator");
         });
         test("History partition 不修改資料源或現行會計結果", () => {
           const state = Core.createEmptyState();
