@@ -39,6 +39,84 @@
 
   globalThis.LifeCalibrationObligationUX = { resolveObligationFormMode };
 
+  function dateKeyParts(dateKey) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey || ""));
+    if (!match) return null;
+    const parts = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+    const date = new Date(parts.year, parts.month - 1, parts.day, 12);
+    if (date.getFullYear() !== parts.year || date.getMonth() !== parts.month - 1 || date.getDate() !== parts.day) return null;
+    return parts;
+  }
+
+  function localDateFromKey(dateKey) {
+    const parts = dateKeyParts(dateKey);
+    return parts ? new Date(parts.year, parts.month - 1, parts.day, 12) : null;
+  }
+
+  function localKeyFromDate(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function addLocalDays(dateKey, days) {
+    const date = localDateFromKey(dateKey);
+    if (!date) return "";
+    date.setDate(date.getDate() + Number(days));
+    return localKeyFromDate(date);
+  }
+
+  function mondayKey(dateKey) {
+    const date = localDateFromKey(dateKey);
+    if (!date) return "";
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    return localKeyFromDate(date);
+  }
+
+  function sortTransactionsNewest(transactions) {
+    return [...transactions].sort((a, b) => String(b.occurredOn).localeCompare(String(a.occurredOn)));
+  }
+
+  function partitionMoneyTransactions(transactions, currentDayKey) {
+    const recentStart = addLocalDays(currentDayKey, -6);
+    if (!recentStart) throw new Error("Invalid current date key");
+    const recent = [];
+    const history = [];
+    const future = [];
+    sortTransactionsNewest(transactions).forEach(transaction => {
+      const occurredOn = String(transaction.occurredOn || "");
+      if (occurredOn > currentDayKey) future.push(transaction);
+      else if (occurredOn >= recentStart) recent.push(transaction);
+      else history.push(transaction);
+    });
+    const weeklyMap = new Map();
+    history.forEach(transaction => {
+      const startKey = mondayKey(transaction.occurredOn);
+      const group = weeklyMap.get(startKey) || {
+        startKey,
+        endKey: addLocalDays(startKey, 6),
+        transactions: []
+      };
+      group.transactions.push(transaction);
+      weeklyMap.set(startKey, group);
+    });
+    const weeks = [...weeklyMap.values()].sort((a, b) => b.startKey.localeCompare(a.startKey));
+    return { recentStart, recent, future, history, weeks };
+  }
+
+  function formatHistoryWeekRange(startKey, endKey) {
+    const start = dateKeyParts(startKey);
+    const end = dateKeyParts(endKey);
+    if (!start || !end) return "";
+    if (start.year === end.year) return `${start.month}/${start.day}–${end.month}/${end.day}`;
+    return `${start.month}/${start.day}/${start.year}–${end.month}/${end.day}/${end.year}`;
+  }
+
+  globalThis.LifeCalibrationMoneyHistoryUX = Object.freeze({
+    addLocalDays,
+    mondayKey,
+    partitionMoneyTransactions,
+    formatHistoryWeekRange
+  });
+
   const RuntimeCore = globalThis.LifeCalibrationCore;
   const appRoot = globalThis.document?.getElementById("app");
   if (!RuntimeCore) {
@@ -366,38 +444,80 @@
     }).join("");
   }
 
+  const transactionTypeLabel = { expense: "Expense", income: "Income", transfer: "Transfer" };
+
+  function transactionMarkup(transaction, dayKey, autoPaidEventIds) {
+    const displayName = transaction.type === "expense"
+      ? RuntimeCore.transactionDisplayName(transaction)
+      : (transaction.title || transaction.incomeSource || transactionTypeLabel[transaction.type]);
+    return `
+      <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
+        <summary><span>${escapeHtml(displayName)}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
+        <div class="transaction-editor">
+          <div class="inline-fields">
+            <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
+            <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
+          </div>
+          <label class="field"><span>Date</span><input class="record-input" type="date" value="${escapeHtml(transaction.occurredOn || dayKey)}" data-transaction-field="occurredOn"></label>
+          ${transaction.type === "expense" ? `
+            <label class="field"><span>Item</span><input class="record-input" type="text" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
+            <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>
+          ` : `<label class="field"><span>Title (optional)</span><input class="record-input" type="text" value="${escapeHtml(transaction.title || "")}" data-transaction-field="title"></label>`}
+          <button type="button" class="record-remove" data-remove-transaction="${escapeHtml(transaction.id)}">Delete</button>
+        </div>
+      </details>`;
+  }
+
+  function transactionDaysMarkup(transactions, autoPaidEventIds) {
+    const groups = sortTransactionsNewest(transactions).reduce((result, transaction) => {
+      (result[transaction.occurredOn] ||= []).push(transaction);
+      return result;
+    }, {});
+    return Object.entries(groups).map(([dayKey, items]) => `
+      <section class="transaction-day" aria-label="${escapeHtml(dayKey)}">
+        <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
+        ${items.map(transaction => transactionMarkup(transaction, dayKey, autoPaidEventIds)).join("")}
+      </section>`).join("");
+  }
+
   function renderTransactions() {
-    const transactions = RuntimeCore.allTransactions(state).sort((a, b) => String(b.occurredOn).localeCompare(String(a.occurredOn)));
+    const transactions = RuntimeCore.allTransactions(state);
     if (!transactions.length) {
       elements["transaction-list"].innerHTML = '<div class="empty-state"><strong>Nothing logged yet.</strong>Add the first transaction above.</div>';
       return;
     }
-    const groups = transactions.reduce((result, transaction) => {
-      (result[transaction.occurredOn] ||= []).push(transaction);
-      return result;
-    }, {});
-    const typeLabel = { expense: "Expense", income: "Income", transfer: "Transfer" };
+    const view = partitionMoneyTransactions(transactions, todayKey);
     // Auto-paid 標記：交易上的 eventId 指到狀態為 auto-paid 的事件就標。純衍生，不新增欄位。
     const autoPaidEventIds = new Set(state.events.filter(event => event.status === "auto-paid").map(event => event.id));
-    elements["transaction-list"].innerHTML = Object.entries(groups).map(([dayKey, items]) => `
-      <section class="transaction-day" aria-label="${escapeHtml(dayKey)}">
-        <p class="transaction-date">${escapeHtml(formatDisplayDate(dayKey))}</p>
-        ${items.map(transaction => `
-          <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
-            <summary><span>${escapeHtml(transaction.type === "expense" ? RuntimeCore.transactionDisplayName(transaction) : (transaction.title || transaction.incomeSource || typeLabel[transaction.type]))}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
-            <div class="transaction-editor">
-              <div class="inline-fields">
-                <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
-                <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
+    const recentEmptyDetail = view.history.length
+      ? "Older entries remain in Weekly History."
+      : "Future entries are shown below.";
+    const recentMarkup = view.recent.length
+      ? transactionDaysMarkup(view.recent, autoPaidEventIds)
+      : `<div class="empty-state"><strong>No recent transactions.</strong>${recentEmptyDetail}</div>`;
+    const futureMarkup = view.future.length ? `
+      <section class="transaction-subsection" aria-labelledby="future-transactions-heading">
+        <p id="future-transactions-heading" class="transaction-subheading">FUTURE</p>
+        ${transactionDaysMarkup(view.future, autoPaidEventIds)}
+      </section>` : "";
+    const historyMarkup = view.weeks.length ? `
+      <section class="transaction-subsection" aria-labelledby="weekly-history-heading">
+        <p id="weekly-history-heading" class="transaction-subheading">WEEKLY HISTORY</p>
+        <div class="weekly-history-list">
+          ${view.weeks.map(week => `
+            <details class="weekly-history-group">
+              <summary>
+                <span class="weekly-history-range">${escapeHtml(formatHistoryWeekRange(week.startKey, week.endKey))}</span>
+                <small>${week.transactions.length} ${week.transactions.length === 1 ? "transaction" : "transactions"}</small>
+                <span class="weekly-history-chevron" aria-hidden="true"></span>
+              </summary>
+              <div class="weekly-history-content">
+                ${transactionDaysMarkup(week.transactions, autoPaidEventIds)}
               </div>
-              ${transaction.type === "expense" ? `
-                <label class="field"><span>Item</span><input class="record-input" type="text" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
-                <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>
-              ` : `<label class="field"><span>Title (optional)</span><input class="record-input" type="text" value="${escapeHtml(transaction.title || "")}" data-transaction-field="title"></label>`}
-              <button type="button" class="record-remove" data-remove-transaction="${escapeHtml(transaction.id)}">Delete</button>
-            </div>
-          </details>`).join("")}
-      </section>`).join("");
+            </details>`).join("")}
+        </div>
+      </section>` : "";
+    elements["transaction-list"].innerHTML = recentMarkup + futureMarkup + historyMarkup;
   }
 
   function renderTransactionForm() {

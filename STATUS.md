@@ -1,20 +1,22 @@
-# TAKO v0.6.0｜現行狀態
+# TAKO v0.6.1｜現行狀態
 
 更新：2026-08-10
 
 ## 版本與 Git
 
-- 功能版本：**`0.6.0`**；本輪只修改 TASKS completion control 的呈現，未自行升功能版本。
-- 資產版本：**`0.4.10`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
-- 施工分支：`codex/compact-task-done-checkbox`；基線為最新 `master`：`425d110e57fd235a675dea7028d87e27e5f47587`。
+- 功能版本：**`0.6.1`**；Tako／GPT 已裁決 MONEY WEEKLY HISTORY 與 Date 重新歸組屬可見產品行為，因此由 `0.6.0` 升版。
+- 資產版本：**`0.4.11`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
+- 施工分支：`codex/money-weekly-transaction-history`；基線為最新 `master`：`942f17ba07ec968e2cad4584aea7e20a78f96b53`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #7 已合併；銀灰材質資產 `0.4.9` 已進 `master`。本分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #8 已合併；TASKS completion checkbox 與資產 `0.4.10` 已進 `master`。本分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
 - PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
 
-- **`test.html`：96／96 全數通過**；新增 RADAR／TO-DO completion checkbox、可見文字清零、Update mileage／delegation／Undo 保留及 44×44px 命中區回歸。
-- `node --check app.js`、`node --check sw.js` 通過；`data-core.js`、`data-store.js` 本輪保持不動。
+- **`test.html`：102／102 全數通過**；新增 rolling 7-day cutoff、Monday–Sunday／跨月／跨年週、無重複與完整聯集、排序、日期移動重新歸組、共用 editor／AUTO／display title 及帳務不變回歸。
+- `node --check app.js`、`node --check data-store.js`、`node --check data-core.js`、`node --check sw.js` 通過；schema 與 `data-core.js` 保持不動。
+- MONEY RECENT 現只顯示含今天在內最近 7 個日曆日；較舊 transaction 依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY，展開後仍依日顯示並使用同一套 transaction editor。修改 Date 後依 `occurredOn` 自動移到正確位置；future transaction 不會誤進 RECENT，仍保留可見。
+- Browser 以日期邊界 fixture 掃描 375／390／393 px：8/4 留在 RECENT、8/3 位於 `8/3–8/9` History、週摘要 48px 且不折行、預設收合、展開 editor 與日期移入／移回均通過；console error 與水平 overflow 均為 0，bottom nav 完整。
 - Browser 掃描 320／375／390／393／820 px：既有五頁矩陣無白屏、非預期水平 overflow 為 0、bottom nav 五格完整；本輪 TASKS 的 RADAR／TO-DO checkbox 在五個寬度皆為 44×44px 命中區與 21×21px 可見框，沒有可見 `Mark done`，console error 為 0。
 - PROJECTS 既有新增、展開、修改、切 PAUSED、兩階段 Delete 全部可用；TASKS 的 completion checkbox、recurring 下一期、MONEY 連動、Done／Undo、Update mileage、AUTO PAYMENT 分流、FROZEN、BOOKS 均保留。本輪實際操作月循環完成、下一期、交易與 Undo 通過。
 - 390×844 的 PROJECTS 外層為單一 ICE；project form 無 `.card`，expanded details 為透明、無 border、無 shadow，不形成 ICE → ICE。
@@ -25,7 +27,7 @@
 
 ### `#待補`
 
-- `#待補` 本輪 Draft PR 驗收／merge／部署後，以 iPhone PWA 確認 completion checkbox 的觸控與版面。
+- `#待補` 本輪 Draft PR 驗收／merge／部署後，以 iPhone PWA 確認 WEEKLY HISTORY summary／展開 editor；completion checkbox 與既有原生控制項的實機驗收亦仍待完成。
 - 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
 ## 資料與相容性

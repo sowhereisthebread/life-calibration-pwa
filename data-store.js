@@ -117,11 +117,22 @@
     }
 
     function updateTransaction(dayKey, transactionId, changes) {
-      const transaction = ensureDay(dayKey).transactions.find(item => item.id === transactionId);
+      const sourceDay = ensureDay(dayKey);
+      const transaction = sourceDay.transactions.find(item => item.id === transactionId);
       if (!transaction) return false;
       ["type", "amount", "category", "title", "note", "paymentMethod", "accountId", "incomeSource", "fromAccountId", "toAccountId", "eventId"].forEach(field => {
         if (Object.prototype.hasOwnProperty.call(changes, field)) transaction[field] = changes[field];
       });
+      if (Object.prototype.hasOwnProperty.call(changes, "occurredOn")) {
+        const targetDayKey = core.normalizeTransaction({ ...transaction, occurredOn: changes.occurredOn }, dayKey).occurredOn;
+        if (targetDayKey !== dayKey) {
+          sourceDay.transactions = sourceDay.transactions.filter(item => item.id !== transactionId);
+          transaction.occurredOn = targetDayKey;
+          const targetDay = ensureDay(targetDayKey);
+          targetDay.transactions.push(transaction);
+          targetDay.updatedAt = timestamp();
+        }
+      }
       trackCategory(transaction, false);
       persist(dayKey);
       return true;
