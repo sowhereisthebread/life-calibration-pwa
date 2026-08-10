@@ -48,6 +48,14 @@
     return parts;
   }
 
+  function formatDateInputDisplay(dateKey) {
+    const parts = dateKeyParts(dateKey);
+    if (!parts) return "";
+    return `${String(parts.year).padStart(4, "0")}/${String(parts.month).padStart(2, "0")}/${String(parts.day).padStart(2, "0")}`;
+  }
+
+  globalThis.LifeCalibrationTransactionDateUX = Object.freeze({ formatDateInputDisplay });
+
   function localDateFromKey(dateKey) {
     const parts = dateKeyParts(dateKey);
     return parts ? new Date(parts.year, parts.month - 1, parts.day, 12) : null;
@@ -450,6 +458,7 @@
     const displayName = transaction.type === "expense"
       ? RuntimeCore.transactionDisplayName(transaction)
       : (transaction.title || transaction.incomeSource || transactionTypeLabel[transaction.type]);
+    const occurredOn = transaction.occurredOn || dayKey;
     return `
       <details class="transaction-row" data-transaction-id="${escapeHtml(transaction.id)}" data-day-key="${escapeHtml(dayKey)}">
         <summary><span>${escapeHtml(displayName)}${autoPaidEventIds.has(transaction.eventId) ? '<span class="auto-tag">AUTO</span>' : ""}</span><strong>${escapeHtml(formatCurrency(transaction.amount))}</strong></summary>
@@ -458,7 +467,13 @@
             <label class="field"><span>Type</span><select class="record-input" data-transaction-field="type"><option value="expense" ${transaction.type === "expense" ? "selected" : ""}>Expense</option><option value="income" ${transaction.type === "income" ? "selected" : ""}>Income</option><option value="transfer" ${transaction.type === "transfer" ? "selected" : ""}>Transfer</option></select></label>
             <label class="field"><span>Amount</span><input class="record-input" type="number" min="0" step="1" inputmode="decimal" value="${escapeHtml(transaction.amount ?? 0)}" data-transaction-field="amount"></label>
           </div>
-          <label class="field"><span>Date</span><input class="record-input" type="date" value="${escapeHtml(transaction.occurredOn || dayKey)}" data-transaction-field="occurredOn"></label>
+          <label class="field">
+            <span>Date</span>
+            <span class="transaction-date-control">
+              <span class="transaction-date-display" aria-hidden="true">${escapeHtml(formatDateInputDisplay(occurredOn))}</span>
+              <input type="date" value="${escapeHtml(occurredOn)}" data-transaction-field="occurredOn" aria-label="Date">
+            </span>
+          </label>
           ${transaction.type === "expense" ? `
             <label class="field"><span>Item</span><input class="record-input" type="text" value="${escapeHtml(transaction.category || "")}" data-transaction-field="category"></label>
             <label class="field"><span>Paid with</span><select class="record-input" data-transaction-field="paymentMethod"><option value="" ${!transaction.paymentMethod ? "selected" : ""}>Unknown</option><option value="card" ${transaction.paymentMethod === "card" ? "selected" : ""}>Card</option><option value="cash" ${transaction.paymentMethod === "cash" ? "selected" : ""}>Cash</option><option value="bank" ${transaction.paymentMethod === "bank" ? "selected" : ""}>Bank</option></select></label>

@@ -273,6 +273,7 @@ h3 {
 .field textarea,
 .record-input,
 .date-control,
+.transaction-date-control,
 .money-input,
 .target-field,
 .brand-icon {
@@ -1957,8 +1958,61 @@ input[type="date"] {
 
 .transaction-editor {
   display: grid;
+  min-width: 0;
   gap: 10px;
   padding: 4px 0 14px;
+}
+
+.transaction-date-control {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 44px;
+  min-height: 44px;
+  align-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0 13px;
+  color: var(--ink);
+}
+
+.transaction-date-control:focus-within {
+  box-shadow:
+    inset 0 1px 2px rgba(38,48,56,.22),
+    inset 0 -1px 0 rgba(255,255,255,.5),
+    0 0 0 2px rgba(46,56,64,.28);
+}
+
+.transaction-date-display {
+  min-width: 0;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.transaction-date-control input[type="date"] {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  opacity: 0;
 }
 
 .transaction-subsection {
