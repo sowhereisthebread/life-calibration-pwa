@@ -6,9 +6,9 @@
 
 - 功能版本：**`0.6.2`**；Monthly／Yearly 的 Due 現為 calendar repeat 唯一 UI 操作入口，屬正式產品行為變更。
 - 資產版本：**`0.4.13`**；`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處一致。
-- 施工分支：`codex/calendar-repeat-due-source`；基線為最新 `master`：`a93fc0aa5270a531599f3a8c2355580014b46ef8`。
+- 正式分支：`master`；PR #11 merge commit：`f569d5a1ad35ddd18a48f1bd9fa2d4417b2caedd`。
 - 頂層導覽已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 已搬到 WORK 的 SESSIONS 後、SLEEP 前，TASKS 只保留 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #10 已合併；transaction Date iOS presentation／overflow 修正與資產 `0.4.12` 已進 `master`。本 Calendar Repeat 分支尚未 merge，正式網址仍由 `master` 的 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
+- PR #11 已合併；Calendar Repeat Due single source of truth、功能 `0.6.2` 與資產 `0.4.13` 已進正式 `master`，並由 `/(root)` 發布：<https://sowhereisthebread.github.io/life-calibration-pwa/>。
 - PR #5 已完成的弱網啟動、Safe Delete、Card payment／Auto payment 規則、獨立 AUTO PAYMENT 區與 linked MONEY title 均保留，本輪未改資料模型或功能規則。
 
 ## 驗收結果
@@ -24,13 +24,7 @@
 - 390×844 的 Design 5a 與 PWA 實際材質像素已比對；GROUND 四點相同或只差 1 RGB，ICE／ACT 相同或只差 0–2 RGB。偏暖根因是未版本化 `style.css` 可被舊 Service Worker／HTTP cache 沿用，不是 token 或 compositing。
 - Service Worker 已實測從同 origin 的 `0.4.8` 更新到 `0.4.9`；伺服器停止後，既有頁 reload 與新分頁啟動都能由 warm cache 完整載入，IBM Plex Mono 亦可用。
 - schema 維持 v3、localStorage key 維持 `lifeCalibrationData`；project、manual task、auto payment、frozen task、book 的 v3 JSON round trip 後 ID 與內容皆保留，沒有 migration。
-- Tako 已在 iPhone 真機確認銀灰頁面捲動正常、沒有背景跳動或接縫；`backdrop-filter`／fixed background 的捲動風險已通過使用者驗證。新 completion checkbox 與既有原生控制項仍需各自的部署後真機驗收。
-
-### `#待補`
-
-- `#待補` 本輪 Calendar Repeat Draft PR 仍待 Tako／GPT review、merge 與 deployment；本文件目前描述的是分支驗證結果，不代表正式 production 已更新。
-- `#待補` 本輪 Draft PR 驗收／merge／部署後，以 iPhone PWA 複驗 transaction Date 的原生 picker、固定 `YYYY/MM/DD` 與手機寬度零 overflow。
-- 其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
+- Tako 已完成本 Context 的 iPhone 最終驗收；銀灰捲動、TASKS completion checkbox、transaction Date 固定 `YYYY/MM/DD`／原生 picker／零 overflow，以及 Calendar Repeat Due single source of truth 均已結案。其餘未處理項目集中在 `HANDOFF.md` 第 4 節，本檔不重複列。
 
 ## 資料與相容性
 

@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（Calendar Repeat Due single source of truth 完成，待 Draft PR 驗收）
+更新：2026-08-10（Calendar Repeat Due single source of truth 已正式部署並完成驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,10 +59,10 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號為 `0.6.2`**（Calendar Repeat 的 UI editing semantics 是正式產品行為變更）、本任務 branch 的**資產版本號為 `0.4.13`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **功能版本號為 `0.6.2`**（Calendar Repeat 的 UI editing semantics 是正式產品行為變更）、正式 `master` 的**資產版本號為 `0.4.13`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
 - **`test.html` 110／110 全綠。**
 - 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #10 已合併，merge commit 為 `a93fc0aa5270a531599f3a8c2355580014b46ef8`；transaction Date iOS 修正與資產 `0.4.12` 已進 `master`。本輪分支 `codex/calendar-repeat-due-source` 以該 commit 為基線，尚未 merge 或部署。
+- PR #11 已合併，merge commit 為 `f569d5a1ad35ddd18a48f1bd9fa2d4417b2caedd`；Calendar Repeat Due single source of truth、功能 `0.6.2` 與資產 `0.4.13` 已進正式 `master` 並完成 GitHub Pages 部署。
 - Calendar Repeat 的 Monthly／Yearly 以 Due 為唯一 UI source of truth，不再顯示 Repeat day／Cycle day／Cycle month。使用者新建、切換進 calendar repeat 或真正修改 Due 時，分別同步內部 `cycle.day` 或 `cycle.month + cycle.day`；編輯器開啟後未修改系統 clamp 產生的 Due 時，既有 anchor 原樣保留。短月與閏年只改當期生成結果，不重新定義 anchor；`nextOccurrenceDate()`、schema v3、localStorage key 與 JSON 格式均未改。
 - MONEY 的 RECENT 只顯示含今天在內最近 7 個日曆日；更舊交易依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY。RECENT／WEEKLY HISTORY／FUTURE 共用同一套 transaction editor；Date 資料與原生 input value 維持 `YYYY-MM-DD`，可見介面固定顯示 `YYYY/MM/DD`，並由 transaction 專用 wrapper 限制 iOS 原生 input 的 intrinsic width。日期變更後仍由 `occurredOn` 重新歸組；沒有 schema、刪除、匯出入、帳務或統計規則變更。
 - TASKS 的人工完成入口（RADAR 與 TO-DO expanded）維持 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。`Update mileage`、completion handler、recurrence、MONEY transaction、Done／Undo 與 schema 都未變。
@@ -156,11 +156,10 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 | # | 項目 | 狀態 | 為什麼還沒動 |
 |---|---|---|---|
-| 1 | **MONEY transaction Date iPhone PWA 複驗** | 未驗證 | Tako 真機已確認本輪其他功能正常，唯一失敗為 transaction Date 的 locale 顯示與右側 overflow；本分支已修正並通過 Browser 裝置寬度驗證，仍需在 merge／部署後以 iPhone PWA 確認原生 picker、固定 `YYYY/MM/DD` 與零 overflow，不得只靠桌面 Browser 宣告通過 |
-| 2 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
-| 3 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
-| 4 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
-| 5 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
+| 1 | **一頁一顆 ACT** | 已決定暫不處理 | DATA 的 `Export JSON`、WORK 的 `Add schedule`／New project、TASKS 的多個表單送出鍵都是段落級主動作。要收斂成一頁一顆需重排頁面結構；留給 REVIEW／DATA 的後續 IA 一併裁決 |
+| 2 | **REVIEW / DATA 的資訊架構** | 未設計 | PROJECTS 搬入 WORK 與 TASKS 重組已完成；REVIEW／DATA 目前只有依材質判準套用，版面本身尚未經專門設計 |
+| 3 | **DEW 珠的尺寸** | 未定案 | 基準 `5a` 用 9px、`6a` 用 7px，現行取 9px。兩輪不一致，基準本身沒有裁決 |
+| 4 | **`index.html:7` 的 `<meta name="description">` 仍是中文** | 批次 C 新發現，未處理 | 內容為「手機優先、資料留在本機的人生記錄工具。」。它不是介面元素，不確定該不該套用「介面預設英文」的語言規則，待 Tako 裁決 |
 
 ---
 
