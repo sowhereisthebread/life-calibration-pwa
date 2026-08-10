@@ -2390,9 +2390,12 @@ input[type="time"] {
 
 .task-actions-secondary {
   display: grid;
-  grid-area: secondary;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.task-actions > .task-actions-secondary {
+  grid-area: secondary;
 }
 
 .task-actions-secondary .button {

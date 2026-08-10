@@ -1316,6 +1316,18 @@
           if (!visualRule.includes("width: 21px") || !visualRule.includes("height: 21px") || !visualRule.includes("border-radius: 5px")) throw new Error("completion checkbox 可見框不符合 compact 規格");
         });
 
+        test("TASKS secondary actions 的 named grid area 只套用於 task-actions wrapper", () => {
+          const styleRequest = new XMLHttpRequest();
+          styleRequest.open("GET", "./style.css?test=task-actions-secondary-scope", false);
+          styleRequest.send();
+          const css = styleRequest.responseText;
+          const sharedRule = css.match(/(?:^|\n)\.task-actions-secondary\s*\{([^}]*)\}/)?.[1] || "";
+          const scopedRule = css.match(/(?:^|\n)\.task-actions\s*>\s*\.task-actions-secondary\s*\{([^}]*)\}/)?.[1] || "";
+          if (!sharedRule) throw new Error("缺少通用 task-actions-secondary rule");
+          if (/grid-area\s*:/.test(sharedRule)) throw new Error("通用 task-actions-secondary rule 不得指定 named grid area");
+          if (!/grid-area\s*:\s*secondary\s*;/.test(scopedRule)) throw new Error("task-actions 直屬 secondary actions 缺少 grid-area: secondary");
+        });
+
         test("Auto payment 有獨立區域且不混入人工 TASK 清單", () => {
           const indexRequest = new XMLHttpRequest();
           indexRequest.open("GET", "./index.html", false);
