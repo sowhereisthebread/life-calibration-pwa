@@ -1,6 +1,6 @@
 # HANDOFF｜TAKO 工程現況
 
-更新：2026-08-10（MONEY transaction Date iOS presentation／overflow 修正完成，待 Draft PR 驗收）
+更新：2026-08-10（Calendar Repeat Due single source of truth 完成，待 Draft PR 驗收）
 
 **這是單一現況文件，不是日誌。** 只寫三種東西：接手前非知道不可的事、與視覺基準的刻意偏離、還沒處理的事。
 「改了哪些檔案、各改了什麼」由 git history 承擔，本檔不留附錄也不留歷史版本。
@@ -59,10 +59,11 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 
 ## 1. 現行工程狀態
 
-- **功能版本號維持 `0.6.1`**（本輪只修正既有 Date editor 的 iOS presentation／overflow）、本任務 branch 的**資產版本號為 `0.4.12`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
-- **`test.html` 105／105 全綠。**
+- **功能版本號為 `0.6.2`**（Calendar Repeat 的 UI editing semantics 是正式產品行為變更）、本任務 branch 的**資產版本號為 `0.4.13`**。`CACHE_NAME`、`index.html` 與 `sw.js` 內的 `style.css?v=`／`app.js?v=` 五處相等；規則見 `DEPLOY.md`〈兩個版本號，各自跳各自的〉。
+- **`test.html` 110／110 全綠。**
 - 頂層五頁已改為 `MONEY / WORK / TASKS / REVIEW / DATA`；PROJECTS 以單一 ICE 主卡搬入 WORK 的 SESSIONS 後、SLEEP 前，TASKS 依序為 RADAR／TO-DO／AUTO PAYMENT／FROZEN／BOOKS。
-- PR #9 已合併，merge commit 為 `f2fe28f4cb463887f73347a3001710c69072959a`；MONEY WEEKLY HISTORY 與資產 `0.4.11` 已進 `master`。本輪分支 `codex/fix-ios-transaction-date-control` 以該 commit 為基線，尚未 merge 或部署。
+- PR #10 已合併，merge commit 為 `a93fc0aa5270a531599f3a8c2355580014b46ef8`；transaction Date iOS 修正與資產 `0.4.12` 已進 `master`。本輪分支 `codex/calendar-repeat-due-source` 以該 commit 為基線，尚未 merge 或部署。
+- Calendar Repeat 的 Monthly／Yearly 以 Due 為唯一 UI source of truth，不再顯示 Repeat day／Cycle day／Cycle month。使用者新建、切換進 calendar repeat 或真正修改 Due 時，分別同步內部 `cycle.day` 或 `cycle.month + cycle.day`；編輯器開啟後未修改系統 clamp 產生的 Due 時，既有 anchor 原樣保留。短月與閏年只改當期生成結果，不重新定義 anchor；`nextOccurrenceDate()`、schema v3、localStorage key 與 JSON 格式均未改。
 - MONEY 的 RECENT 只顯示含今天在內最近 7 個日曆日；更舊交易依 local Monday–Sunday 進入預設收合的 WEEKLY HISTORY。RECENT／WEEKLY HISTORY／FUTURE 共用同一套 transaction editor；Date 資料與原生 input value 維持 `YYYY-MM-DD`，可見介面固定顯示 `YYYY/MM/DD`，並由 transaction 專用 wrapper 限制 iOS 原生 input 的 intrinsic width。日期變更後仍由 `occurredOn` 重新歸組；沒有 schema、刪除、匯出入、帳務或統計規則變更。
 - TASKS 的人工完成入口（RADAR 與 TO-DO expanded）維持 compact completion checkbox；可見框 21px、按鈕命中區 44×44px，並保留動態 `aria-label`。`Update mileage`、completion handler、recurrence、MONEY transaction、Done／Undo 與 schema 都未變。
 - 同引擎 390×844 實測證明：最新 master 的 GROUND、ICE、GLASS、DEBOSS、ACT token 與 computed style 已對齊 Design 5a，GROUND 四點逐像素相同或只差 1 RGB；偏暖不是色票或 body 合成座標造成。
@@ -74,6 +75,7 @@ SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 - 環境：本機 `python -m http.server` + Browser runtime，非 `file://` 直開；Service Worker 測試要使用乾淨 origin，避免舊 localhost 快取混入不同資產版本。
 - 五個分頁 × 320／375／390／393／820 px 共 25 組：console 無 error、無水平捲動、bottom nav 五格完整。
 - TASKS completion checkbox 另以 320／375／390／393／820 px 實測：RADAR 與 TO-DO expanded 的按鈕皆為 44×44px、可見框 21×21px、沒有可見 `Mark done`，`Update mileage` 保留，五個寬度皆無水平 overflow。月循環完成後下一期、MONEY 交易、Done 與 Undo 已逐步操作通過，console error 為 0。
+- Calendar Repeat 以 TASKS runtime 實際驗證 New／Existing Monthly、31 日短月 unchanged-save、Yearly re-anchor、缺 Due 中文阻擋、After N days 與 Auto payment；Auto-paid transaction 與下一期均保留。375／390／393 px 不顯示手動 anchor 欄位、水平 overflow 為 0、console error 為 0。
 - MONEY history 以含 RECENT／WEEKLY HISTORY／FUTURE 的實際 transaction fixture 驗證；375／390／393 px 共 9 個 transaction Date control 均顯示 `YYYY/MM/DD`、高度 44px、wrapper 與整頁水平 overflow 為 0，透明原生 input 仍為 `display:block`、`pointer-events:auto`。直接頁面把 `2026-08-03` 改為 `2026-08-10` 後移入 RECENT，再改為 `2026-08-20` 後移入 FUTURE；console error 為 0。
 - **寬度掃描一律要納入 390 與 393** —— 那是 iPhone 14／15／16（390）與 15 Pro／16 Pro（393、402）的實際寬度。批次 A 之前只掃 320／375／820，正好漏掉這一段。
 - 對比實測：截圖回灌 canvas 取面色眾數，避開文字筆畫。**取值位置必須是該 token 可能出現的最暗合成背景**，不是卡片頂端（見架構.md 第五章「token 的色碼必須在最暗合成背景上取值」）。

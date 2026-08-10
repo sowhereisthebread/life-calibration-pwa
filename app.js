@@ -1,24 +1,51 @@
 (() => {
   "use strict";
 
-  function inferDayFromDue(dueDate) {
-    const match = /^\d{4}-\d{2}-(\d{2})$/.exec(String(dueDate || ""));
+  function calendarDueAnchor(dueDate) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dueDate || ""));
     if (!match) return null;
-    const day = Number(match[1]);
-    return day >= 1 && day <= 31 ? day : null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const parsed = new Date(year, month - 1, day, 12);
+    if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+    return { month, day };
   }
 
-  function monthlyRepeatFieldState({ cycleType, dueDate, preserveMonthlyDay }) {
-    const isMonthly = cycleType === "monthly";
-    const inferredDay = isMonthly && !preserveMonthlyDay ? inferDayFromDue(dueDate) : null;
-    return {
-      label: isMonthly ? "Repeat day" : "Cycle day",
-      hidden: isMonthly ? inferredDay !== null : cycleType !== "yearly",
-      inferredDay
+  function calendarRepeatCycleState({
+    cycleType,
+    dueDate,
+    existingCycle = null,
+    originalCycleType = "",
+    originalDueDate = null,
+    intervalDays = 1
+  }) {
+    const hasExistingCycle = Boolean(existingCycle && typeof existingCycle === "object");
+    const cycle = {
+      type: cycleType,
+      day: Math.min(31, Math.max(1, Number(existingCycle?.day) || 1)),
+      month: Math.min(12, Math.max(1, Number(existingCycle?.month) || 1)),
+      days: Math.max(1, Number(intervalDays) || 1)
     };
+    if (cycleType !== "monthly" && cycleType !== "yearly") {
+      return { cycle, reanchored: false, error: "" };
+    }
+
+    const anchor = calendarDueAnchor(dueDate);
+    if (!anchor) {
+      return { cycle: null, reanchored: false, error: "Monthly／Yearly 重複需要先設定 Due 日期。" };
+    }
+    const reanchored = !hasExistingCycle
+      || originalCycleType !== cycleType
+      || String(originalDueDate || "") !== String(dueDate || "");
+    if (reanchored) {
+      cycle.day = anchor.day;
+      if (cycleType === "yearly") cycle.month = anchor.month;
+    }
+    return { cycle, reanchored, error: "" };
   }
 
-  globalThis.LifeCalibrationMonthlyRepeatUX = { inferDayFromDue, monthlyRepeatFieldState };
+  globalThis.LifeCalibrationCalendarRepeatUX = { calendarDueAnchor, calendarRepeatCycleState };
 
   function resolveObligationFormMode({ handling, completionMode, paymentMethod, changedField = "" }) {
     let nextHandling = handling === "auto" ? "auto" : "manual";
@@ -158,7 +185,6 @@
   let modalReturnFocus = null;
   let editingObligationId = null;
   let editingEventId = null;
-  let preserveMonthlyCycleDay = false;
   let mileageObligationId = null;
   let mileageReturnFocus = null;
   let expandedProjectId = null;
@@ -180,7 +206,7 @@
       "project-next-step", "cancel-project", "project-list", "metric-sleep", "metric-work", "metric-expense",
       "tasks-radar", "tasks-radar-list", "quick-task-form", "quick-task-name", "obligation-form",
       "obligation-form-title", "cancel-obligation-edit", "obligation-submit", "obligation-name", "obligation-cycle", "obligation-due",
-      "obligation-cycle-day-field", "obligation-cycle-day", "obligation-cycle-month-field", "obligation-cycle-month", "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
+      "obligation-interval-field", "obligation-interval", "obligation-amount", "obligation-handling",
       "obligation-completion-mode", "obligation-payment-method-field", "obligation-payment-method", "obligation-transfer-fields", "obligation-status", "obligation-note", "mileage-fields",
       "obligation-last-mileage", "obligation-current-mileage", "obligation-mileage-updated", "obligation-reminder-days", "obligation-threshold",
       "task-dated", "task-later", "task-later-list", "task-no-date", "task-done", "auto-payment-list", "book-form", "book-name", "book-list", "frozen-list", "frozen-count",
@@ -980,20 +1006,8 @@
 
   function syncObligationCycleFields() {
     const cycle = elements["obligation-cycle"].value;
-    const monthlyState = monthlyRepeatFieldState({
-      cycleType: cycle,
-      dueDate: elements["obligation-due"].value,
-      preserveMonthlyDay: preserveMonthlyCycleDay
-    });
-    const dayLabel = elements["obligation-cycle-day-field"].querySelector("span");
-    if (dayLabel) dayLabel.textContent = monthlyState.label;
-    if (monthlyState.inferredDay !== null) {
-      elements["obligation-cycle-day"].value = String(monthlyState.inferredDay);
-    }
     elements["mileage-fields"].hidden = cycle !== "mileage";
     elements["obligation-due"].disabled = cycle === "none" || cycle === "mileage";
-    elements["obligation-cycle-day-field"].hidden = monthlyState.hidden;
-    elements["obligation-cycle-month-field"].hidden = cycle !== "yearly";
     elements["obligation-interval-field"].hidden = cycle !== "after_days";
     syncDateControls();
   }
@@ -1018,10 +1032,7 @@
   function resetObligationForm({ close = false } = {}) {
     editingObligationId = null;
     editingEventId = null;
-    preserveMonthlyCycleDay = false;
     elements["obligation-form"].reset();
-    elements["obligation-cycle-day"].value = "1";
-    elements["obligation-cycle-month"].value = "1";
     elements["obligation-interval"].value = "1";
     elements["obligation-reminder-days"].value = "15";
     elements["obligation-threshold"].value = "10000";
@@ -1045,12 +1056,9 @@
       || null;
     editingObligationId = obligation.id;
     editingEventId = currentEvent?.id || null;
-    preserveMonthlyCycleDay = obligation.cycle.type === "monthly";
     elements["obligation-name"].value = obligation.name;
     elements["obligation-cycle"].value = obligation.cycle.type;
     elements["obligation-due"].value = currentEvent?.dueDate || "";
-    elements["obligation-cycle-day"].value = String(obligation.cycle.day || 1);
-    elements["obligation-cycle-month"].value = String(obligation.cycle.month || 1);
     elements["obligation-interval"].value = String(obligation.cycle.days || 1);
     elements["obligation-amount"].value = obligation.amount ?? "";
     elements["obligation-handling"].value = obligation.handling;
@@ -1386,8 +1394,6 @@
     });
 
     elements["obligation-cycle"].addEventListener("change", syncObligationCycleFields);
-    elements["obligation-due"].addEventListener("input", syncObligationCycleFields);
-    elements["obligation-due"].addEventListener("change", syncObligationCycleFields);
     elements["obligation-completion-mode"].addEventListener("change", () => syncObligationCompletionFields("completion"));
     elements["obligation-amount"].addEventListener("input", () => {
       if (elements["obligation-completion-mode"].value === "transfer") return;
@@ -1425,12 +1431,22 @@
         showToast("目前卡費繳款是唯一的帳戶移轉義務；自動扣款請使用 Automatic + Expense。", 5000);
         return;
       }
-      const cycle = {
-        type: cycleType,
-        day: Math.min(31, Math.max(1, Number(elements["obligation-cycle-day"].value) || 1)),
-        month: Math.min(12, Math.max(1, Number(elements["obligation-cycle-month"].value) || 1)),
-        days: Math.max(1, Number(elements["obligation-interval"].value) || 1)
-      };
+      const existingObligation = state.obligations.find(item => item.id === editingObligationId) || null;
+      const originalEvent = state.events.find(item => item.id === editingEventId && item.status === "pending") || null;
+      const cycleResult = calendarRepeatCycleState({
+        cycleType,
+        dueDate,
+        existingCycle: existingObligation?.cycle || null,
+        originalCycleType: existingObligation?.cycle.type || "",
+        originalDueDate: originalEvent?.dueDate || null,
+        intervalDays: elements["obligation-interval"].value
+      });
+      if (cycleResult.error) {
+        showToast(cycleResult.error, 5000);
+        elements["obligation-due"].focus();
+        return;
+      }
+      const cycle = cycleResult.cycle;
       const amount = elements["obligation-amount"].value === "" ? null : Math.max(0, Number(elements["obligation-amount"].value) || 0);
       const obligation = {
         name: elements["obligation-name"].value.trim() || "UNNAMED",
