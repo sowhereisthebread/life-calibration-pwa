@@ -14,7 +14,7 @@
 視覺層的唯一依據是 `_design-reference.html`（Design 端的實際渲染成品）。**2026-08-06 移出本工作目錄**，現位於 repo 的兄弟目錄：
 
 ```
-C:\Users\user\OneDrive\文件\Claude\Projects\_backups\_design-reference.html
+../_backups/_design-reference.html   （相對於本 repo 根目錄）
 109,645 bytes
 SHA-256 6044936127a0f79812d2661950127f6fe30f85d11fb844707634c5785f3426a6
 ```

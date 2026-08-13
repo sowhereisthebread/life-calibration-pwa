@@ -24,12 +24,12 @@ TAKO 是手機優先、資料留在本機的人生主控 PWA，用來快速記�
 - macOS／Linux 本機：執行 `./start.sh`，再開啟畫面顯示的網址。
 - 也可直接開啟 `index.html`，但它與正式網址、localhost 是不同 origin，資料彼此獨立。
 
-正式版本與工程狀態見 [STATUS.md](STATUS.md)；部署、更新及 iPhone 安裝方式見 [DEPLOY.md](DEPLOY.md)；產品正典位於外層知識庫的 `TAKO/TAKO_架構.md`。
+正式版本與工程狀態見 [STATUS.md](STATUS.md)；部署、更新及 iPhone 安裝方式見 [DEPLOY.md](DEPLOY.md)；產品正典位於外層 TAKO 目錄的 `../TAKO_架構.md`。
 
 ## 視覺層
 
 唯一視覺基準是 `_design-reference.html`（Design 端的實際渲染成品，TURN 6 最新、TURN 5 的 `5a` 是唯一完整頁面模型）。**它已移出本工作目錄**，取得方式見 [HANDOFF.md](HANDOFF.md) 第 0 節。
-文字條款在外層知識庫的 `TAKO/TAKO_架構.md` 第五章：色彩 token、六層材質、尺寸階層、字體、語言規則。
+文字條款在外層 TAKO 目錄的 `../TAKO_架構.md` 第五章：色彩 token、六層材質、尺寸階層、字體、語言規則。
 
 動 `style.css` 或版面前先讀這兩份。兩者衝突時的順位：**`_design-reference.html` ＞ `TAKO_架構.md` 第五章**。基準勝出時要回寫架構檔，不是讓兩邊各自為政。
 

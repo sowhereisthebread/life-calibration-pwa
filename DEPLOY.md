@@ -4,8 +4,9 @@
 
 ## 發布範圍與資料安全
 
-- 只發布這個獨立 repo：`C:\Users\user\OneDrive\文件\Claude\Projects\life-calibration`
-- 不要選上一層 `C:\Users\user\OneDrive\文件\Claude\Projects`；那是整個知識庫工作區，不是本 App 的 repo。
+- 本文件的路徑一律以本機工作區根目錄 `<工作區>` 為基準；`<工作區>` 的實際位置依機器而定，不寫進這份公開文件。
+- 只發布這個獨立 repo：`<工作區>\TAKO\life-calibration`
+- 不要選上一層 `<工作區>\TAKO`，也不要選再上層 `<工作區>`；那是整個知識庫工作區，不是本 App 的 repo。
 - 這個 repo 只含 App 程式碼、圖示、測試與說明文件，不含任何日常記錄，因此可設為 **public**。
 - 日常記錄只存在手機或電腦瀏覽器的本機空間，不會因發布程式碼而上傳到 GitHub。
 - **永遠不要把 App 匯出的 JSON 備份或 CSV 提交到這個 repo。** 這些檔案含有個人記錄；repo 的 `.gitignore` 已加入防呆規則，但提交前仍要檢查檔案清單。
@@ -19,7 +20,7 @@
 1. 開啟 GitHub Desktop，登入你的 GitHub 帳號。
 2. 點左上角 **File → Add local repository…**。
 3. 在 Local path 只選擇：
-   `C:\Users\user\OneDrive\文件\Claude\Projects\life-calibration`
+   `<工作區>\TAKO\life-calibration`
 4. 按 **Add repository**。確認 GitHub Desktop 顯示的 repo 是 `life-calibration`，且檔案清單沒有交易系統、產業鏈或其他知識庫目錄。
    - 若 GitHub Desktop 顯示 `unsafe repository` 或 `dubious ownership`，先停止並回到 Codex 處理精確的 App repo 信任設定；不要信任上一層工作區，也不要使用涵蓋所有 repo 的萬用設定。
 5. 點上方 **Publish repository**。
